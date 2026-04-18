@@ -10,6 +10,23 @@ SQLITE_DB="$ROOT/shyfty.db"
 BACKEND_PORT=8001
 WEB_PORT=5175
 BACKEND_RELOAD="${BACKEND_RELOAD:-1}"
+IPHONE_API_HOST="${SHYFTY_LAN_IP:-192.168.0.28}"
+
+detect_lan_ip() {
+  if [[ -n "${SHYFTY_LAN_IP:-}" ]]; then
+    printf '%s\n' "$SHYFTY_LAN_IP"
+    return
+  fi
+
+  local candidate=""
+  for iface in en0 en1; do
+    candidate="$(ipconfig getifaddr "$iface" 2>/dev/null || true)"
+    if [[ -n "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return
+    fi
+  done
+}
 
 kill_pidfile() {
   local pidfile="$1"
@@ -26,11 +43,11 @@ kill_pidfile() {
 
   if kill -0 "$pid" >/dev/null 2>&1; then
     echo "Killing process from $pidfile: $pid"
-    kill "$pid" || true
+    kill "$pid" >/dev/null 2>&1 || true
     sleep 1
     if kill -0 "$pid" >/dev/null 2>&1; then
       echo "Force killing process from $pidfile: $pid"
-      kill -9 "$pid" || true
+      kill -9 "$pid" >/dev/null 2>&1 || true
     fi
   fi
 
@@ -43,12 +60,12 @@ kill_port() {
   pids="$(lsof -ti tcp:"$port" || true)"
   if [[ -n "$pids" ]]; then
     echo "Killing processes on port $port: $pids"
-    kill $pids || true
+    kill $pids >/dev/null 2>&1 || true
     sleep 1
     pids="$(lsof -ti tcp:"$port" || true)"
     if [[ -n "$pids" ]]; then
       echo "Force killing processes on port $port: $pids"
-      kill -9 $pids || true
+      kill -9 $pids >/dev/null 2>&1 || true
     fi
   fi
 }
@@ -60,6 +77,14 @@ kill_port "$BACKEND_PORT"
 kill_port "$WEB_PORT"
 
 mkdir -p "$ROOT/.run"
+
+LAN_IP="$(detect_lan_ip || true)"
+LOCAL_API_URL="http://127.0.0.1:$BACKEND_PORT/api"
+DETECTED_API_URL=""
+if [[ -n "$LAN_IP" ]]; then
+  DETECTED_API_URL="http://$LAN_IP:$BACKEND_PORT/api"
+fi
+IPHONE_API_URL="http://$IPHONE_API_HOST:$BACKEND_PORT/api"
 
 echo "Starting backend on :$BACKEND_PORT ..."
 cd "$BACKEND_DIR"
@@ -131,8 +156,16 @@ fi
 
 echo
 echo "Started:"
-echo "  Backend: http://192.168.0.28:$BACKEND_PORT/api"
+echo "  Backend (simulator/web): $LOCAL_API_URL"
+echo "  Backend (iPhone/Wi-Fi): $IPHONE_API_URL"
 echo "  Web:     http://localhost:$WEB_PORT"
+if [[ -n "$DETECTED_API_URL" ]] && [[ "$DETECTED_API_URL" != "$IPHONE_API_URL" ]]; then
+  echo
+  echo "Detected LAN API URL differs from the iPhone app setting:"
+  echo "  detected: $DETECTED_API_URL"
+  echo "  iPhone:   $IPHONE_API_URL"
+  echo "Set SHYFTY_LAN_IP to override the printed iPhone URL if your Mac IP changes."
+fi
 echo
 echo "Logs:"
 echo "  tail -f $ROOT/.run/backend.log"

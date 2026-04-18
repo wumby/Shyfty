@@ -2,19 +2,26 @@ import SwiftUI
 
 struct FavoritesView: View {
     var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "star.slash")
-                .font(.system(size: 36))
-                .foregroundStyle(.secondary)
-            Text("Favorites stub")
-                .font(.title3.weight(.semibold))
-            Text("Pin favorite players here in the next iteration.")
-                .foregroundStyle(.secondary)
+        ZStack {
+            ShyftyBackground()
+
+            VStack(spacing: 16) {
+                Image(systemName: "star.slash")
+                    .font(.system(size: 36))
+                    .foregroundStyle(ShyftyTheme.muted)
+                Text("Saved stub")
+                    .shyftyHeadline(28)
+                Text("Keep saved players and signals here in the next iteration.")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(ShyftyTheme.muted)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(24)
+            .shyftyPanel()
+            .padding(14)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
-        .background(Color.black)
-        .navigationTitle("Favorites")
+        .navigationTitle("Saved")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(.hidden, for: .navigationBar)
     }
 }
-

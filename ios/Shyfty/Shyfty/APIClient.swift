@@ -153,7 +153,7 @@ final class APIClient {
             let baseURL = URL(string: configuredBaseURL),
             !configuredBaseURL.isEmpty
         else {
-            preconditionFailure("Missing ShyftyAPIBaseURL in Info.plist for physical-device builds")
+            preconditionFailure("Missing ShyftyAPIBaseURL in Info.plist for physical-device builds. Run scripts/start-dev.sh to refresh the local debug host config.")
         }
         return baseURL
 #endif

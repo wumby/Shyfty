@@ -18,6 +18,17 @@
 		A10000000000000000000009 /* SignalCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000009 /* SignalCardView.swift */; };
 		A10000000000000000000010 /* FilterChipsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000010 /* FilterChipsView.swift */; };
 		A10000000000000000000011 /* SignalFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000011 /* SignalFormatting.swift */; };
+		A10000000000000000000014 /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000014 /* AuthViewModel.swift */; };
+		A10000000000000000000015 /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000015 /* AccountView.swift */; };
+		A10000000000000000000016 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000016 /* AuthView.swift */; };
+		A10000000000000000000018 /* ShyftyTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000018 /* ShyftyTheme.swift */; };
+		A10000000000000000000019 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000019 /* MainTabView.swift */; };
+		A10000000000000000000020 /* HomeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000020 /* HomeViewModel.swift */; };
+		A10000000000000000000021 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000021 /* HomeView.swift */; };
+		A10000000000000000000022 /* SignalsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000022 /* SignalsView.swift */; };
+		A10000000000000000000023 /* CompactSignalCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000023 /* CompactSignalCardView.swift */; };
+		A10000000000000000000024 /* SignalFilterSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000024 /* SignalFilterSheetView.swift */; };
+		A10000000000000000000025 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000025 /* ProfileView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -35,6 +46,17 @@
 		A20000000000000000000011 /* SignalFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignalFormatting.swift; sourceTree = "<group>"; };
 		A20000000000000000000012 /* Info-Debug.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Info-Debug.plist"; sourceTree = "<group>"; };
 		A20000000000000000000013 /* Info-Release.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Info-Release.plist"; sourceTree = "<group>"; };
+		A20000000000000000000014 /* AuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewModel.swift; sourceTree = "<group>"; };
+		A20000000000000000000015 /* AccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountView.swift; sourceTree = "<group>"; };
+		A20000000000000000000016 /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
+		A20000000000000000000018 /* ShyftyTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShyftyTheme.swift; sourceTree = "<group>"; };
+		A20000000000000000000019 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
+		A20000000000000000000020 /* HomeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeViewModel.swift; sourceTree = "<group>"; };
+		A20000000000000000000021 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		A20000000000000000000022 /* SignalsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignalsView.swift; sourceTree = "<group>"; };
+		A20000000000000000000023 /* CompactSignalCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactSignalCardView.swift; sourceTree = "<group>"; };
+		A20000000000000000000024 /* SignalFilterSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignalFilterSheetView.swift; sourceTree = "<group>"; };
+		A20000000000000000000025 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -61,10 +83,14 @@
 			children = (
 				A20000000000000000000001 /* ShyftyApp.swift */,
 				A20000000000000000000002 /* ContentView.swift */,
+				A20000000000000000000019 /* MainTabView.swift */,
 				A20000000000000000000003 /* Models.swift */,
 				A20000000000000000000004 /* APIClient.swift */,
 				A20000000000000000000005 /* FeedViewModel.swift */,
+				A20000000000000000000020 /* HomeViewModel.swift */,
 				A20000000000000000000011 /* SignalFormatting.swift */,
+				A20000000000000000000018 /* ShyftyTheme.swift */,
+				A20000000000000000000014 /* AuthViewModel.swift */,
 				A20000000000000000000012 /* Info-Debug.plist */,
 				A20000000000000000000013 /* Info-Release.plist */,
 				A40000000000000000000004 /* Views */,
@@ -83,11 +109,18 @@
 		A40000000000000000000004 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				A20000000000000000000015 /* AccountView.swift */,
+				A20000000000000000000016 /* AuthView.swift */,
+				A20000000000000000000021 /* HomeView.swift */,
+				A20000000000000000000022 /* SignalsView.swift */,
 				A20000000000000000000006 /* FeedView.swift */,
 				A20000000000000000000007 /* PlayerDetailView.swift */,
 				A20000000000000000000008 /* FavoritesView.swift */,
 				A20000000000000000000009 /* SignalCardView.swift */,
+				A20000000000000000000023 /* CompactSignalCardView.swift */,
 				A20000000000000000000010 /* FilterChipsView.swift */,
+				A20000000000000000000024 /* SignalFilterSheetView.swift */,
+				A20000000000000000000025 /* ProfileView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -161,16 +194,27 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10000000000000000000004 /* APIClient.swift in Sources */,
+				A10000000000000000000015 /* AccountView.swift in Sources */,
+				A10000000000000000000016 /* AuthView.swift in Sources */,
+				A10000000000000000000014 /* AuthViewModel.swift in Sources */,
+				A10000000000000000000023 /* CompactSignalCardView.swift in Sources */,
 				A10000000000000000000002 /* ContentView.swift in Sources */,
 				A10000000000000000000010 /* FilterChipsView.swift in Sources */,
 				A10000000000000000000008 /* FavoritesView.swift in Sources */,
 				A10000000000000000000006 /* FeedView.swift in Sources */,
 				A10000000000000000000005 /* FeedViewModel.swift in Sources */,
+				A10000000000000000000021 /* HomeView.swift in Sources */,
+				A10000000000000000000020 /* HomeViewModel.swift in Sources */,
+				A10000000000000000000019 /* MainTabView.swift in Sources */,
 				A10000000000000000000003 /* Models.swift in Sources */,
 				A10000000000000000000007 /* PlayerDetailView.swift in Sources */,
+				A10000000000000000000025 /* ProfileView.swift in Sources */,
 				A10000000000000000000009 /* SignalCardView.swift in Sources */,
+				A10000000000000000000024 /* SignalFilterSheetView.swift in Sources */,
 				A10000000000000000000011 /* SignalFormatting.swift in Sources */,
+				A10000000000000000000018 /* ShyftyTheme.swift in Sources */,
 				A10000000000000000000001 /* ShyftyApp.swift in Sources */,
+				A10000000000000000000022 /* SignalsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -180,6 +224,7 @@
 		A90000000000000000000001 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_OBJC_WEAK = YES;
 				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
@@ -237,6 +282,7 @@
 		A90000000000000000000002 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_OBJC_WEAK = YES;
 				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;

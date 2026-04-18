@@ -35,7 +35,7 @@ class SignalAPIContractTests(unittest.TestCase):
         self.temp_dir.cleanup()
 
     def test_signal_feed_includes_presentation_fields(self) -> None:
-        signals = list_signals(
+        page = list_signals(
             db=self.session,
             league=None,
             team=None,
@@ -44,8 +44,12 @@ class SignalAPIContractTests(unittest.TestCase):
             limit=5,
         )
 
-        self.assertTrue(signals)
-        signal = signals[0]
+        self.assertTrue(page.items)
+        self.assertEqual(len(page.items), 5)
+        self.assertTrue(page.has_more)
+        self.assertEqual(page.next_cursor, page.items[-1].id)
+
+        signal = page.items[0]
         self.assertIsInstance(signal.importance, float)
         self.assertEqual(signal.baseline_window, "last 5 games")
         self.assertTrue(signal.metric_label)
@@ -79,15 +83,50 @@ class SignalAPIContractTests(unittest.TestCase):
         self.assertGreater(metrics[0].game_id, 0)
         self.assertTrue(metrics[0].metrics)
 
+    def test_signal_feed_paginates_with_before_id_cursor(self) -> None:
+        first_page = list_signals(
+            db=self.session,
+            league=None,
+            team=None,
+            player=None,
+            signal_type=None,
+            limit=3,
+        )
+
+        self.assertEqual(len(first_page.items), 3)
+        self.assertTrue(first_page.has_more)
+        self.assertEqual(first_page.next_cursor, first_page.items[-1].id)
+
+        second_page = list_signals(
+            db=self.session,
+            league=None,
+            team=None,
+            player=None,
+            signal_type=None,
+            limit=3,
+            before_id=first_page.next_cursor,
+        )
+
+        self.assertEqual(len(second_page.items), 3)
+        self.assertTrue(second_page.has_more)
+        self.assertEqual(second_page.next_cursor, second_page.items[-1].id)
+        self.assertTrue(all(signal.id < first_page.next_cursor for signal in second_page.items))
+        self.assertTrue(set(signal.id for signal in first_page.items).isdisjoint(signal.id for signal in second_page.items))
+
     def test_signal_trace_exposes_source_stat_and_baseline_window(self) -> None:
-        signal = list_signals(
+        page = list_signals(
             db=self.session,
             league=None,
             team=None,
             player=None,
             signal_type=None,
             limit=1,
-        )[0]
+        )
+        self.assertEqual(len(page.items), 1)
+        self.assertTrue(page.has_more)
+        self.assertEqual(page.next_cursor, page.items[0].id)
+
+        signal = page.items[0]
 
         trace = inspect_signal(self.session, signal.id)
 

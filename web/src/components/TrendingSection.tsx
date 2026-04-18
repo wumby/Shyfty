@@ -35,11 +35,11 @@ export function TrendingSection({ onOpenDetail }: Props) {
 
   if (loading) {
     return (
-      <div className="panel-surface mb-4 space-y-3 px-4 py-4">
+      <div className="panel-surface space-y-3 px-4 py-3.5">
         <div className="eyebrow">Trending</div>
         <div className="flex gap-2 overflow-x-auto pb-1">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-[92px] w-52 flex-none animate-pulse rounded-[22px] bg-white/[0.04]" />
+            <div key={i} className="h-[84px] w-56 flex-none animate-pulse rounded-[20px] bg-white/[0.04]" />
           ))}
         </div>
       </div>
@@ -49,13 +49,13 @@ export function TrendingSection({ onOpenDetail }: Props) {
   if (signals.length === 0) return null;
 
   return (
-    <div className="panel-surface mb-3 px-4 py-4">
+    <section className="panel-surface px-4 py-3.5">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
-          <div className="eyebrow">Trending Now</div>
-          <div className="mt-1 text-sm text-muted">The strongest short-term movement across the live board.</div>
+          <div className="eyebrow">Trending</div>
+          <div className="mt-1 text-sm text-muted">A quick read on the strongest short-term movement.</div>
         </div>
-        <div className="hidden text-[11px] uppercase tracking-[0.24em] text-[#ffd8bd] sm:block">Live movers</div>
+        <div className="hidden text-[11px] uppercase tracking-[0.24em] text-[#ffd8bd] sm:block">Highlights</div>
       </div>
       <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
         {signals.map((signal) => {
@@ -68,7 +68,7 @@ export function TrendingSection({ onOpenDetail }: Props) {
               key={signal.id}
               type="button"
               onClick={() => onOpenDetail(signal.id)}
-              className="group flex w-52 flex-none flex-col justify-between rounded-[24px] border border-border bg-white/[0.03] px-4 py-3.5 text-left transition hover:-translate-y-0.5 hover:border-borderStrong hover:bg-white/[0.05]"
+              className="group flex w-56 flex-none flex-col justify-between rounded-[20px] border border-border bg-white/[0.03] px-3.5 py-3 text-left transition hover:-translate-y-0.5 hover:border-borderStrong hover:bg-white/[0.05]"
             >
               <div className="flex items-center justify-between">
                 <span className={`text-[10px] font-semibold uppercase tracking-[0.14em] ${toneClass}`}>
@@ -79,10 +79,14 @@ export function TrendingSection({ onOpenDetail }: Props) {
                 )}
               </div>
               <div className="mt-1.5">
-                <div className="truncate text-[18px] font-semibold text-ink">{signal.player_name}</div>
-                <div className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-muted">{signal.metric_label ?? signal.metric_name.replace(/_/g, ' ')}</div>
+                <div className="truncate text-[17px] font-semibold text-ink">{signal.player_name}</div>
+                <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted">
+                  <span className="uppercase tracking-[0.16em]">{signal.metric_label ?? signal.metric_name.replace(/_/g, ' ')}</span>
+                  <span className="text-white/10">•</span>
+                  <span>{signal.team_name}</span>
+                </div>
               </div>
-              <div className={`mt-3 text-[24px] font-semibold tabular-nums leading-none ${
+              <div className={`mt-3 text-[22px] font-semibold tabular-nums leading-none ${
                 direction === 'positive' ? 'text-success' : direction === 'negative' ? 'text-danger' : 'text-ink'
               }`}>
                 {formatDelta(signal)}
@@ -91,6 +95,6 @@ export function TrendingSection({ onOpenDetail }: Props) {
           );
         })}
       </div>
-    </div>
+    </section>
   );
 }

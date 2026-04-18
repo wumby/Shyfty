@@ -9,13 +9,11 @@ struct FilterChipsView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text(title.uppercased())
-                    .font(.caption.weight(.medium))
-                    .kerning(1.0)
-                    .foregroundStyle(.secondary)
+                    .shyftyEyebrow()
                 Spacer()
                 Text(selection)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(ShyftyTheme.muted)
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
@@ -24,19 +22,11 @@ struct FilterChipsView: View {
                         Button(option) {
                             selection = option
                         }
-                        .font(.footnote.weight(.medium))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .background(selection == option ? Color.cyan.opacity(0.18) : Color.white.opacity(0.06))
-                        .foregroundStyle(selection == option ? .white : .secondary)
-                        .overlay(
-                            Capsule()
-                                .strokeBorder(selection == option ? Color.cyan.opacity(0.35) : Color.white.opacity(0.08), lineWidth: 1)
-                        )
-                        .clipShape(Capsule())
+                        .buttonStyle(ShyftyPillButtonStyle(active: selection == option))
                     }
                 }
             }
+            .scrollIndicators(.hidden)
         }
     }
 }

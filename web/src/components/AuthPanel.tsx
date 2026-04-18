@@ -30,14 +30,14 @@ export function AuthPanel() {
 
   if (currentUser) {
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <div className="rounded-full border border-border bg-white/[0.03] px-3 py-2 text-xs text-muted">
           {currentUser.email}
         </div>
         <button
           type="button"
           onClick={() => void signOut()}
-          className="pill-button"
+          className="rounded-full border border-border bg-white/[0.03] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted transition hover:border-borderStrong hover:bg-white/[0.05] hover:text-ink"
         >
           Sign Out
         </button>
@@ -47,29 +47,29 @@ export function AuthPanel() {
 
   return (
     <div className="relative">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <button
           type="button"
           onClick={() => openAuth('signin')}
-          className="pill-button"
+          className="rounded-full border border-border bg-white/[0.03] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted transition hover:border-borderStrong hover:bg-white/[0.05] hover:text-ink"
         >
           Sign In
         </button>
         <button
           type="button"
           onClick={() => openAuth('signup')}
-          className="pill-button pill-button-active"
+          className="rounded-full border border-accent/35 bg-accent px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1f1308] transition hover:brightness-110"
         >
           Create Account
         </button>
       </div>
       {authPanelOpen ? (
         <div className="panel-strong absolute right-0 top-[calc(100%+0.75rem)] z-30 w-[300px] p-4">
-          <div className="mb-3 flex items-center justify-between">
+          <div className="mb-3 flex items-center justify-between gap-3">
             <div className="eyebrow text-[#ffd8bd]">
               {authMode === 'signin' ? 'Sign In' : 'Create Account'}
             </div>
-            <button type="button" onClick={closeAuth} className="text-xs text-muted transition hover:text-ink">
+            <button type="button" onClick={closeAuth} className="rounded-full border border-border bg-white/[0.03] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted transition hover:border-borderStrong hover:text-ink">
               Close
             </button>
           </div>

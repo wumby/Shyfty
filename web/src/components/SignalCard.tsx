@@ -96,10 +96,10 @@ export function SignalCard({ signal, onOpenDetail }: { signal: Signal; onOpenDet
 
   return (
     <article
-      className={`group relative grid grid-cols-[minmax(0,1fr),112px] gap-3 border-b border-border bg-transparent px-4 py-4 transition duration-150 sm:grid-cols-[minmax(0,1.75fr),132px] ${directionStyles.rowGlow}`}
+      className={`group relative grid grid-cols-[minmax(0,1fr),104px] gap-3 border-b border-border bg-transparent px-4 py-4 transition duration-150 sm:grid-cols-[minmax(0,1fr),118px] sm:px-5 ${directionStyles.rowGlow}`}
     >
-      <div className={`absolute inset-y-2.5 left-0 w-[3px] rounded-full ${directionStyles.rail} ${importance === 'Watch' ? 'opacity-35' : 'opacity-75'}`} />
-      <div className="min-w-0 pl-2">
+      <div className={`absolute inset-y-4 left-0 w-[3px] rounded-full ${directionStyles.rail} ${importance === 'Watch' ? 'opacity-35' : 'opacity-75'}`} />
+      <div className="min-w-0 pl-3">
         <div className="flex flex-wrap items-center gap-2">
           <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] ${toneMap[signal.signal_type]}`}>
             {formatSignalLabel(signal.signal_type)}
@@ -108,12 +108,12 @@ export function SignalCard({ signal, onOpenDetail }: { signal: Signal; onOpenDet
             {importance}
           </span>
         </div>
-        <div className="mt-1.5 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-          <h3 className="text-[24px] font-semibold text-ink">{signal.player_name}</h3>
-          <span className="text-xs uppercase tracking-[0.18em] text-muted">{getMetricLabel(signal)}</span>
+        <div className="mt-2 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+          <h3 className="text-[22px] font-semibold leading-none text-ink sm:text-[24px]">{signal.player_name}</h3>
+          <span className="text-[11px] uppercase tracking-[0.18em] text-muted">{getMetricLabel(signal)}</span>
         </div>
-        <p className={`mt-1 text-[14px] font-medium leading-5 ${directionStyles.summary}`}>{summary}</p>
-        <div className={`mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] ${directionStyles.meta}`}>
+        <p className={`mt-2 max-w-3xl text-[14px] font-medium leading-5 ${directionStyles.summary}`}>{summary}</p>
+        <div className={`mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] ${directionStyles.meta}`}>
           <span>{signal.team_name}</span>
           <span className="text-white/10">•</span>
           <span>{signal.league_name}</span>
@@ -124,18 +124,12 @@ export function SignalCard({ signal, onOpenDetail }: { signal: Signal; onOpenDet
             </>
           ) : null}
           <span className="text-white/10">•</span>
-          <span>Z {signal.z_score.toFixed(2)}</span>
-          <span className="text-white/10">•</span>
           <span>{formatRelativeTime(signal.created_at)}</span>
-          {importance === 'High' ? (
-            <>
-              <span className="text-white/10">•</span>
-              <span>{importanceScore.toFixed(0)}</span>
-            </>
-          ) : null}
         </div>
-        <div className={`mt-1 text-[11px] leading-4 ${directionStyles.context}`}>{signal.explanation}</div>
-        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        <div className={`mt-2 text-[12px] leading-5 ${directionStyles.context}`}>
+          {signal.explanation}
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-1.5">
           {reactionMeta.map(({ type, label }) => {
             const active = signal.user_reaction === type;
             const count = signal.reaction_summary[type];
@@ -144,14 +138,14 @@ export function SignalCard({ signal, onOpenDetail }: { signal: Signal; onOpenDet
                 key={type}
                 type="button"
                 onClick={() => void handleReactionClick(type)}
-                className={`rounded-full px-2 py-1 text-[10px] uppercase tracking-[0.14em] transition ${
+                className={`rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.14em] transition ${
                   active
                     ? type === 'strong'
-                      ? 'bg-transparent text-success'
+                      ? 'border-success/30 bg-success/10 text-success'
                       : type === 'risky'
-                        ? 'bg-transparent text-warning'
-                        : 'bg-transparent text-[#ffd8bd]'
-                    : 'bg-transparent text-muted/70 hover:text-ink'
+                        ? 'border-warning/30 bg-warning/10 text-warning'
+                        : 'border-accent/30 bg-accentSoft text-[#ffd8bd]'
+                    : 'border-transparent bg-transparent text-muted/70 hover:border-border hover:text-ink'
                 }`}
               >
                 {label} {count > 0 ? count : ''}
@@ -161,7 +155,11 @@ export function SignalCard({ signal, onOpenDetail }: { signal: Signal; onOpenDet
           <button
             type="button"
             onClick={() => setShowComments((v) => !v)}
-            className={`rounded-full px-2 py-1 text-[10px] uppercase tracking-[0.14em] transition ${showComments ? 'text-ink' : 'text-muted/70 hover:text-ink'}`}
+            className={`rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.14em] transition ${
+              showComments
+                ? 'border-border bg-white/[0.04] text-ink'
+                : 'border-transparent text-muted/70 hover:border-border hover:text-ink'
+            }`}
           >
             {showComments ? 'Hide' : 'Comments'}
           </button>
@@ -169,7 +167,7 @@ export function SignalCard({ signal, onOpenDetail }: { signal: Signal; onOpenDet
             <button
               type="button"
               onClick={() => onOpenDetail(signal.id)}
-              className="ml-auto rounded-full px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-muted/80 transition hover:text-[#ffd8bd]"
+              className="ml-auto rounded-full border border-transparent px-2.5 py-1 text-[10px] uppercase tracking-[0.14em] text-muted/80 transition hover:border-border hover:text-[#ffd8bd]"
             >
               Why →
             </button>
@@ -181,12 +179,16 @@ export function SignalCard({ signal, onOpenDetail }: { signal: Signal; onOpenDet
           </div>
         )}
       </div>
-      <div className="self-center justify-self-end text-right">
-        <div className={`text-[25px] font-semibold tracking-tight tabular-nums ${directionStyles.delta}`}>{formatDelta(signal)}</div>
-        <div className="mt-0.5 text-[11px]">
-          <span className="font-medium text-ink">{signal.current_value.toFixed(1)}</span>
+      <div className="self-start justify-self-end pt-1 text-right">
+        <div className={`text-[24px] font-semibold tracking-tight tabular-nums sm:text-[26px] ${directionStyles.delta}`}>{formatDelta(signal)}</div>
+        <div className="mt-1 text-[11px] uppercase tracking-[0.14em] text-muted">
+          <span className="text-ink">{signal.current_value.toFixed(1)}</span>
           <span className="mx-1 text-white/10">/</span>
-          <span className="text-muted">{signal.baseline_value.toFixed(1)}</span>
+          <span>{signal.baseline_value.toFixed(1)}</span>
+        </div>
+        <div className="mt-3 hidden rounded-[18px] border border-border bg-white/[0.03] px-2.5 py-2 text-[10px] uppercase tracking-[0.16em] text-muted sm:block">
+          Z {signal.z_score.toFixed(2)}
+          {importance === 'High' ? <span className="ml-2 text-[#ffd8bd]">{importanceScore.toFixed(0)}</span> : null}
         </div>
       </div>
     </article>

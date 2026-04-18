@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import { api } from '../services/api';
 import type { SignalTrace } from '../types';
@@ -79,13 +80,13 @@ export function SignalDetailDrawer({ signalId, onClose }: Props) {
   const signal = trace?.signal;
   const whatChanged = trace ? buildWhatChanged(trace) : null;
 
-  return (
+  return createPortal(
     <>
-      <div className="fixed inset-0 z-40 bg-black/45 backdrop-blur-[6px]" onClick={onClose} />
+      <div className="fixed inset-0 z-[70] bg-black/45 backdrop-blur-[6px]" onClick={onClose} />
 
       <div
         ref={drawerRef}
-        className="fixed right-0 top-0 z-50 flex h-full w-full max-w-[460px] flex-col border-l border-borderStrong bg-[#07111f]/95 shadow-2xl backdrop-blur-2xl"
+        className="fixed bottom-3 right-3 top-3 z-[80] flex w-[calc(100%-1.5rem)] max-w-[460px] flex-col overflow-hidden rounded-[28px] border border-borderStrong bg-[#07111f]/95 shadow-2xl backdrop-blur-2xl"
       >
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <div className="eyebrow">Signal Analysis</div>
@@ -275,6 +276,7 @@ export function SignalDetailDrawer({ signalId, onClose }: Props) {
           )}
         </div>
       </div>
-    </>
+    </>,
+    document.body
   );
 }

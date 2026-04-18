@@ -10,48 +10,43 @@ struct AuthView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.black.ignoresSafeArea()
+                ShyftyBackground()
 
                 VStack(spacing: 0) {
                     Spacer()
 
                     VStack(spacing: 28) {
-                        // Header
-                        VStack(spacing: 8) {
-                            Text("SHYFTY")
-                                .font(.caption.weight(.semibold))
-                                .kerning(3)
-                                .foregroundStyle(.cyan)
+                        VStack(spacing: 10) {
+                            HStack(spacing: 8) {
+                                ShyftyAccentDot()
+                                Text("Access")
+                                    .shyftyEyebrow()
+                            }
                             Text(auth.isSignUp ? "Create account" : "Welcome back")
-                                .font(.title.bold())
+                                .shyftyHeadline(32)
                             Text(auth.isSignUp
                                  ? "Track player signals and build your personalized feed."
                                  : "Sign in to react, comment, and follow players.")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundStyle(ShyftyTheme.muted)
                                 .multilineTextAlignment(.center)
                                 .padding(.horizontal, 8)
                         }
 
-                        // Form
                         VStack(spacing: 12) {
                             TextField("Email", text: $email)
                                 .keyboardType(.emailAddress)
                                 .autocorrectionDisabled()
                                 .textInputAutocapitalization(.never)
-                                .padding()
-                                .background(Color.white.opacity(0.07))
-                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .shyftyField()
 
                             SecureField("Password", text: $password)
-                                .padding()
-                                .background(Color.white.opacity(0.07))
-                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .shyftyField()
 
                             if let error = auth.errorMessage {
                                 Text(error)
-                                    .font(.footnote)
-                                    .foregroundStyle(.red)
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(ShyftyTheme.danger)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             }
 
@@ -71,33 +66,36 @@ struct AuthView: View {
                                             .tint(.white)
                                     } else {
                                         Text(auth.isSignUp ? "Create Account" : "Sign In")
-                                            .font(.body.weight(.semibold))
+                                            .font(.system(size: 12, weight: .semibold))
+                                            .tracking(2)
+                                            .textCase(.uppercase)
                                     }
                                 }
                                 .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.blue)
+                                .padding(.vertical, 14)
+                                .background(ShyftyTheme.accent)
                                 .foregroundStyle(.white)
-                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                             }
                             .disabled(auth.isLoading || email.isEmpty || password.isEmpty)
                         }
 
-                        // Toggle sign in / sign up
                         Button {
                             auth.isSignUp.toggle()
                             auth.errorMessage = nil
                         } label: {
                             HStack(spacing: 4) {
                                 Text(auth.isSignUp ? "Already have an account?" : "Don't have an account?")
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(ShyftyTheme.muted)
                                 Text(auth.isSignUp ? "Sign In" : "Create one")
-                                    .foregroundStyle(.blue)
+                                    .foregroundStyle(Color(red: 1.0, green: 0.85, blue: 0.74))
                             }
-                            .font(.footnote)
+                            .font(.system(size: 12, weight: .medium))
                         }
                     }
                     .padding(28)
+                    .shyftyPanel()
+                    .padding(.horizontal, 18)
 
                     Spacer()
                 }
@@ -105,7 +103,7 @@ struct AuthView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Cancel") { dismiss() }
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ShyftyTheme.muted)
                 }
             }
         }

@@ -2,6 +2,23 @@ import Foundation
 import SwiftUI
 
 enum SignalFormatting {
+    private static let isoDateTimeFormatter = ISO8601DateFormatter()
+    private static let isoDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .iso8601)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
+
+    private static let eventDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter
+    }()
+
     static func metricLabel(_ metricName: String) -> String {
         metricName
             .replacingOccurrences(of: "_", with: " ")
@@ -56,10 +73,38 @@ enum SignalFormatting {
         return "\(metricLabel ?? self.metricLabel(metricName)) vs baseline"
     }
 
+    static func signalSummary(for signal: Signal) -> String {
+        let label = metricLabel(for: signal)
+        if let deltaPercent = deltaPercent(current: signal.currentValue, baseline: signal.baselineValue, provided: signal.movementPct) {
+            let rounded = Int(abs(deltaPercent.rounded()))
+            return "\(label) is \(rounded)% \(deltaPercent >= 0 ? "above" : "below") the recent baseline."
+        }
+
+        return "\(label) is diverging from the recent baseline."
+    }
+
     static func relativeTime(from date: Date) -> String {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .short
         return formatter.localizedString(for: date, relativeTo: Date())
+    }
+
+    static func relativeTime(from value: String) -> String {
+        guard let date = parseDate(value) else { return value }
+        return relativeTime(from: date)
+    }
+
+    static func eventDateText(_ value: String) -> String {
+        guard let date = parseDate(value) else { return value }
+        return eventDateFormatter.string(from: date)
+    }
+
+    private static func parseDate(_ value: String) -> Date? {
+        if let date = isoDateTimeFormatter.date(from: value) {
+            return date
+        }
+
+        return isoDateFormatter.date(from: value)
     }
 
     static func tint(for signalType: String) -> Color {

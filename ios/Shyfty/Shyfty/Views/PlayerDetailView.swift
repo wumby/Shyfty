@@ -10,51 +10,91 @@ struct PlayerDetailView: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                if let player {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text(player.leagueName.uppercased())
-                            .font(.caption)
-                            .foregroundStyle(.blue)
-                        Text(player.name)
-                            .font(.largeTitle.bold())
-                        Text("\(player.teamName) · \(player.position)")
-                            .foregroundStyle(.secondary)
-                    }
-                }
+        ZStack {
+            ShyftyBackground()
 
-                if let metricKey = metrics.first?.metrics.keys.sorted().first {
-                    Chart(metrics, id: \.gameDate) { point in
-                        if let value = point.metrics[metricKey] {
-                            LineMark(
-                                x: .value("Game", point.gameDate),
-                                y: .value(metricKey, value)
-                            )
-                            .interpolationMethod(.catmullRom)
-                            .foregroundStyle(.blue)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    if let player {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(player.leagueName.uppercased())
+                                .shyftyEyebrow()
+                                .foregroundStyle(Color(red: 1.0, green: 0.85, blue: 0.74))
+                            Text(player.name)
+                                .shyftyHeadline(36)
+                            Text("\(player.teamName) · \(player.position)")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundStyle(ShyftyTheme.muted)
+                        }
+                        .padding(22)
+                        .shyftyPanel()
+                    }
+
+                    if let metricKey = metrics.first?.metrics.keys.sorted().first {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Text(metricKey.replacingOccurrences(of: "_", with: " ").capitalized)
+                                .shyftyEyebrow()
+                            Chart(metrics, id: \.gameDate) { point in
+                                if let value = point.metrics[metricKey] {
+                                    AreaMark(
+                                        x: .value("Game", point.gameDate),
+                                        y: .value(metricKey, value)
+                                    )
+                                    .interpolationMethod(.catmullRom)
+                                    .foregroundStyle(
+                                        LinearGradient(
+                                            colors: [ShyftyTheme.accent.opacity(0.32), ShyftyTheme.accent.opacity(0.02)],
+                                            startPoint: .top,
+                                            endPoint: .bottom
+                                        )
+                                    )
+
+                                    LineMark(
+                                        x: .value("Game", point.gameDate),
+                                        y: .value(metricKey, value)
+                                    )
+                                    .interpolationMethod(.catmullRom)
+                                    .foregroundStyle(ShyftyTheme.accent)
+                                    .lineStyle(.init(lineWidth: 3))
+                                }
+                            }
+                            .chartXAxis(.hidden)
+                            .chartYAxis {
+                                AxisMarks(position: .leading) {
+                                    AxisGridLine(stroke: .init(lineWidth: 0.5))
+                                        .foregroundStyle(ShyftyTheme.border)
+                                    AxisValueLabel()
+                                        .foregroundStyle(ShyftyTheme.muted)
+                                }
+                            }
+                            .frame(height: 240)
+                        }
+                        .padding(20)
+                        .shyftyPanel()
+                    }
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Signals")
+                            .shyftyEyebrow()
+                            .padding(.horizontal, 6)
+                        ForEach(signals) { signal in
+                            SignalCardView(signal: signal)
                         }
                     }
-                    .frame(height: 240)
-                    .padding()
-                    .background(Color.white.opacity(0.05))
-                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                }
 
-                VStack(spacing: 12) {
-                    ForEach(signals) { signal in
-                        SignalCardView(signal: signal)
+                    if let errorMessage {
+                        Text(errorMessage)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(ShyftyTheme.danger)
                     }
                 }
-
-                if let errorMessage {
-                    Text(errorMessage)
-                        .foregroundStyle(.red)
-                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
             }
-            .padding()
         }
         .navigationTitle("Player Detail")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(.hidden, for: .navigationBar)
         .task {
             await load()
         }
@@ -75,4 +115,3 @@ struct PlayerDetailView: View {
         }
     }
 }
-

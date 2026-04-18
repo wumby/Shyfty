@@ -99,14 +99,19 @@ class SignalGenerationServiceTests(unittest.TestCase):
         seed_database(self.session)
         generate_signals(self.session)
 
-        signal = list_signals(
+        page = list_signals(
             db=self.session,
             league=None,
             team=None,
             player=None,
             signal_type=None,
             limit=1,
-        )[0]
+        )
+        self.assertEqual(len(page.items), 1)
+        self.assertTrue(page.has_more)
+        self.assertEqual(page.next_cursor, page.items[0].id)
+
+        signal = page.items[0]
 
         if signal.baseline_value != 0:
             expected_movement = ((signal.current_value - signal.baseline_value) / signal.baseline_value) * 100

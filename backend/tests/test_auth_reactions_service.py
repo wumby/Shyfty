@@ -57,7 +57,7 @@ class AuthReactionServiceTests(unittest.TestCase):
         assert current_user is not None
         self.assertEqual(current_user.id, user.id)
 
-        signal = list_signals(
+        first_page = list_signals(
             db=self.session,
             league=None,
             team=None,
@@ -65,12 +65,17 @@ class AuthReactionServiceTests(unittest.TestCase):
             signal_type=None,
             limit=1,
             current_user_id=user.id,
-        )[0]
+        )
+        self.assertEqual(len(first_page.items), 1)
+        self.assertTrue(first_page.has_more)
+        self.assertEqual(first_page.next_cursor, first_page.items[0].id)
+
+        signal = first_page.items[0]
         self.assertEqual(signal.reaction_summary.model_dump(mode="json"), {"strong": 0, "agree": 0, "risky": 0})
         self.assertIsNone(signal.user_reaction)
 
         set_signal_reaction(self.session, signal_id=signal.id, user_id=user.id, reaction_type="agree")
-        agreed = list_signals(
+        agreed_page = list_signals(
             db=self.session,
             league=None,
             team=None,
@@ -78,12 +83,14 @@ class AuthReactionServiceTests(unittest.TestCase):
             signal_type=None,
             limit=1,
             current_user_id=user.id,
-        )[0]
+        )
+        self.assertEqual(len(agreed_page.items), 1)
+        agreed = agreed_page.items[0]
         self.assertEqual(agreed.reaction_summary.agree, 1)
         self.assertEqual(agreed.user_reaction, "agree")
 
         set_signal_reaction(self.session, signal_id=signal.id, user_id=user.id, reaction_type="risky")
-        risky = list_signals(
+        risky_page = list_signals(
             db=self.session,
             league=None,
             team=None,
@@ -91,13 +98,15 @@ class AuthReactionServiceTests(unittest.TestCase):
             signal_type=None,
             limit=1,
             current_user_id=user.id,
-        )[0]
+        )
+        self.assertEqual(len(risky_page.items), 1)
+        risky = risky_page.items[0]
         self.assertEqual(risky.reaction_summary.agree, 0)
         self.assertEqual(risky.reaction_summary.risky, 1)
         self.assertEqual(risky.user_reaction, "risky")
 
         remove_signal_reaction(self.session, signal_id=signal.id, user_id=user.id)
-        cleared = list_signals(
+        cleared_page = list_signals(
             db=self.session,
             league=None,
             team=None,
@@ -105,7 +114,9 @@ class AuthReactionServiceTests(unittest.TestCase):
             signal_type=None,
             limit=1,
             current_user_id=user.id,
-        )[0]
+        )
+        self.assertEqual(len(cleared_page.items), 1)
+        cleared = cleared_page.items[0]
         self.assertEqual(cleared.reaction_summary.model_dump(mode="json"), {"strong": 0, "agree": 0, "risky": 0})
         self.assertIsNone(cleared.user_reaction)
 
