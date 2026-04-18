@@ -1,0 +1,17 @@
+.DS_Store
+node_modules
+dist
+__pycache__
+.pytest_cache
+.venv
+*.pyc
+.idea
+.vscode
+postgres_data
+.run/
+*.log
+*.pid
+DerivedData/
+xcuserdata/
+*.xcuserstate
+data/raw/

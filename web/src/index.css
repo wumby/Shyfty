@@ -1,0 +1,147 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --color-bg: #07111f;
+  --color-panel: rgba(10, 23, 41, 0.78);
+  --color-panel-strong: rgba(7, 17, 31, 0.94);
+  --color-border: rgba(135, 166, 201, 0.16);
+  --color-border-strong: rgba(166, 194, 225, 0.3);
+  --color-accent: #f97316;
+  --color-accent-soft: rgba(249, 115, 22, 0.16);
+  --color-ink: #f6f2e8;
+  --color-muted: #8ba0b9;
+  --color-success: #34d399;
+  --color-danger: #fb7185;
+  --color-warning: #fbbf24;
+  --shadow-panel: 0 24px 80px rgba(0, 0, 0, 0.28);
+  --shadow-soft: 0 18px 48px rgba(2, 8, 18, 0.26);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background:
+    radial-gradient(circle at top left, rgba(249, 115, 22, 0.12), transparent 30%),
+    radial-gradient(circle at top right, rgba(59, 130, 246, 0.12), transparent 34%),
+    linear-gradient(180deg, #081325 0%, #07111f 42%, #050d19 100%);
+}
+
+body {
+  @apply bg-bg text-ink antialiased;
+  min-height: 100vh;
+  margin: 0;
+  background:
+    radial-gradient(circle at 12% 16%, rgba(249, 115, 22, 0.14), transparent 0, transparent 28%),
+    radial-gradient(circle at 84% 12%, rgba(56, 189, 248, 0.12), transparent 0, transparent 24%),
+    linear-gradient(180deg, rgba(6, 15, 27, 0.92) 0%, rgba(5, 13, 25, 0.98) 100%);
+  font-family: "IBM Plex Sans", "Avenir Next", "Segoe UI", sans-serif;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+::selection {
+  background: rgba(249, 115, 22, 0.34);
+  color: #fff7ed;
+}
+
+@layer base {
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+    letter-spacing: -0.03em;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+}
+
+@layer components {
+  .app-frame {
+    @apply relative overflow-hidden rounded-[30px] border border-border bg-panel;
+    box-shadow: var(--shadow-panel);
+    backdrop-filter: blur(22px);
+  }
+
+  .app-frame::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(140deg, rgba(255, 255, 255, 0.05), transparent 26%, transparent 60%, rgba(249, 115, 22, 0.08) 100%);
+    pointer-events: none;
+  }
+
+  .panel-surface {
+    @apply rounded-[28px] border border-border bg-panel;
+    box-shadow: var(--shadow-soft);
+    backdrop-filter: blur(18px);
+  }
+
+  .panel-strong {
+    @apply rounded-[28px] border border-borderStrong bg-panelStrong;
+    box-shadow: var(--shadow-soft);
+  }
+
+  .eyebrow {
+    @apply text-[10px] font-semibold uppercase tracking-[0.34em] text-muted;
+  }
+
+  .accent-dot {
+    @apply inline-block h-2 w-2 rounded-full bg-accent;
+    box-shadow: 0 0 16px rgba(249, 115, 22, 0.65);
+  }
+
+  .pill-button {
+    @apply inline-flex items-center gap-2 rounded-full border border-border bg-white/[0.03] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted transition;
+  }
+
+  .pill-button:hover {
+    @apply border-borderStrong bg-white/[0.05] text-ink;
+  }
+
+  .pill-button-active {
+    border-color: rgba(249, 115, 22, 0.4);
+    background: var(--color-accent-soft);
+    color: #ffd8bd;
+  }
+
+  .field-shell {
+    @apply rounded-[22px] border border-border bg-white/[0.03] text-ink outline-none transition;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  }
+
+  .field-shell:focus {
+    border-color: rgba(249, 115, 22, 0.6);
+    background: rgba(255, 255, 255, 0.05);
+    box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
+  }
+
+  .hero-grid {
+    background-image:
+      linear-gradient(rgba(139, 160, 185, 0.08) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(139, 160, 185, 0.08) 1px, transparent 1px);
+    background-size: 34px 34px;
+    background-position: center;
+  }
+
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+}

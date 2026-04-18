@@ -1,0 +1,51 @@
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Response, status
+from sqlalchemy.orm import Session
+
+from app.api.dependencies import get_current_user, get_db
+from app.models.user import User
+from app.schemas.reaction import ReactionRead, ReactionWrite
+from app.services.reaction_service import remove_signal_reaction, set_signal_reaction
+
+router = APIRouter()
+
+
+def _require_user(user: Optional[User]) -> User:
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required.")
+    return user
+
+
+@router.put("/signals/{signal_id}/reaction", response_model=ReactionRead)
+def put_signal_reaction(
+    signal_id: int,
+    payload: ReactionWrite,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user),
+) -> ReactionRead:
+    user = _require_user(current_user)
+    try:
+        reaction = set_signal_reaction(db, signal_id=signal_id, user_id=user.id, reaction_type=payload.type)
+    except LookupError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    return ReactionRead(
+        id=reaction.id,
+        signal_id=reaction.signal_id,
+        user_id=reaction.user_id,
+        type=reaction.type,
+        created_at=reaction.created_at,
+        updated_at=reaction.updated_at,
+    )
+
+
+@router.delete("/signals/{signal_id}/reaction", status_code=status.HTTP_204_NO_CONTENT)
+def delete_signal_reaction(
+    signal_id: int,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user),
+) -> Response:
+    user = _require_user(current_user)
+    remove_signal_reaction(db, signal_id=signal_id, user_id=user.id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
