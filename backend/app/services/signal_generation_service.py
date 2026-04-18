@@ -1,11 +1,20 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from datetime import datetime
+from statistics import mean
 from typing import Optional
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.domain.signals import METRICS_BY_LEAGUE, build_explanation, build_metric_snapshots, classify_signal
+from app.domain.signals import (
+    METRICS_BY_LEAGUE,
+    build_explanation,
+    build_metric_snapshots,
+    classify_signal,
+    score_signal,
+)
 from app.models.game import Game
 from app.models.player import Player
 from app.models.player_game_stat import PlayerGameStat
@@ -24,11 +33,82 @@ class SignalGenerationResult:
     deleted_rolling_metrics: int = 0
 
 
+@dataclass(frozen=True)
+class SignalGenerationContext:
+    game_dates: dict[int, object]
+    game_pace_proxy: dict[int, float]
+    opponent_average_allowed: dict[tuple[int, str], float]
+    opponent_rank: dict[tuple[int, str], int]
+
+
 class SignalGenerationError(RuntimeError):
     def __init__(self, message: str, *, partial_result: SignalGenerationResult, cause: Exception) -> None:
         super().__init__(message)
         self.partial_result = partial_result
         self.__cause__ = cause
+
+
+def build_signal_generation_context(db: Session) -> SignalGenerationContext:
+    game_rows = db.execute(select(Game.id, Game.game_date, Game.home_team_id, Game.away_team_id)).all()
+    game_meta = {
+        game_id: {
+            "game_date": game_date,
+            "home_team_id": home_team_id,
+            "away_team_id": away_team_id,
+        }
+        for game_id, game_date, home_team_id, away_team_id in game_rows
+    }
+
+    metric_names = sorted({metric for metrics in METRICS_BY_LEAGUE.values() for metric in metrics})
+    stat_rows = db.execute(
+        select(PlayerGameStat, Player.team_id)
+        .join(Player, PlayerGameStat.player_id == Player.id)
+        .join(Game, PlayerGameStat.game_id == Game.id)
+        .order_by(Game.game_date, Game.id, PlayerGameStat.id)
+    ).all()
+
+    game_pace_parts: dict[int, list[float]] = {}
+    for stat, _ in stat_rows:
+        game_pace_parts.setdefault(stat.game_id, []).append(
+            float(stat.points or 0) + float(stat.rebounds or 0) + float(stat.assists or 0)
+        )
+    game_pace_proxy = {game_id: round(sum(parts), 2) for game_id, parts in game_pace_parts.items()}
+
+    team_allowed_history: dict[str, dict[int, list[float]]] = {metric_name: {} for metric_name in metric_names}
+    opponent_average_allowed: dict[tuple[int, str], float] = {}
+    opponent_rank: dict[tuple[int, str], int] = {}
+
+    for stat, team_id in stat_rows:
+        game = game_meta.get(stat.game_id)
+        if game is None:
+            continue
+        opponent_team_id = game["away_team_id"] if team_id == game["home_team_id"] else game["home_team_id"]
+
+        for metric_name in metric_names:
+            value = getattr(stat, metric_name, None)
+            if value is None:
+                continue
+
+            history = team_allowed_history.setdefault(metric_name, {})
+            prior_values = history.get(opponent_team_id, [])
+            if prior_values:
+                opponent_average_allowed[(stat.id, metric_name)] = round(mean(prior_values), 4)
+
+            ranked = [(team_key, mean(values)) for team_key, values in history.items() if values]
+            ranked.sort(key=lambda item: item[1])
+            for index, (team_key, _) in enumerate(ranked, start=1):
+                if team_key == opponent_team_id:
+                    opponent_rank[(stat.id, metric_name)] = index
+                    break
+
+            history.setdefault(opponent_team_id, []).append(float(value))
+
+    return SignalGenerationContext(
+        game_dates={game_id: meta["game_date"] for game_id, meta in game_meta.items()},
+        game_pace_proxy=game_pace_proxy,
+        opponent_average_allowed=opponent_average_allowed,
+        opponent_rank=opponent_rank,
+    )
 
 
 def _upsert_rolling_metric(
@@ -38,9 +118,7 @@ def _upsert_rolling_metric(
     game_id: int,
     source_stat_id: int,
     metric_name: str,
-    rolling_avg: float,
-    rolling_stddev: float,
-    z_score: float,
+    snapshot,
     generated_at: datetime,
 ) -> tuple[RollingMetric, bool]:
     rolling_metric = db.execute(
@@ -58,18 +136,43 @@ def _upsert_rolling_metric(
             game_id=game_id,
             source_stat_id=source_stat_id,
             metric_name=metric_name,
-            rolling_avg=rolling_avg,
-            rolling_stddev=rolling_stddev,
-            z_score=z_score,
+            rolling_avg=snapshot.baseline_value,
+            rolling_stddev=snapshot.rolling_stddev,
+            z_score=snapshot.z_score,
             updated_at=generated_at,
         )
         db.add(rolling_metric)
-    else:
-        rolling_metric.source_stat_id = source_stat_id
-        rolling_metric.rolling_avg = rolling_avg
-        rolling_metric.rolling_stddev = rolling_stddev
-        rolling_metric.z_score = z_score
-        rolling_metric.updated_at = generated_at
+
+    rolling_metric.source_stat_id = source_stat_id
+    rolling_metric.rolling_avg = snapshot.baseline_value
+    rolling_metric.rolling_stddev = snapshot.rolling_stddev
+    rolling_metric.z_score = snapshot.z_score
+    rolling_metric.short_window_size = snapshot.short_window.sample_size
+    rolling_metric.medium_window_size = snapshot.medium_window.sample_size
+    rolling_metric.season_window_size = snapshot.season_window.sample_size
+    rolling_metric.short_values = snapshot.short_window.values
+    rolling_metric.medium_values = snapshot.medium_window.values
+    rolling_metric.season_values = snapshot.season_window.values
+    rolling_metric.short_rolling_avg = snapshot.short_window.rolling_avg
+    rolling_metric.short_rolling_stddev = snapshot.short_window.rolling_stddev
+    rolling_metric.short_z_score = snapshot.short_window.z_score
+    rolling_metric.medium_rolling_avg = snapshot.medium_window.rolling_avg
+    rolling_metric.medium_rolling_stddev = snapshot.medium_window.rolling_stddev
+    rolling_metric.medium_z_score = snapshot.medium_window.z_score
+    rolling_metric.season_rolling_avg = snapshot.season_window.rolling_avg
+    rolling_metric.season_rolling_stddev = snapshot.season_window.rolling_stddev
+    rolling_metric.season_z_score = snapshot.season_window.z_score
+    rolling_metric.ewma = snapshot.ewma
+    rolling_metric.recent_delta = snapshot.recent_delta
+    rolling_metric.trend_slope = snapshot.trend_slope
+    rolling_metric.volatility_index = snapshot.volatility_index
+    rolling_metric.volatility_delta = snapshot.volatility_delta
+    rolling_metric.opponent_average_allowed = snapshot.opponent_average_allowed
+    rolling_metric.opponent_rank = snapshot.opponent_rank
+    rolling_metric.pace_proxy = snapshot.pace_proxy
+    rolling_metric.usage_shift = snapshot.usage_shift
+    rolling_metric.high_volatility = snapshot.high_volatility
+    rolling_metric.updated_at = generated_at
 
     return rolling_metric, created
 
@@ -161,6 +264,9 @@ def _sync_signal_for_context(
     current_value: float,
     baseline_value: float,
     z_score: float,
+    signal_score: float,
+    score_explanation: str,
+    explanation: str,
     generated_at: datetime,
 ) -> tuple[int, int, int]:
     existing_signals = db.execute(
@@ -183,9 +289,7 @@ def _sync_signal_for_context(
     if signal_type is None:
         return created, updated, deleted
 
-    explanation = build_explanation(player.name, metric_name, current_value, baseline_value, z_score, signal_type)
     current_signal = next((signal for signal in existing_signals if signal.signal_type == signal_type), None)
-
     if current_signal is None:
         db.add(
             Signal(
@@ -200,6 +304,8 @@ def _sync_signal_for_context(
                 current_value=current_value,
                 baseline_value=baseline_value,
                 z_score=z_score,
+                signal_score=signal_score,
+                score_explanation=score_explanation,
                 explanation=explanation,
                 created_at=generated_at,
             )
@@ -214,6 +320,8 @@ def _sync_signal_for_context(
     current_signal.current_value = current_value
     current_signal.baseline_value = baseline_value
     current_signal.z_score = z_score
+    current_signal.signal_score = signal_score
+    current_signal.score_explanation = score_explanation
     current_signal.explanation = explanation
     current_signal.created_at = generated_at
     updated += 1
@@ -223,10 +331,11 @@ def _sync_signal_for_context(
 def generate_signals(db: Session) -> SignalGenerationResult:
     result = SignalGenerationResult()
     try:
+        context = build_signal_generation_context(db)
+        latest_event_date = max(context.game_dates.values()) if context.game_dates else None
+
         players = db.execute(
-            select(Player)
-            .options(selectinload(Player.league))
-            .order_by(Player.id)
+            select(Player).options(selectinload(Player.league)).order_by(Player.id)
         ).scalars().all()
 
         for player in players:
@@ -239,48 +348,91 @@ def generate_signals(db: Session) -> SignalGenerationResult:
 
             metrics = METRICS_BY_LEAGUE[player.league.name]
             valid_contexts: set[tuple[int, str]] = set()
+            metric_stats = {
+                metric_name: [stat for stat in stats if getattr(stat, metric_name, None) is not None]
+                for metric_name in metrics
+            }
+            usage_snapshots = {
+                snapshot.game_id: snapshot
+                for snapshot in build_metric_snapshots(
+                    "usage_rate",
+                    metric_stats.get("usage_rate", []),
+                    game_dates_by_game_id=context.game_dates,
+                )
+            } if "usage_rate" in metrics else {}
 
             for metric_name in metrics:
-                for snapshot in build_metric_snapshots(metric_name, stats):
+                snapshots = build_metric_snapshots(
+                    metric_name,
+                    metric_stats.get(metric_name, []),
+                    game_dates_by_game_id=context.game_dates,
+                )
+                for snapshot in snapshots:
                     generated_at = datetime.utcnow()
                     valid_contexts.add((snapshot.game_id, metric_name))
+                    usage_snapshot = usage_snapshots.get(snapshot.game_id)
+                    contextual_snapshot = snapshot.with_context(
+                        opponent_average_allowed=context.opponent_average_allowed.get((snapshot.source_stat_id, metric_name)),
+                        opponent_rank=context.opponent_rank.get((snapshot.source_stat_id, metric_name)),
+                        pace_proxy=context.game_pace_proxy.get(snapshot.game_id),
+                        usage_shift=(
+                            snapshot.current_value - snapshot.medium_window.rolling_avg
+                            if metric_name == "usage_rate"
+                            else (usage_snapshot.current_value - usage_snapshot.medium_window.rolling_avg) if usage_snapshot else None
+                        ),
+                    )
 
                     rolling_metric, rolling_created = _upsert_rolling_metric(
                         db,
                         player_id=player.id,
-                        game_id=snapshot.game_id,
-                        source_stat_id=snapshot.source_stat_id,
+                        game_id=contextual_snapshot.game_id,
+                        source_stat_id=contextual_snapshot.source_stat_id,
                         metric_name=metric_name,
-                        rolling_avg=snapshot.baseline_value,
-                        rolling_stddev=snapshot.rolling_stddev,
-                        z_score=snapshot.z_score,
+                        snapshot=contextual_snapshot,
                         generated_at=generated_at,
                     )
                     db.flush()
                     _sync_rolling_metric_baseline_samples(
                         db,
                         rolling_metric_id=rolling_metric.id,
-                        baseline_stat_ids=snapshot.baseline_stat_ids,
+                        baseline_stat_ids=contextual_snapshot.baseline_stat_ids,
                     )
 
-                    signal_type = classify_signal(
-                        snapshot.z_score,
-                        snapshot.rolling_stddev,
+                    signal_type = classify_signal(contextual_snapshot, metric_name)
+                    signal_score = 0.0
+                    score_explanation = ""
+                    if signal_type is not None:
+                        signal_score, score_explanation = score_signal(
+                            contextual_snapshot,
+                            signal_type=signal_type,
+                            event_date=contextual_snapshot.event_date,
+                            latest_event_date=latest_event_date,
+                        )
+
+                    explanation = build_explanation(
+                        player.name,
                         metric_name,
-                        snapshot.current_value,
-                        snapshot.baseline_value,
+                        contextual_snapshot.current_value,
+                        contextual_snapshot.baseline_value,
+                        contextual_snapshot.z_score,
+                        signal_type,
+                        snapshot=contextual_snapshot,
                     )
+
                     created, updated, deleted = _sync_signal_for_context(
                         db,
                         player=player,
-                        game_id=snapshot.game_id,
+                        game_id=contextual_snapshot.game_id,
                         rolling_metric_id=rolling_metric.id,
-                        source_stat_id=snapshot.source_stat_id,
+                        source_stat_id=contextual_snapshot.source_stat_id,
                         metric_name=metric_name,
                         signal_type=signal_type,
-                        current_value=snapshot.current_value,
-                        baseline_value=snapshot.baseline_value,
-                        z_score=snapshot.z_score,
+                        current_value=contextual_snapshot.current_value,
+                        baseline_value=contextual_snapshot.baseline_value,
+                        z_score=contextual_snapshot.z_score,
+                        signal_score=signal_score,
+                        score_explanation=score_explanation,
+                        explanation=explanation,
                         generated_at=generated_at,
                     )
 

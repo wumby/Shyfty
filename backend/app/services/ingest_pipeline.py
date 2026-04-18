@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -18,8 +19,8 @@ class IngestResult:
 
 def run_full_ingest(
     days_back: int = 21,
-    max_games: int = 30,
-    season: str | None = None,
+    max_games: int = 50,
+    season: Optional[str] = None,
 ) -> IngestResult:
     from app.db.session import SessionLocal
     from app.services.nba_ingest_service import fetch_recent_nba_data

@@ -25,6 +25,8 @@ class Signal(Base):
     current_value: Mapped[float] = mapped_column(Float, nullable=False)
     baseline_value: Mapped[float] = mapped_column(Float, nullable=False)
     z_score: Mapped[float] = mapped_column(Float, nullable=False)
+    signal_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    score_explanation: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     explanation: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 

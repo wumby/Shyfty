@@ -29,6 +29,7 @@ export function AppShell() {
                     { to: '/', label: 'Signals' },
                     { to: '/players', label: 'Players' },
                     { to: '/teams', label: 'Teams' },
+                    { to: '/profile', label: 'Profile' },
                   ].map((item) => (
                     <NavLink
                       key={item.to}

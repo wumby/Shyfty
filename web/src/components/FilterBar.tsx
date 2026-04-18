@@ -1,7 +1,9 @@
-import type { SignalFilters } from '../types';
+import type { Player, SignalFilters } from '../types';
+import { SearchInput } from './SearchInput';
 
 interface FilterBarProps {
   filters: SignalFilters;
+  players: Player[];
   onChange: (filters: SignalFilters) => void;
   compact?: boolean;
 }
@@ -18,11 +20,20 @@ const typeTone: Record<string, string> = {
   OUTLIER: 'text-purple-400',
 };
 
-export function FilterBar({ filters, onChange, compact = false }: FilterBarProps) {
+export function FilterBar({ filters, players, onChange, compact = false }: FilterBarProps) {
   const wrapperClass = compact ? 'space-y-5' : 'panel-surface space-y-5 px-4 py-4';
 
   return (
     <div className={wrapperClass}>
+      <div>
+        <div className="eyebrow mb-2">Player Search</div>
+        <SearchInput
+          value={filters.player ?? ''}
+          players={players}
+          onChange={(val) => onChange({ ...filters, player: val || undefined })}
+        />
+      </div>
+
       <div>
         <div className="eyebrow mb-2">League</div>
         <div className="flex flex-wrap gap-2">
@@ -42,6 +53,7 @@ export function FilterBar({ filters, onChange, compact = false }: FilterBarProps
           ))}
         </div>
       </div>
+
       <div>
         <div className="eyebrow mb-2">Signal Type</div>
         <div className="flex flex-wrap gap-2">

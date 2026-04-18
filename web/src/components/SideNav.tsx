@@ -4,6 +4,7 @@ const navItems = [
   { to: '/', label: 'Signals' },
   { to: '/players', label: 'Players' },
   { to: '/teams', label: 'Teams' },
+  { to: '/profile', label: 'Profile' },
 ];
 
 export function SideNav() {

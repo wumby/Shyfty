@@ -1,5 +1,7 @@
 export type SignalType = 'SPIKE' | 'DROP' | 'SHIFT' | 'CONSISTENCY' | 'OUTLIER';
 export type ReactionType = 'strong' | 'agree' | 'risky';
+export type SortMode = 'newest' | 'most_important' | 'biggest_deviation' | 'most_discussed';
+export type FeedMode = 'all' | 'following' | 'for_you';
 
 export interface ReactionSummary {
   strong: number;
@@ -13,9 +15,20 @@ export interface User {
   created_at: string;
 }
 
+export interface FreshnessContext {
+  state: 'fresh' | 'delayed' | 'stale' | 'refreshing' | 'unknown';
+  label: string;
+  coverage_summary: string;
+  delayed_data_message: string | null;
+  ingest_age_minutes: number | null;
+  event_age_hours: number | null;
+}
+
 export interface Signal {
   id: number;
   player_id: number;
+  team_id: number;
+  game_id: number;
   player_name: string;
   team_name: string;
   league_name: string;
@@ -42,7 +55,10 @@ export interface Signal {
   classification_reason?: string;
   reaction_summary: ReactionSummary;
   user_reaction: ReactionType | null;
+  comment_count: number;
+  is_favorited: boolean;
   created_at: string;
+  freshness: FreshnessContext | null;
 }
 
 export interface Player {
@@ -51,6 +67,8 @@ export interface Player {
   position: string;
   team_name: string;
   league_name: string;
+  signal_count?: number;
+  is_followed: boolean;
 }
 
 export interface PlayerDetail extends Player {
@@ -62,6 +80,7 @@ export interface Team {
   name: string;
   league_name: string;
   player_count: number;
+  is_followed: boolean;
 }
 
 export interface MetricSeriesPoint {
@@ -74,10 +93,17 @@ export interface TeamDetail extends Team {
   recent_signals: Signal[];
 }
 
+export interface FeedContext {
+  feed_mode: FeedMode;
+  sort_mode: SortMode;
+  personalization_reason: string | null;
+}
+
 export interface PaginatedSignals {
   items: Signal[];
   has_more: boolean;
   next_cursor: number | null;
+  feed_context: FeedContext | null;
 }
 
 export interface BaselineSample {
@@ -101,6 +127,9 @@ export interface SignalTrace {
     raw_stats: Record<string, number>;
   } | null;
   baseline_samples: BaselineSample[];
+  discussion_preview: Comment[];
+  related_signals: Signal[];
+  feed_context: FeedContext | null;
 }
 
 export interface Comment {
@@ -110,9 +139,65 @@ export interface Comment {
   user_email: string;
   body: string;
   created_at: string;
+  updated_at: string;
+  is_edited: boolean;
+  can_edit: boolean;
+  can_delete: boolean;
+  can_report: boolean;
 }
 
 export interface SignalFilters {
   league?: string;
   signal_type?: string;
+  player?: string;
+  sort?: SortMode;
+  feed?: FeedMode;
+}
+
+export interface IngestRun {
+  started_at: string;
+  finished_at: string | null;
+  status: string;
+  duration_seconds: number | null;
+  error_message: string | null;
+}
+
+export interface IngestStatus {
+  status: 'idle' | 'running' | 'error';
+  last_updated: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  current_run_duration_seconds: number | null;
+  last_error: string | null;
+  recent_runs: IngestRun[];
+}
+
+export interface SavedView {
+  id: number;
+  name: string;
+  league: string | null;
+  signal_type: string | null;
+  player: string | null;
+  sort_mode: SortMode;
+  feed_mode: FeedMode;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProfilePreferences {
+  preferred_league: string | null;
+  preferred_signal_type: string | null;
+  default_sort_mode: SortMode;
+  default_feed_mode: FeedMode;
+  notification_releases: boolean;
+  notification_digest: boolean;
+}
+
+export interface UserProfile {
+  preferences: ProfilePreferences;
+  follows: {
+    players: number[];
+    teams: number[];
+  };
+  saved_views: SavedView[];
 }

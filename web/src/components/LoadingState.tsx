@@ -1,6 +1,9 @@
 export function LoadingState() {
   return (
     <div className="panel-surface animate-pulse overflow-hidden">
+      <div className="border-b border-border px-4 py-3 text-[11px] uppercase tracking-[0.2em] text-muted">
+        Building your board view…
+      </div>
       {[0, 1, 2, 3, 4].map((item) => (
         <div
           key={item}

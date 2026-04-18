@@ -21,7 +21,6 @@ final class APIClient {
 
     private init() {
         decoder = JSONDecoder()
-        // Use custom date strategy since dates are ISO8601 strings (not full Date objects)
         decoder.dateDecodingStrategy = .iso8601
         baseURL = Self.resolveBaseURL()
 
@@ -33,11 +32,12 @@ final class APIClient {
 
     // MARK: - Signals
 
-    func fetchSignals(league: String? = nil, signalType: String? = nil) async throws -> [Signal] {
+    func fetchSignals(league: String? = nil, signalType: String? = nil, player: String? = nil) async throws -> [Signal] {
         var components = URLComponents(url: baseURL.appendingPathComponent("signals"), resolvingAgainstBaseURL: false)!
         components.queryItems = [
             league.map { URLQueryItem(name: "league", value: $0) },
             signalType.map { URLQueryItem(name: "signal_type", value: $0) },
+            player.map { URLQueryItem(name: "player", value: $0) },
             URLQueryItem(name: "limit", value: "50")
         ].compactMap { $0 }
         let paginated: PaginatedSignals = try await get(components.url!)
@@ -51,10 +51,25 @@ final class APIClient {
         return try await get(url)
     }
 
+    func fetchSignalDetail(id: Int) async throws -> SignalTrace {
+        return try await get(baseURL.appendingPathComponent("signals/\(id)"))
+    }
+
     // MARK: - Players
 
     func fetchPlayer(id: Int) async throws -> Player {
         return try await get(baseURL.appendingPathComponent("players/\(id)"))
+    }
+
+    func followPlayer(id: Int) async throws {
+        let _: EmptyResponse = try await post(baseURL.appendingPathComponent("players/\(id)/follow"), body: EmptyBody())
+    }
+
+    func unfollowPlayer(id: Int) async throws {
+        var request = URLRequest(url: baseURL.appendingPathComponent("players/\(id)/follow"))
+        request.httpMethod = "DELETE"
+        let (_, response) = try await session.data(for: request)
+        _ = try validateResponse(response, data: Data())
     }
 
     func fetchPlayerSignals(id: Int) async throws -> [Signal] {
@@ -63,6 +78,10 @@ final class APIClient {
 
     func fetchPlayerMetrics(id: Int) async throws -> [MetricSeriesPoint] {
         return try await get(baseURL.appendingPathComponent("players/\(id)/metrics"))
+    }
+
+    func fetchTeam(id: Int) async throws -> TeamDetail {
+        try await get(baseURL.appendingPathComponent("teams/\(id)"))
     }
 
     // MARK: - Auth
@@ -99,10 +118,80 @@ final class APIClient {
         _ = try validateResponse(response, data: Data())
     }
 
+    // MARK: - Favorites
+
+    func addFavorite(signalId: Int) async throws {
+        let _: EmptyResponse = try await post(baseURL.appendingPathComponent("favorites/\(signalId)"), body: EmptyBody())
+    }
+
+    func removeFavorite(signalId: Int) async throws {
+        var request = URLRequest(url: baseURL.appendingPathComponent("favorites/\(signalId)"))
+        request.httpMethod = "DELETE"
+        let (_, response) = try await session.data(for: request)
+        _ = try validateResponse(response, data: Data())
+    }
+
+    func fetchFavorites() async throws -> [Signal] {
+        let paginated: PaginatedSignals = try await get(baseURL.appendingPathComponent("favorites"))
+        return paginated.items
+    }
+
+    // MARK: - Comments
+
+    func fetchComments(signalId: Int) async throws -> [Comment] {
+        try await get(baseURL.appendingPathComponent("signals/\(signalId)/comments"))
+    }
+
+    func postComment(signalId: Int, body: String) async throws -> Comment {
+        try await post(baseURL.appendingPathComponent("signals/\(signalId)/comments"), body: ["body": body])
+    }
+
+    func updateComment(commentId: Int, body: String) async throws -> Comment {
+        try await put(baseURL.appendingPathComponent("comments/\(commentId)"), body: ["body": body])
+    }
+
+    func deleteComment(commentId: Int) async throws {
+        var request = URLRequest(url: baseURL.appendingPathComponent("comments/\(commentId)"))
+        request.httpMethod = "DELETE"
+        let (_, response) = try await session.data(for: request)
+        _ = try validateResponse(response, data: Data())
+    }
+
+    func reportComment(commentId: Int) async throws {
+        let _: EmptyResponse = try await post(baseURL.appendingPathComponent("comments/\(commentId)/report"), body: ["reason": "abuse"])
+    }
+
+    // MARK: - Profile
+
+    func fetchProfile() async throws -> UserProfile {
+        try await get(baseURL.appendingPathComponent("profile"))
+    }
+
+    func updatePreferences(payload: [String: AnyEncodable]) async throws -> ProfilePreferences {
+        try await put(baseURL.appendingPathComponent("profile/preferences"), body: payload)
+    }
+
+    // MARK: - Ingest
+
+    func fetchIngestStatus() async throws -> IngestStatus {
+        return try await get(baseURL.appendingPathComponent("ingest/status"))
+    }
+
     // MARK: - Helpers
 
     private struct EmptyBody: Encodable {}
     private struct EmptyResponse: Decodable {}
+    struct AnyEncodable: Encodable {
+        private let encodeImpl: (Encoder) throws -> Void
+
+        init<T: Encodable>(_ value: T) {
+            self.encodeImpl = value.encode
+        }
+
+        func encode(to encoder: Encoder) throws {
+            try encodeImpl(encoder)
+        }
+    }
 
     private func get<T: Decodable>(_ url: URL) async throws -> T {
         let (data, response) = try await session.data(from: url)

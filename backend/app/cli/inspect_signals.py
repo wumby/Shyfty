@@ -29,7 +29,8 @@ def main() -> int:
     with SessionLocal() as db:
         if args.command == "recent":
             signals = list_signals(db=db, league=None, team=None, player=None, signal_type=None, limit=args.limit)
-            _print_json([signal.model_dump(mode="json") for signal in signals])
+            items = signals.items if hasattr(signals, "items") else signals
+            _print_json([signal.model_dump(mode="json") for signal in items])
             return 0
 
         if args.command == "player":

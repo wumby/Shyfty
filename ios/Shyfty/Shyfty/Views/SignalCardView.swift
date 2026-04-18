@@ -64,6 +64,11 @@ struct SignalCardView: View {
                             Text("\(signal.teamName)  •  \(signal.leagueName)  •  \(SignalFormatting.eventDateText(signal.eventDate))  •  Z \(signal.zScore, specifier: "%.2f")  •  \(SignalFormatting.relativeTime(from: signal.createdAt))")
                                 .font(.system(size: 11, weight: .medium))
                                 .foregroundStyle(ShyftyTheme.muted)
+                            if signal.commentCount > 0 {
+                                Text("\(signal.commentCount) discussing")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(ShyftyTheme.accent)
+                            }
                         }
                     }
 
@@ -87,6 +92,12 @@ struct SignalCardView: View {
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(ShyftyTheme.muted.opacity(0.9))
                     .lineSpacing(2)
+
+                if let freshness = signal.freshness, freshness.state == "stale" || freshness.state == "delayed" {
+                    Text(freshness.label)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(freshness.state == "stale" ? ShyftyTheme.danger : ShyftyTheme.warning)
+                }
 
                 HStack(spacing: 12) {
                     metricPill(title: "Current", value: signal.currentValue)

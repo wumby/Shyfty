@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, Float, ForeignKey, String, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, JSON, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -19,6 +19,31 @@ class RollingMetric(Base):
     rolling_avg: Mapped[float] = mapped_column(Float, nullable=False)
     rolling_stddev: Mapped[float] = mapped_column(Float, nullable=False)
     z_score: Mapped[float] = mapped_column(Float, nullable=False)
+    short_window_size: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    medium_window_size: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    season_window_size: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    short_values: Mapped[Optional[list[float]]] = mapped_column(JSON, nullable=True)
+    medium_values: Mapped[Optional[list[float]]] = mapped_column(JSON, nullable=True)
+    season_values: Mapped[Optional[list[float]]] = mapped_column(JSON, nullable=True)
+    short_rolling_avg: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    short_rolling_stddev: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    short_z_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    medium_rolling_avg: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    medium_rolling_stddev: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    medium_z_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    season_rolling_avg: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    season_rolling_stddev: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    season_z_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    ewma: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    recent_delta: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    trend_slope: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    volatility_index: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    volatility_delta: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    opponent_average_allowed: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    opponent_rank: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    pace_proxy: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    usage_shift: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    high_volatility: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     player = relationship("Player", back_populates="rolling_metrics")

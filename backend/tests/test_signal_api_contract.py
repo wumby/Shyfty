@@ -51,6 +51,8 @@ class SignalAPIContractTests(unittest.TestCase):
 
         signal = page.items[0]
         self.assertIsInstance(signal.importance, float)
+        self.assertGreaterEqual(signal.signal_score, 0.0)
+        self.assertLessEqual(signal.signal_score, 100.0)
         self.assertEqual(signal.baseline_window, "last 5 games")
         self.assertTrue(signal.metric_label)
         self.assertIn(signal.trend_direction, {"up", "down", "flat"})
@@ -72,6 +74,7 @@ class SignalAPIContractTests(unittest.TestCase):
         signal = signals[0]
         self.assertGreaterEqual(signal.importance, 0.0)
         self.assertLessEqual(signal.importance, 100.0)
+        self.assertGreaterEqual(signal.signal_score, 0.0)
         self.assertIn(signal.trend_direction, {"up", "down", "flat"})
         self.assertEqual(signal.summary_template_inputs.movement_pct, signal.movement_pct)
         self.assertEqual(signal.summary_template_inputs.current_value, signal.current_value)
@@ -140,6 +143,10 @@ class SignalAPIContractTests(unittest.TestCase):
         self.assertLessEqual(len(trace.baseline_samples), signal.baseline_window_size - 1)
         self.assertTrue(trace.baseline_samples)
         self.assertGreater(trace.baseline_samples[0].stat_id, 0)
+        self.assertGreaterEqual(trace.rolling_metric.short_window.sample_size, 1)
+        self.assertGreaterEqual(trace.rolling_metric.medium_window.sample_size, 1)
+        self.assertGreaterEqual(trace.rolling_metric.season_window.sample_size, 1)
+        self.assertIsNotNone(trace.signal.score_explanation)
 
 
 if __name__ == "__main__":

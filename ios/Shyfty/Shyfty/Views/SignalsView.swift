@@ -18,6 +18,11 @@ struct SignalsView: View {
                     .padding(.vertical, 12)
                 }
             }
+            // Navigate to signal detail by tapping a signal row
+            .navigationDestination(for: Signal.self) { signal in
+                SignalDetailView(signalId: signal.id, signal: signal)
+            }
+            // Navigate to player detail from links within detail views
             .navigationDestination(for: Int.self) { playerID in
                 PlayerDetailView(playerID: playerID)
             }
@@ -127,7 +132,7 @@ struct SignalsView: View {
             } else {
                 VStack(spacing: 10) {
                     ForEach(viewModel.signals) { signal in
-                        NavigationLink(value: signal.playerID) {
+                        NavigationLink(value: signal) {
                             SignalListRowView(signal: signal)
                         }
                         .buttonStyle(.plain)

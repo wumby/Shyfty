@@ -85,7 +85,7 @@ def fetch_recent_nba_data(
     season: Optional[str] = None,
     season_type: str = "Regular Season",
     days_back: int = 21,
-    max_games: int = 20,
+    max_games: int = 50,
     output_root: Optional[Path] = None,
 ) -> FetchResult:
     season_value = _normalize_season(season)

@@ -11,6 +11,7 @@ class PlayerRead(BaseModel):
     position: str
     team_name: str
     league_name: str
+    is_followed: bool = False
 
 
 class PlayerDetail(PlayerRead):

@@ -1,7 +1,10 @@
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_db
+from app.api.dependencies import get_current_user, get_db
+from app.models.user import User
 from app.schemas.player import MetricSeriesPoint, PlayerDetail, PlayerRead
 from app.schemas.signal import SignalRead
 from app.services.player_service import (
@@ -15,13 +18,20 @@ router = APIRouter()
 
 
 @router.get("/players", response_model=list[PlayerRead])
-def get_players(db: Session = Depends(get_db)) -> list[PlayerRead]:
-    return list_players(db)
+def get_players(
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user),
+) -> list[PlayerRead]:
+    return list_players(db, current_user_id=current_user.id if current_user else None)
 
 
 @router.get("/players/{player_id}", response_model=PlayerDetail)
-def get_player(player_id: int, db: Session = Depends(get_db)) -> PlayerDetail:
-    player = get_player_detail(db, player_id)
+def get_player(
+    player_id: int,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user),
+) -> PlayerDetail:
+    player = get_player_detail(db, player_id, current_user_id=current_user.id if current_user else None)
     if player is None:
         raise HTTPException(status_code=404, detail="Player not found")
     return player
@@ -35,4 +45,3 @@ def get_player_signal_feed(player_id: int, db: Session = Depends(get_db)) -> lis
 @router.get("/players/{player_id}/metrics", response_model=list[MetricSeriesPoint])
 def get_player_metrics(player_id: int, db: Session = Depends(get_db)) -> list[MetricSeriesPoint]:
     return get_player_metric_series(db, player_id)
-

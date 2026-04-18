@@ -80,6 +80,7 @@ export function SignalCard({ signal, onOpenDetail }: { signal: Signal; onOpenDet
   const currentUser = useAuthStore((state) => state.currentUser);
   const openAuth = useAuthStore((state) => state.openAuth);
   const reactToSignal = useSignalStore((state) => state.reactToSignal);
+  const toggleFavorite = useSignalStore((state) => state.toggleFavorite);
   const [showComments, setShowComments] = useState(false);
 
   async function handleReactionClick(reactionType: ReactionType) {
@@ -90,8 +91,16 @@ export function SignalCard({ signal, onOpenDetail }: { signal: Signal; onOpenDet
     try {
       await reactToSignal(signal.id, reactionType);
     } catch {
-      // store handles rollback + error state
+      // store handles rollback
     }
+  }
+
+  async function handleFavoriteClick() {
+    if (!currentUser) {
+      openAuth('signin');
+      return;
+    }
+    await toggleFavorite(signal.id);
   }
 
   return (
@@ -125,7 +134,22 @@ export function SignalCard({ signal, onOpenDetail }: { signal: Signal; onOpenDet
           ) : null}
           <span className="text-white/10">•</span>
           <span>{formatRelativeTime(signal.created_at)}</span>
+          {signal.comment_count > 0 ? (
+            <>
+              <span className="text-white/10">•</span>
+              <span>{signal.comment_count} discussing</span>
+            </>
+          ) : null}
         </div>
+        {signal.freshness && signal.freshness.state !== 'fresh' ? (
+          <div className={`mt-2 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${
+            signal.freshness.state === 'stale'
+              ? 'border-danger/30 bg-danger/10 text-danger'
+              : 'border-warning/30 bg-warning/10 text-warning'
+          }`}>
+            {signal.freshness.state === 'stale' ? 'Stale board context' : 'Delayed data'}
+          </div>
+        ) : null}
         <div className={`mt-2 text-[12px] leading-5 ${directionStyles.context}`}>
           {signal.explanation}
         </div>
@@ -152,6 +176,21 @@ export function SignalCard({ signal, onOpenDetail }: { signal: Signal; onOpenDet
               </button>
             );
           })}
+
+          {/* Favorite star */}
+          <button
+            type="button"
+            onClick={() => void handleFavoriteClick()}
+            title={signal.is_favorited ? 'Remove from saved' : 'Save signal'}
+            className={`rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.14em] transition ${
+              signal.is_favorited
+                ? 'border-amber-500/30 bg-amber-500/10 text-amber-300'
+                : 'border-transparent text-muted/70 hover:border-border hover:text-ink'
+            }`}
+          >
+            {signal.is_favorited ? '★' : '☆'}
+          </button>
+
           <button
             type="button"
             onClick={() => setShowComments((v) => !v)}
@@ -161,7 +200,7 @@ export function SignalCard({ signal, onOpenDetail }: { signal: Signal; onOpenDet
                 : 'border-transparent text-muted/70 hover:border-border hover:text-ink'
             }`}
           >
-            {showComments ? 'Hide' : 'Comments'}
+            {showComments ? 'Hide' : `Comments${signal.comment_count > 0 ? ` ${signal.comment_count}` : ''}`}
           </button>
           {onOpenDetail != null && (
             <button

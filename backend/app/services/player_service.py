@@ -10,17 +10,28 @@ from app.models.player_game_stat import PlayerGameStat
 from app.models.rolling_metric import RollingMetric
 from app.models.signal import Signal
 from app.models.team import Team
+from app.models.user_follow import UserFollow
 from app.schemas.player import MetricSeriesPoint, PlayerDetail, PlayerRead
 from app.services.signal_service import build_signal_read
 
 
-def list_players(db: Session) -> list[PlayerRead]:
+def list_players(db: Session, current_user_id: Optional[int] = None) -> list[PlayerRead]:
     rows = db.execute(
         select(Player, Team.name, League.name)
         .join(Team, Player.team_id == Team.id)
         .join(League, Player.league_id == League.id)
         .order_by(League.name, Team.name, Player.name)
     ).all()
+    followed_ids = set()
+    if current_user_id is not None:
+        followed_ids = set(
+            db.execute(
+                select(UserFollow.entity_id).where(
+                    UserFollow.user_id == current_user_id,
+                    UserFollow.entity_type == "player",
+                )
+            ).scalars().all()
+        )
     return [
         PlayerRead(
             id=player.id,
@@ -28,12 +39,13 @@ def list_players(db: Session) -> list[PlayerRead]:
             position=player.position,
             team_name=team_name,
             league_name=league_name,
+            is_followed=player.id in followed_ids,
         )
         for player, team_name, league_name in rows
     ]
 
 
-def get_player_detail(db: Session, player_id: int) -> Optional[PlayerDetail]:
+def get_player_detail(db: Session, player_id: int, current_user_id: Optional[int] = None) -> Optional[PlayerDetail]:
     row = db.execute(
         select(Player, Team.name, League.name, func.count(Signal.id))
         .join(Team, Player.team_id == Team.id)
@@ -54,12 +66,21 @@ def get_player_detail(db: Session, player_id: int) -> Optional[PlayerDetail]:
         team_name=team_name,
         league_name=league_name,
         signal_count=signal_count,
+        is_followed=(
+            current_user_id is not None and db.execute(
+                select(UserFollow.id).where(
+                    UserFollow.user_id == current_user_id,
+                    UserFollow.entity_type == "player",
+                    UserFollow.entity_id == player.id,
+                )
+            ).scalar_one_or_none() is not None
+        ),
     )
 
 
 def get_player_signals(db: Session, player_id: int):
     rows = db.execute(
-        select(Signal, Player.name, Team.name, League.name, Game.game_date, RollingMetric.rolling_stddev)
+        select(Signal, Player.name, Team.name, League.name, Game.game_date, RollingMetric)
         .join(Player, Signal.player_id == Player.id)
         .join(Team, Signal.team_id == Team.id)
         .join(League, Signal.league_id == League.id)
@@ -76,8 +97,8 @@ def get_player_signals(db: Session, player_id: int):
         .order_by(Signal.created_at.desc())
     ).all()
     return [
-        build_signal_read(signal, player_name, team_name, league_name, event_date, rolling_stddev)
-        for signal, player_name, team_name, league_name, event_date, rolling_stddev in rows
+        build_signal_read(signal, player_name, team_name, league_name, event_date, rolling_metric)
+        for signal, player_name, team_name, league_name, event_date, rolling_metric in rows
     ]
 
 

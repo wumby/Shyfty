@@ -17,8 +17,9 @@ from app.schemas.signal import (
     RollingMetricTraceRead,
     SignalTraceRead,
     SourceStatContextRead,
+    WindowContextRead,
 )
-from app.services.signal_service import build_signal_read
+from app.services.signal_service import build_signal_read, effective_metric_to_snapshot
 
 
 def _stat_value(stat: PlayerGameStat, metric_name: str) -> Optional[float]:
@@ -208,14 +209,10 @@ def inspect_signal(db: Session, signal_id: int) -> Optional[SignalTraceRead]:
         team_name,
         league_name,
         event_date,
-        rolling_metric.rolling_stddev if rolling_metric is not None else None,
+        rolling_metric,
     )
-    signal_read.classification_reason = classification_reason(
-        signal.signal_type,
-        signal.z_score,
-        rolling_metric.rolling_stddev if rolling_metric is not None else 0.0,
-        signal.metric_name,
-    )
+    snapshot = effective_metric_to_snapshot(signal, rolling_metric)
+    signal_read.classification_reason = classification_reason(signal.signal_type, snapshot, signal.metric_name)
 
     rolling_metric_read = RollingMetricTraceRead(
         id=rolling_metric.id if rolling_metric is not None else None,
@@ -226,6 +223,37 @@ def inspect_signal(db: Session, signal_id: int) -> Optional[SignalTraceRead]:
         rolling_avg=rolling_metric.rolling_avg if rolling_metric is not None else signal.baseline_value,
         rolling_stddev=rolling_metric.rolling_stddev if rolling_metric is not None else 0.0,
         z_score=rolling_metric.z_score if rolling_metric is not None else signal.z_score,
+        short_window=WindowContextRead(
+            sample_size=len(rolling_metric.short_values) if rolling_metric and rolling_metric.short_values else len(snapshot.short_window.values),
+            values=[float(value) for value in ((rolling_metric.short_values if rolling_metric and rolling_metric.short_values else snapshot.short_window.values))],
+            rolling_avg=rolling_metric.short_rolling_avg if rolling_metric and rolling_metric.short_rolling_avg is not None else snapshot.short_window.rolling_avg,
+            rolling_stddev=rolling_metric.short_rolling_stddev if rolling_metric and rolling_metric.short_rolling_stddev is not None else snapshot.short_window.rolling_stddev,
+            z_score=rolling_metric.short_z_score if rolling_metric and rolling_metric.short_z_score is not None else snapshot.short_window.z_score,
+        ),
+        medium_window=WindowContextRead(
+            sample_size=len(rolling_metric.medium_values) if rolling_metric and rolling_metric.medium_values else len(snapshot.medium_window.values),
+            values=[float(value) for value in ((rolling_metric.medium_values if rolling_metric and rolling_metric.medium_values else snapshot.medium_window.values))],
+            rolling_avg=rolling_metric.medium_rolling_avg if rolling_metric and rolling_metric.medium_rolling_avg is not None else snapshot.medium_window.rolling_avg,
+            rolling_stddev=rolling_metric.medium_rolling_stddev if rolling_metric and rolling_metric.medium_rolling_stddev is not None else snapshot.medium_window.rolling_stddev,
+            z_score=rolling_metric.medium_z_score if rolling_metric and rolling_metric.medium_z_score is not None else snapshot.medium_window.z_score,
+        ),
+        season_window=WindowContextRead(
+            sample_size=len(rolling_metric.season_values) if rolling_metric and rolling_metric.season_values else len(snapshot.season_window.values),
+            values=[float(value) for value in ((rolling_metric.season_values if rolling_metric and rolling_metric.season_values else snapshot.season_window.values))],
+            rolling_avg=rolling_metric.season_rolling_avg if rolling_metric and rolling_metric.season_rolling_avg is not None else snapshot.season_window.rolling_avg,
+            rolling_stddev=rolling_metric.season_rolling_stddev if rolling_metric and rolling_metric.season_rolling_stddev is not None else snapshot.season_window.rolling_stddev,
+            z_score=rolling_metric.season_z_score if rolling_metric and rolling_metric.season_z_score is not None else snapshot.season_window.z_score,
+        ),
+        ewma=rolling_metric.ewma if rolling_metric is not None else snapshot.ewma,
+        recent_delta=rolling_metric.recent_delta if rolling_metric is not None else snapshot.recent_delta,
+        trend_slope=rolling_metric.trend_slope if rolling_metric is not None else snapshot.trend_slope,
+        volatility_index=rolling_metric.volatility_index if rolling_metric is not None else snapshot.volatility_index,
+        volatility_delta=rolling_metric.volatility_delta if rolling_metric is not None else snapshot.volatility_delta,
+        opponent_average_allowed=rolling_metric.opponent_average_allowed if rolling_metric is not None else snapshot.opponent_average_allowed,
+        opponent_rank=rolling_metric.opponent_rank if rolling_metric is not None else snapshot.opponent_rank,
+        pace_proxy=rolling_metric.pace_proxy if rolling_metric is not None else snapshot.pace_proxy,
+        usage_shift=rolling_metric.usage_shift if rolling_metric is not None else snapshot.usage_shift,
+        high_volatility=rolling_metric.high_volatility if rolling_metric is not None else snapshot.high_volatility,
     )
 
     return SignalTraceRead(

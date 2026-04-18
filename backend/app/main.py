@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import auth, comments, debug, health, players, reactions, signals, teams
+from app.api.routes import auth, comments, debug, favorites, health, ingest, players, profile, reactions, signals, teams
 from app.core.config import settings
 
 
@@ -33,6 +33,9 @@ def create_app() -> FastAPI:
     app.include_router(comments.router, prefix="/api", tags=["comments"])
     app.include_router(players.router, prefix="/api", tags=["players"])
     app.include_router(teams.router, prefix="/api", tags=["teams"])
+    app.include_router(ingest.router, prefix="/api", tags=["ingest"])
+    app.include_router(favorites.router, prefix="/api", tags=["favorites"])
+    app.include_router(profile.router, prefix="/api", tags=["profile"])
     app.include_router(debug.router, prefix="/api", tags=["debug"])
 
     return app

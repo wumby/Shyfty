@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 
 import { EmptyState } from './EmptyState';
 import { SignalCard } from './SignalCard';
-import type { Signal } from '../types';
+import type { FeedContext, Signal } from '../types';
 import { useSignalStore } from '../store/useSignalStore';
 
 interface SignalFeedProps {
@@ -10,9 +10,10 @@ interface SignalFeedProps {
   onOpenDetail?: (signalId: number) => void;
   /** When true, wires the sentinel to the global store's loadMore (main feed). */
   paginated?: boolean;
+  feedContext?: FeedContext | null;
 }
 
-export function SignalFeed({ signals, onOpenDetail, paginated = false }: SignalFeedProps) {
+export function SignalFeed({ signals, onOpenDetail, paginated = false, feedContext = null }: SignalFeedProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const loadMore = useSignalStore((state) => state.loadMore);
@@ -41,8 +42,8 @@ export function SignalFeed({ signals, onOpenDetail, paginated = false }: SignalF
     return (
       <div className="h-full overflow-y-auto" ref={containerRef}>
         <EmptyState
-          title="No signals in this view"
-          copy="Try broadening the league or signal type filter. New signals appear when games are ingested."
+          title={feedContext?.feed_mode === 'following' ? 'Nothing in following yet' : feedContext?.feed_mode === 'for_you' ? 'Your board needs a little history' : 'No signals in this view'}
+          copy={feedContext?.personalization_reason ?? 'Try broadening the league or signal type filter. New signals appear when games are ingested.'}
         />
       </div>
     );

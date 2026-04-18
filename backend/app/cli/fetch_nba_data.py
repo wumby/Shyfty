@@ -7,7 +7,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Fetch recent NBA data into local raw payload files.")
     parser.add_argument("--season", default=None, help="Season in NBA format, e.g. 2024-25")
     parser.add_argument("--days-back", type=int, default=21)
-    parser.add_argument("--max-games", type=int, default=20)
+    parser.add_argument("--max-games", type=int, default=50)
     args = parser.parse_args()
 
     result = fetch_recent_nba_data(

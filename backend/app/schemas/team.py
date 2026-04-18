@@ -9,6 +9,7 @@ class TeamRead(BaseModel):
     name: str
     league_name: str
     player_count: int
+    is_followed: bool = False
 
 
 class TeamDetail(TeamRead):

@@ -1,0 +1,32 @@
+{
+  "windows": {
+    "short_window": 4,
+    "medium_window": 10,
+    "delta_window": 3,
+    "trend_window": 5,
+    "ewma_alpha": 0.4
+  },
+  "thresholds": {
+    "global": {
+      "outlier_z": 2.5,
+      "spike_z": 1.5,
+      "drop_z": -1.5,
+      "shift_z": 1.0,
+      "consistency_std": 0.75,
+      "usage_shift_pct": 8.0,
+      "high_volatility_index": 1.35
+    },
+    "metrics": {}
+  },
+  "scoring": {
+    "base_score": 24.0,
+    "short_z_weight": 15.0,
+    "medium_z_weight": 10.0,
+    "season_z_weight": 6.0,
+    "agreement_bonus": 14.0,
+    "trend_weight": 6.0,
+    "recency_bonus": 10.0,
+    "volatility_penalty": 12.0,
+    "max_score": 100.0
+  }
+}

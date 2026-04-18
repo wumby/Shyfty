@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.reaction import ReactionRead, ReactionWrite
+from app.services.abuse_service import enforce_rate_limit
 from app.services.reaction_service import remove_signal_reaction, set_signal_reaction
 
 router = APIRouter()
@@ -25,6 +26,7 @@ def put_signal_reaction(
     current_user: Optional[User] = Depends(get_current_user),
 ) -> ReactionRead:
     user = _require_user(current_user)
+    enforce_rate_limit(f"user:{user.id}", "reaction_write", limit=60, per_seconds=300)
     try:
         reaction = set_signal_reaction(db, signal_id=signal_id, user_id=user.id, reaction_type=payload.type)
     except LookupError as exc:
@@ -47,5 +49,6 @@ def delete_signal_reaction(
     current_user: Optional[User] = Depends(get_current_user),
 ) -> Response:
     user = _require_user(current_user)
+    enforce_rate_limit(f"user:{user.id}", "reaction_write", limit=60, per_seconds=300)
     remove_signal_reaction(db, signal_id=signal_id, user_id=user.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

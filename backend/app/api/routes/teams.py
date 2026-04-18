@@ -12,8 +12,11 @@ router = APIRouter()
 
 
 @router.get("/teams", response_model=list[TeamRead])
-def get_teams(db: Session = Depends(get_db)) -> list[TeamRead]:
-    return list_teams(db)
+def get_teams(
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user),
+) -> list[TeamRead]:
+    return list_teams(db, current_user_id=current_user.id if current_user else None)
 
 
 @router.get("/teams/{team_id}", response_model=TeamDetail)

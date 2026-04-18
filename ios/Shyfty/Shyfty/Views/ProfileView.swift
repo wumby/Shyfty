@@ -1,7 +1,34 @@
 import SwiftUI
 
+@MainActor
+final class ProfileViewModel: ObservableObject {
+    @Published var profile: UserProfile?
+    @Published var errorMessage: String?
+
+    func load() async {
+        do {
+            profile = try await APIClient.shared.fetchProfile()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func updateDigest(_ value: Bool) async {
+        do {
+            let preferences = try await APIClient.shared.updatePreferences(payload: [
+                "notification_digest": .init(value)
+            ])
+            guard let profile else { return }
+            self.profile = UserProfile(preferences: preferences, follows: profile.follows, savedViews: profile.savedViews)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+}
+
 struct ProfileView: View {
     @EnvironmentObject private var auth: AuthViewModel
+    @StateObject private var viewModel = ProfileViewModel()
 
     var body: some View {
         ZStack {
@@ -26,6 +53,11 @@ struct ProfileView: View {
             AuthView()
                 .environmentObject(auth)
         }
+        .task {
+            if auth.currentUser != nil {
+                await viewModel.load()
+            }
+        }
     }
 
     private func signedInView(_ user: AuthUser) -> some View {
@@ -45,6 +77,29 @@ struct ProfileView: View {
             }
             .padding(24)
             .shyftyPanel()
+
+            if let profile = viewModel.profile {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Preferences")
+                        .shyftyEyebrow()
+                    Toggle("Digest scaffolding", isOn: Binding(
+                        get: { profile.preferences.notificationDigest },
+                        set: { newValue in
+                            Task { await viewModel.updateDigest(newValue) }
+                        }
+                    ))
+                    .tint(ShyftyTheme.accent)
+
+                    Text("Saved views: \(profile.savedViews.count)")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(ShyftyTheme.muted)
+                    Text("Following players: \(profile.follows.players.count) • teams: \(profile.follows.teams.count)")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(ShyftyTheme.muted)
+                }
+                .padding(24)
+                .shyftyPanel()
+            }
 
             Button {
                 Task {
@@ -77,7 +132,7 @@ struct ProfileView: View {
                 Text("Sign in for reactions, saved players, and a more personal board.")
                     .shyftyHeadline(28)
                     .multilineTextAlignment(.center)
-                Text("Keep profile actions tucked away here instead of competing with the main reading surfaces.")
+                Text("Saved views and notification preferences now live here without changing the main navigation.")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(ShyftyTheme.muted)
                     .multilineTextAlignment(.center)

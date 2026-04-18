@@ -1,14 +1,46 @@
 import Foundation
 
+struct FeedContext: Decodable, Hashable {
+    let feedMode: String
+    let sortMode: String
+    let personalizationReason: String?
+
+    enum CodingKeys: String, CodingKey {
+        case feedMode = "feed_mode"
+        case sortMode = "sort_mode"
+        case personalizationReason = "personalization_reason"
+    }
+}
+
+struct FreshnessContext: Decodable, Hashable {
+    let state: String
+    let label: String
+    let coverageSummary: String
+    let delayedDataMessage: String?
+    let ingestAgeMinutes: Int?
+    let eventAgeHours: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case state
+        case label
+        case coverageSummary = "coverage_summary"
+        case delayedDataMessage = "delayed_data_message"
+        case ingestAgeMinutes = "ingest_age_minutes"
+        case eventAgeHours = "event_age_hours"
+    }
+}
+
 struct PaginatedSignals: Decodable {
     let items: [Signal]
     let hasMore: Bool
     let nextCursor: Int?
+    let feedContext: FeedContext?
 
     enum CodingKeys: String, CodingKey {
         case items
         case hasMore = "has_more"
         case nextCursor = "next_cursor"
+        case feedContext = "feed_context"
     }
 }
 
@@ -37,6 +69,7 @@ struct Signal: Identifiable, Decodable, Hashable {
 
     let id: Int
     let playerID: Int
+    let teamID: Int
     let playerName: String
     let teamName: String
     let leagueName: String
@@ -56,11 +89,16 @@ struct Signal: Identifiable, Decodable, Hashable {
     let summaryTemplateInputs: SummaryTemplateInputs
     let reactionSummary: ReactionSummary
     let userReaction: String?
+    let commentCount: Int
+    let isFavorited: Bool
+    let classificationReason: String?
     let createdAt: String
+    let freshness: FreshnessContext?
 
     enum CodingKeys: String, CodingKey {
         case id
         case playerID = "player_id"
+        case teamID = "team_id"
         case playerName = "player_name"
         case teamName = "team_name"
         case leagueName = "league_name"
@@ -80,7 +118,11 @@ struct Signal: Identifiable, Decodable, Hashable {
         case summaryTemplateInputs = "summary_template_inputs"
         case reactionSummary = "reaction_summary"
         case userReaction = "user_reaction"
+        case commentCount = "comment_count"
+        case isFavorited = "is_favorited"
+        case classificationReason = "classification_reason"
         case createdAt = "created_at"
+        case freshness
     }
 }
 
@@ -91,6 +133,7 @@ struct Player: Identifiable, Decodable, Hashable {
     let teamName: String
     let leagueName: String
     let signalCount: Int?
+    let isFollowed: Bool
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -99,6 +142,43 @@ struct Player: Identifiable, Decodable, Hashable {
         case teamName = "team_name"
         case leagueName = "league_name"
         case signalCount = "signal_count"
+        case isFollowed = "is_followed"
+    }
+}
+
+struct Team: Identifiable, Decodable, Hashable {
+    let id: Int
+    let name: String
+    let leagueName: String
+    let playerCount: Int
+    let isFollowed: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case leagueName = "league_name"
+        case playerCount = "player_count"
+        case isFollowed = "is_followed"
+    }
+}
+
+struct TeamDetail: Decodable, Hashable {
+    let id: Int
+    let name: String
+    let leagueName: String
+    let playerCount: Int
+    let isFollowed: Bool
+    let players: [Player]
+    let recentSignals: [Signal]
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case leagueName = "league_name"
+        case playerCount = "player_count"
+        case isFollowed = "is_followed"
+        case players
+        case recentSignals = "recent_signals"
     }
 }
 
@@ -126,4 +206,184 @@ struct AuthUser: Decodable, Hashable {
 
 struct AuthSession: Decodable {
     let user: AuthUser?
+}
+
+struct Comment: Decodable, Identifiable, Hashable {
+    let id: Int
+    let signalID: Int
+    let userID: Int
+    let userEmail: String
+    let body: String
+    let createdAt: String
+    let updatedAt: String
+    let isEdited: Bool
+    let canEdit: Bool
+    let canDelete: Bool
+    let canReport: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case signalID = "signal_id"
+        case userID = "user_id"
+        case userEmail = "user_email"
+        case body
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+        case isEdited = "is_edited"
+        case canEdit = "can_edit"
+        case canDelete = "can_delete"
+        case canReport = "can_report"
+    }
+}
+
+struct SavedView: Decodable, Identifiable, Hashable {
+    let id: Int
+    let name: String
+    let league: String?
+    let signalType: String?
+    let player: String?
+    let sortMode: String
+    let feedMode: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case league
+        case signalType = "signal_type"
+        case player
+        case sortMode = "sort_mode"
+        case feedMode = "feed_mode"
+    }
+}
+
+struct ProfilePreferences: Decodable, Hashable {
+    let preferredLeague: String?
+    let preferredSignalType: String?
+    let defaultSortMode: String
+    let defaultFeedMode: String
+    let notificationReleases: Bool
+    let notificationDigest: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case preferredLeague = "preferred_league"
+        case preferredSignalType = "preferred_signal_type"
+        case defaultSortMode = "default_sort_mode"
+        case defaultFeedMode = "default_feed_mode"
+        case notificationReleases = "notification_releases"
+        case notificationDigest = "notification_digest"
+    }
+}
+
+struct UserProfile: Decodable {
+    struct Follows: Decodable, Hashable {
+        let players: [Int]
+        let teams: [Int]
+    }
+
+    let preferences: ProfilePreferences
+    let follows: Follows
+    let savedViews: [SavedView]
+
+    enum CodingKeys: String, CodingKey {
+        case preferences
+        case follows
+        case savedViews = "saved_views"
+    }
+}
+
+// MARK: - Signal Detail (Trace)
+
+struct BaselineSample: Decodable, Identifiable {
+    var id: Int { statId }
+    let statId: Int
+    let gameDate: String
+    let value: Double
+
+    enum CodingKeys: String, CodingKey {
+        case statId = "stat_id"
+        case gameDate = "game_date"
+        case value
+    }
+}
+
+struct RollingMetricTrace: Decodable {
+    let rollingAvg: Double
+    let rollingStddev: Double
+    let zScore: Double
+
+    enum CodingKeys: String, CodingKey {
+        case rollingAvg = "rolling_avg"
+        case rollingStddev = "rolling_stddev"
+        case zScore = "z_score"
+    }
+}
+
+struct SourceStatContext: Decodable {
+    let gameDate: String
+    let currentValue: Double
+    let rawStats: [String: Double]
+
+    enum CodingKeys: String, CodingKey {
+        case gameDate = "game_date"
+        case currentValue = "current_value"
+        case rawStats = "raw_stats"
+    }
+}
+
+struct SignalTrace: Decodable {
+    let signal: Signal
+    let rollingMetric: RollingMetricTrace?
+    let sourceStat: SourceStatContext?
+    let baselineSamples: [BaselineSample]
+    let discussionPreview: [Comment]
+    let relatedSignals: [Signal]
+    let feedContext: FeedContext?
+
+    enum CodingKeys: String, CodingKey {
+        case signal
+        case rollingMetric = "rolling_metric"
+        case sourceStat = "source_stat"
+        case baselineSamples = "baseline_samples"
+        case discussionPreview = "discussion_preview"
+        case relatedSignals = "related_signals"
+        case feedContext = "feed_context"
+    }
+}
+
+// MARK: - Ingest Status
+
+struct IngestRun: Decodable, Hashable {
+    let startedAt: String
+    let finishedAt: String?
+    let status: String
+    let durationSeconds: Double?
+    let errorMessage: String?
+
+    enum CodingKeys: String, CodingKey {
+        case startedAt = "started_at"
+        case finishedAt = "finished_at"
+        case status
+        case durationSeconds = "duration_seconds"
+        case errorMessage = "error_message"
+    }
+}
+
+struct IngestStatus: Decodable {
+    let status: String
+    let lastUpdated: String?
+    let startedAt: String?
+    let finishedAt: String?
+    let currentRunDurationSeconds: Double?
+    let lastError: String?
+    let recentRuns: [IngestRun]
+
+    enum CodingKeys: String, CodingKey {
+        case status
+        case lastUpdated = "last_updated"
+        case startedAt = "started_at"
+        case finishedAt = "finished_at"
+        case currentRunDurationSeconds = "current_run_duration_seconds"
+        case lastError = "last_error"
+        case recentRuns = "recent_runs"
+    }
 }

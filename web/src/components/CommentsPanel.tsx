@@ -22,27 +22,32 @@ function emailHandle(email: string) {
 
 interface Props {
   signalId: number;
+  initialComments?: Comment[];
 }
 
-export function CommentsPanel({ signalId }: Props) {
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [loading, setLoading] = useState(true);
+export function CommentsPanel({ signalId, initialComments }: Props) {
+  const [comments, setComments] = useState<Comment[]>(initialComments ?? []);
+  const [loading, setLoading] = useState(!initialComments);
   const [draft, setDraft] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editDraft, setEditDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [reportingId, setReportingId] = useState<number | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const currentUser = useAuthStore((s) => s.currentUser);
   const openAuth = useAuthStore((s) => s.openAuth);
 
   useEffect(() => {
+    if (initialComments) return;
     setLoading(true);
     api
       .getComments(signalId)
       .then(setComments)
       .catch(() => setComments([]))
       .finally(() => setLoading(false));
-  }, [signalId]);
+  }, [initialComments, signalId]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -69,8 +74,30 @@ export function CommentsPanel({ signalId }: Props) {
     try {
       await api.deleteComment(commentId);
       setComments((prev) => prev.filter((c) => c.id !== commentId));
-    } catch {
-      // ignore
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Delete failed');
+    }
+  }
+
+  async function handleEdit(commentId: number) {
+    const body = editDraft.trim();
+    if (!body) return;
+    try {
+      const updated = await api.updateComment(commentId, body);
+      setComments((prev) => prev.map((comment) => (comment.id === commentId ? updated : comment)));
+      setEditingId(null);
+      setEditDraft('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Edit failed');
+    }
+  }
+
+  async function handleReport(commentId: number) {
+    try {
+      await api.reportComment(commentId, 'abuse');
+      setReportingId(commentId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Report failed');
     }
   }
 
@@ -83,28 +110,81 @@ export function CommentsPanel({ signalId }: Props) {
           ))}
         </div>
       ) : (
-        <div className="space-y-2 py-1">
+        <div className="space-y-3 py-1">
           {comments.length === 0 && (
-            <p className="py-1 text-[12px] text-slate-600">No comments yet. Be first.</p>
+            <p className="rounded-2xl border border-border bg-white/[0.02] px-3 py-3 text-[12px] text-muted">
+              No discussion yet. The first useful read here usually sets the tone for everyone else.
+            </p>
           )}
           {comments.map((c) => (
-            <div key={c.id} className="group flex items-start gap-2.5">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-[11px] font-semibold text-slate-400">{emailHandle(c.user_email)}</span>
-                  <span className="text-[10px] text-slate-600">{formatCommentTime(c.created_at)}</span>
+            <div key={c.id} className="group rounded-2xl border border-border bg-white/[0.02] px-3 py-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[11px] font-semibold text-[#d9e3f1]">{emailHandle(c.user_email)}</span>
+                    <span className="text-[10px] text-muted">{formatCommentTime(c.created_at)}</span>
+                    {c.is_edited ? <span className="text-[10px] uppercase tracking-[0.14em] text-muted/70">edited</span> : null}
+                  </div>
+                  {editingId === c.id ? (
+                    <div className="mt-2 flex gap-2">
+                      <textarea
+                        value={editDraft}
+                        onChange={(event) => setEditDraft(event.target.value)}
+                        rows={2}
+                        className="flex-1 resize-none rounded-lg border border-slate-700/60 bg-slate-800/60 px-3 py-2 text-[13px] text-slate-200 focus:border-slate-600 focus:outline-none"
+                      />
+                      <div className="flex flex-col gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void handleEdit(c.id)}
+                          className="rounded-lg bg-blue-600/80 px-3 py-2 text-[11px] font-medium text-white"
+                        >
+                          Save
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setEditingId(null); setEditDraft(''); }}
+                          className="rounded-lg border border-border px-3 py-2 text-[11px] text-muted"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="mt-1 text-[13px] leading-relaxed text-slate-300">{c.body}</p>
+                  )}
                 </div>
-                <p className="mt-0.5 text-[13px] leading-relaxed text-slate-300">{c.body}</p>
+                <div className="flex flex-col items-end gap-1">
+                  {c.can_edit && editingId !== c.id ? (
+                    <button
+                      type="button"
+                      onClick={() => { setEditingId(c.id); setEditDraft(c.body); }}
+                      className="text-[10px] uppercase tracking-[0.14em] text-muted transition hover:text-ink"
+                    >
+                      Edit
+                    </button>
+                  ) : null}
+                  {c.can_delete ? (
+                    <button
+                      type="button"
+                      onClick={() => void handleDelete(c.id)}
+                      className="text-[10px] uppercase tracking-[0.14em] text-muted transition hover:text-danger"
+                    >
+                      Delete
+                    </button>
+                  ) : null}
+                  {c.can_report ? (
+                    <button
+                      type="button"
+                      onClick={() => void handleReport(c.id)}
+                      disabled={reportingId === c.id}
+                      className="text-[10px] uppercase tracking-[0.14em] text-muted transition hover:text-warning disabled:opacity-50"
+                    >
+                      {reportingId === c.id ? 'Reported' : 'Report'}
+                    </button>
+                  ) : null}
+                </div>
               </div>
-              {currentUser?.id === c.user_id && (
-                <button
-                  type="button"
-                  onClick={() => void handleDelete(c.id)}
-                  className="mt-0.5 flex-none text-[10px] text-slate-700 opacity-0 transition group-hover:opacity-100 hover:text-red-400"
-                >
-                  ✕
-                </button>
-              )}
             </div>
           ))}
         </div>
