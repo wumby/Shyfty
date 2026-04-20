@@ -11,6 +11,8 @@ postgres_data
 .run/
 *.log
 *.pid
+*.db
+shyfty.db
 DerivedData/
 xcuserdata/
 *.xcuserstate
