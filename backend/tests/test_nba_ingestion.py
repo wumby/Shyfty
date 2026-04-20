@@ -167,6 +167,97 @@ class NBAIngestionTests(unittest.TestCase):
         self.assertTrue(curry_stat.raw_snapshot_path)
         self.assertTrue(curry_stat.raw_payload_path.endswith("0022400001_traditional.json"))
 
+    def test_load_nba_snapshot_allows_missing_usage_payload(self) -> None:
+        self._write_json(
+            "manifest.json",
+            {
+                "source_system": "nba_stats",
+                "season": "2024-25",
+                "season_type": "Regular Season",
+                "game_ids": ["0022400001"],
+                "team_ids": [1610612744, 1610612747],
+            },
+        )
+        self._write_json(
+            "leaguegamelog.json",
+            {
+                "resultSets": [
+                    {
+                        "name": "LeagueGameLog",
+                        "headers": ["SEASON_ID", "TEAM_ID", "TEAM_ABBREVIATION", "TEAM_NAME", "GAME_ID", "GAME_DATE", "MATCHUP"],
+                        "rowSet": [
+                            ["22024", 1610612744, "GSW", "Golden State Warriors", "0022400001", "2025-01-05", "GSW vs. LAL"],
+                            ["22024", 1610612747, "LAL", "Los Angeles Lakers", "0022400001", "2025-01-05", "LAL @ GSW"],
+                        ],
+                    }
+                ]
+            },
+        )
+        self._write_json(
+            "commonallplayers.json",
+            {
+                "resultSets": [
+                    {
+                        "name": "CommonAllPlayers",
+                        "headers": ["PERSON_ID", "DISPLAY_FIRST_LAST", "TEAM_ID"],
+                        "rowSet": [
+                            [201939, "Stephen Curry", 1610612744],
+                            [2544, "LeBron James", 1610612747],
+                        ],
+                    }
+                ]
+            },
+        )
+        self._write_json(
+            "rosters/1610612744.json",
+            {
+                "resultSets": [
+                    {
+                        "name": "CommonTeamRoster",
+                        "headers": ["TeamID", "SEASON", "LeagueID", "PLAYER", "PLAYER_SLUG", "NUM", "POSITION", "HEIGHT", "WEIGHT", "BIRTH_DATE", "AGE", "EXP", "SCHOOL", "PLAYER_ID"],
+                        "rowSet": [[1610612744, "2024-25", "00", "Stephen Curry", "stephen-curry", "30", "G", "6-2", "185", "", 0, "", "", 201939]],
+                    }
+                ]
+            },
+        )
+        self._write_json(
+            "rosters/1610612747.json",
+            {
+                "resultSets": [
+                    {
+                        "name": "CommonTeamRoster",
+                        "headers": ["TeamID", "SEASON", "LeagueID", "PLAYER", "PLAYER_SLUG", "NUM", "POSITION", "HEIGHT", "WEIGHT", "BIRTH_DATE", "AGE", "EXP", "SCHOOL", "PLAYER_ID"],
+                        "rowSet": [[1610612747, "2024-25", "00", "LeBron James", "lebron-james", "23", "F", "6-9", "250", "", 0, "", "", 2544]],
+                    }
+                ]
+            },
+        )
+        self._write_json(
+            "games/0022400001_traditional.json",
+            {
+                "resultSets": [
+                    {
+                        "name": "PlayerStats",
+                        "headers": ["GAME_ID", "TEAM_ID", "PLAYER_ID", "PLAYER_NAME", "START_POSITION", "MIN", "REB", "AST", "PTS"],
+                        "rowSet": [
+                            ["0022400001", 1610612744, 201939, "Stephen Curry", "G", "34:00", 5, 7, 32],
+                            ["0022400001", 1610612747, 2544, "LeBron James", "F", "36:00", 8, 9, 28],
+                        ],
+                    }
+                ]
+            },
+        )
+
+        result = load_nba_snapshot(self.session, snapshot_dir=self.snapshot_dir)
+
+        self.assertEqual(result.games_loaded, 1)
+        self.assertEqual(result.stats_loaded, 2)
+
+        stats = self.session.execute(select(PlayerGameStat).order_by(PlayerGameStat.id)).scalars().all()
+        self.assertEqual(len(stats), 2)
+        self.assertIsNone(stats[0].usage_rate)
+        self.assertIsNone(stats[1].usage_rate)
+
 
 if __name__ == "__main__":
     unittest.main()

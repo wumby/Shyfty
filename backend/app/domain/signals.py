@@ -11,7 +11,7 @@ from app.core.signal_config import get_signal_config, signal_config_path
 from app.models.player_game_stat import PlayerGameStat
 
 METRICS_BY_LEAGUE = {
-    "NBA": ["points", "rebounds", "assists", "usage_rate"],
+    "NBA": ["points", "rebounds", "assists", "steals", "blocks", "turnovers", "minutes_played", "usage_rate"],
     "NFL": ["passing_yards", "rushing_yards", "receiving_yards", "touchdowns", "usage_rate"],
 }
 
@@ -92,6 +92,10 @@ def metric_label(metric_name: str) -> str:
         "points": "Scoring",
         "rebounds": "Rebounding",
         "assists": "Playmaking",
+        "steals": "Steals",
+        "blocks": "Blocks",
+        "turnovers": "Turnovers",
+        "minutes_played": "Minutes",
         "usage_rate": "Usage",
         "passing_yards": "Passing Yards",
         "rushing_yards": "Rushing Yards",
@@ -106,6 +110,10 @@ def _metric_phrase(metric_name: str) -> str:
         "points": "Scoring",
         "rebounds": "Rebounding",
         "assists": "Playmaking",
+        "steals": "Defensive activity",
+        "blocks": "Shot-blocking",
+        "turnovers": "Ball security",
+        "minutes_played": "Minutes",
         "usage_rate": "Usage",
         "passing_yards": "Passing production",
         "rushing_yards": "Rushing production",

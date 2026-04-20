@@ -4,3 +4,4 @@ sqlalchemy==2.0.40
 psycopg[binary]==3.2.6
 alembic==1.15.2
 pydantic-settings==2.8.1
+nba_api==1.10.2

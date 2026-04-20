@@ -52,5 +52,6 @@ kill_pidfile "$ROOT/.run/backend.pid"
 kill_pidfile "$ROOT/.run/web.pid"
 kill_port "$BACKEND_PORT"
 kill_port "$WEB_PORT"
+rm -f "$ROOT/.run/seed.log"
 
 echo "Stopped backend on :$BACKEND_PORT and web on :$WEB_PORT."

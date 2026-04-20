@@ -63,6 +63,15 @@ def _to_rows(payload: dict[str, Any], dataset_name: str) -> list[dict[str, Any]]
     return [dict(zip(headers, row)) for row in rows]
 
 
+def _optional_rows(payload: Optional[dict[str, Any]], dataset_name: str) -> list[dict[str, Any]]:
+    if not payload:
+        return []
+    try:
+        return _to_rows(payload, dataset_name)
+    except KeyError:
+        return []
+
+
 def _upsert_team(db: Session, *, league_id: int, team_name: str, source_id: str) -> Team:
     team = db.execute(
         select(Team).where(Team.source_system == NBA_SOURCE_SYSTEM, Team.source_id == source_id)
@@ -143,6 +152,22 @@ def _upsert_game(
     game.home_team_id = home_team_id
     game.away_team_id = away_team_id
     return game
+
+
+def _parse_minutes(raw: Any) -> Optional[float]:
+    if raw is None or raw in ("", "0", "0:00"):
+        return None
+    s = str(raw)
+    if ":" in s:
+        parts = s.split(":")
+        try:
+            return round(int(parts[0]) + int(parts[1]) / 60, 2)
+        except (ValueError, IndexError):
+            return None
+    try:
+        return float(s)
+    except ValueError:
+        return None
 
 
 def _matchup_side(matchup: str) -> str:
@@ -272,11 +297,11 @@ def load_nba_snapshot(db: Session, *, snapshot_dir: Optional[Path] = None, clear
         game = game_cache.get(str(game_id))
         traditional_path = snapshot_dir / "games" / f"{game_id}_traditional.json"
         usage_path = snapshot_dir / "games" / f"{game_id}_usage.json"
-        if game is None or not traditional_path.exists() or not usage_path.exists():
+        if game is None or not traditional_path.exists():
             continue
 
         traditional_rows = _to_rows(_read_json(traditional_path), "PlayerStats")
-        usage_rows = _to_rows(_read_json(usage_path), "sqlPlayersUsage")
+        usage_rows = _optional_rows(_read_json(usage_path) if usage_path.exists() else None, "sqlPlayersUsage")
         usage_by_player_id = {str(row["PLAYER_ID"]): row for row in usage_rows}
 
         for raw_record_index, row in enumerate(traditional_rows):
@@ -313,6 +338,14 @@ def load_nba_snapshot(db: Session, *, snapshot_dir: Optional[Path] = None, clear
                     points=row.get("PTS"),
                     rebounds=row.get("REB"),
                     assists=row.get("AST"),
+                    steals=row.get("STL"),
+                    blocks=row.get("BLK"),
+                    turnovers=row.get("TO"),
+                    minutes_played=_parse_minutes(row.get("MIN")),
+                    plus_minus=row.get("PLUS_MINUS"),
+                    fg_pct=row.get("FG_PCT"),
+                    fg3_pct=row.get("FG3_PCT"),
+                    ft_pct=row.get("FT_PCT"),
                     usage_rate=usage_row.get("USG_PCT"),
                     source_system=NBA_SOURCE_SYSTEM,
                     source_game_id=str(game_id),
@@ -395,7 +428,7 @@ def load_nba_games_incremental(
         usage_data = payload["usage"]
 
         traditional_rows = _to_rows(traditional_data, "PlayerStats")
-        usage_rows = _to_rows(usage_data, "sqlPlayersUsage")
+        usage_rows = _optional_rows(usage_data, "sqlPlayersUsage")
         usage_by_player_id = {str(row["PLAYER_ID"]): row for row in usage_rows}
 
         if not traditional_rows:
@@ -489,6 +522,14 @@ def load_nba_games_incremental(
                     points=row.get("PTS"),
                     rebounds=row.get("REB"),
                     assists=row.get("AST"),
+                    steals=row.get("STL"),
+                    blocks=row.get("BLK"),
+                    turnovers=row.get("TO"),
+                    minutes_played=_parse_minutes(row.get("MIN")),
+                    plus_minus=row.get("PLUS_MINUS"),
+                    fg_pct=row.get("FG_PCT"),
+                    fg3_pct=row.get("FG3_PCT"),
+                    ft_pct=row.get("FT_PCT"),
                     usage_rate=usage_row.get("USG_PCT"),
                     source_system=NBA_SOURCE_SYSTEM,
                     source_game_id=game_id,

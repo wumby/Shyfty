@@ -11,6 +11,11 @@ BACKEND_PORT=8001
 WEB_PORT=5175
 BACKEND_RELOAD="${BACKEND_RELOAD:-1}"
 IPHONE_API_HOST="${SHYFTY_LAN_IP:-192.168.0.28}"
+DEV_SEED_MODE="${SHYFTY_DEV_SEED_MODE:-auto}"
+DEV_SEED_SEASON="${SHYFTY_DEV_SEED_SEASON:-}"
+DEV_SEED_DAYS_BACK="${SHYFTY_DEV_SEED_DAYS_BACK:-21}"
+DEV_SEED_MAX_GAMES="${SHYFTY_DEV_SEED_MAX_GAMES:-50}"
+DEV_SEED_INCLUDE_NFL="${SHYFTY_DEV_SEED_INCLUDE_NFL:-1}"
 
 detect_lan_ip() {
   if [[ -n "${SHYFTY_LAN_IP:-}" ]]; then
@@ -75,6 +80,7 @@ kill_pidfile "$ROOT/.run/backend.pid"
 kill_pidfile "$ROOT/.run/web.pid"
 kill_port "$BACKEND_PORT"
 kill_port "$WEB_PORT"
+rm -f "$ROOT/.run/seed.log"
 
 mkdir -p "$ROOT/.run"
 
@@ -119,15 +125,84 @@ echo "Applying backend migrations..."
   alembic upgrade head
 )
 
-(
+current_stat_count() {
   source .venv/bin/activate
-  export WATCHFILES_FORCE_POLLING="${WATCHFILES_FORCE_POLLING:-true}"
-  if [[ "$BACKEND_RELOAD" == "1" ]]; then
-    uvicorn app.main:app --reload --host 0.0.0.0 --port "$BACKEND_PORT"
-  else
-    uvicorn app.main:app --host 0.0.0.0 --port "$BACKEND_PORT"
+  python - <<'PY'
+from sqlalchemy import inspect, text
+from app.db.session import engine
+
+with engine.connect() as conn:
+    inspector = inspect(conn)
+    if "player_game_stats" not in inspector.get_table_names():
+        print(0)
+    else:
+        count = conn.execute(text("SELECT COUNT(*) FROM player_game_stats")).scalar_one()
+        print(count)
+PY
+}
+
+run_seed_if_needed() {
+  local mode="$1"
+  local stat_count=0
+  local -a seed_args=("--generate-signals")
+
+  case "$mode" in
+    skip)
+      echo "Skipping seed step because SHYFTY_DEV_SEED_MODE=skip."
+      return
+      ;;
+    auto)
+      stat_count="$(current_stat_count)"
+      if [[ "$stat_count" -gt 0 ]]; then
+        echo "Skipping seed step because existing stats were found ($stat_count rows)."
+        return
+      fi
+      echo "Database is empty; running real NBA seed before startup."
+      ;;
+    real)
+      echo "Running real NBA seed before startup."
+      ;;
+    demo)
+      echo "Running demo seed before startup."
+      seed_args+=("--demo-only")
+      ;;
+    *)
+      echo "Unsupported SHYFTY_DEV_SEED_MODE=$mode"
+      echo "Use one of: auto, real, demo, skip"
+      exit 1
+      ;;
+  esac
+
+  if [[ "$mode" != "demo" ]]; then
+    if [[ -n "$DEV_SEED_SEASON" ]]; then
+      seed_args+=("--season" "$DEV_SEED_SEASON")
+    fi
+    seed_args+=("--days-back" "$DEV_SEED_DAYS_BACK" "--max-games" "$DEV_SEED_MAX_GAMES")
+    if [[ "$DEV_SEED_INCLUDE_NFL" != "1" ]]; then
+      seed_args+=("--skip-nfl-demo")
+    fi
   fi
-) > "$ROOT/.run/backend.log" 2>&1 &
+
+  (
+    source .venv/bin/activate
+    python -m app.cli.seed_db "${seed_args[@]}"
+  ) 2>&1 | tee "$ROOT/.run/seed.log"
+}
+
+run_seed_if_needed "$DEV_SEED_MODE"
+
+nohup /bin/bash -lc "
+  set -euo pipefail
+  cd '$BACKEND_DIR'
+  source .venv/bin/activate
+  export DATABASE_URL='$DATABASE_URL'
+  export WATCHFILES_FORCE_POLLING='${WATCHFILES_FORCE_POLLING:-true}'
+  if [[ '$BACKEND_RELOAD' == '1' ]]; then
+    exec uvicorn app.main:app --reload --host 0.0.0.0 --port '$BACKEND_PORT'
+  else
+    exec uvicorn app.main:app --host 0.0.0.0 --port '$BACKEND_PORT'
+  fi
+" > "$ROOT/.run/backend.log" 2>&1 &
 BACKEND_PID=$!
 echo "$BACKEND_PID" > "$ROOT/.run/backend.pid"
 
@@ -135,9 +210,11 @@ sleep 2
 
 echo "Starting React dev server on :$WEB_PORT ..."
 cd "$WEB_DIR"
-(
-  npm run dev
-) > "$ROOT/.run/web.log" 2>&1 &
+nohup /bin/bash -lc "
+  set -euo pipefail
+  cd '$WEB_DIR'
+  exec npm run dev
+" > "$ROOT/.run/web.log" 2>&1 &
 WEB_PID=$!
 echo "$WEB_PID" > "$ROOT/.run/web.pid"
 

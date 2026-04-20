@@ -113,6 +113,11 @@ Normalized `player_game_stats` rows now retain source IDs and raw snapshot file 
 Optional:
 
 - `VITE_API_BASE_URL=http://127.0.0.1:8001/api npm run dev`
+- `scripts/start-dev.sh` now supports integrated seeding through env vars:
+- `SHYFTY_DEV_SEED_MODE=auto|real|demo|skip` where `auto` seeds real NBA data only when `player_game_stats` is empty
+- `SHYFTY_DEV_SEED_SEASON=2024-25 SHYFTY_DEV_SEED_DAYS_BACK=21 SHYFTY_DEV_SEED_MAX_GAMES=20 bash scripts/start-dev.sh`
+- `SHYFTY_DEV_SEED_INCLUDE_NFL=0 bash scripts/start-dev.sh`
+- `scripts/stop-dev.sh` now also clears the transient `.run/seed.log`
 
 ## iOS Setup
 
@@ -141,12 +146,17 @@ Notes:
 `scripts/seed_db.py` and `scripts/run_signal_engine.py` are thin entrypoints over backend CLI modules.
 Generation logic lives in `backend/app/domain/signals.py` and `backend/app/services/signal_generation_service.py`.
 
-The seed dataset includes:
+`python scripts/seed_db.py` now fetches and loads real NBA data by default, then adds the demo NFL fixture set. Useful flags:
+
+- `python scripts/seed_db.py --generate-signals`
+- `python scripts/seed_db.py --season 2024-25 --days-back 21 --max-games 20`
+- `python scripts/seed_db.py --skip-nfl-demo`
+- `python scripts/seed_db.py --demo-only`
+
+The demo-only fallback dataset includes:
 
 - NBA: Luka Doncic, Nikola Jokic, Stephen Curry
 - NFL: Patrick Mahomes, Josh Allen, Justin Jefferson
-
-Seed data remains available as a fallback demo path, but it is no longer the preferred way to validate the NBA signal pipeline.
 
 The signal engine computes rolling averages, rolling standard deviation, z-scores, and writes signal records using these rules:
 
