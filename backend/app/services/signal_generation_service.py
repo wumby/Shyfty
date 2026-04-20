@@ -12,6 +12,7 @@ from app.domain.signals import (
     METRICS_BY_LEAGUE,
     build_explanation,
     build_metric_snapshots,
+    build_narrative_summary,
     classify_signal,
     score_signal,
 )
@@ -267,6 +268,7 @@ def _sync_signal_for_context(
     signal_score: float,
     score_explanation: str,
     explanation: str,
+    narrative_summary: Optional[str],
     generated_at: datetime,
 ) -> tuple[int, int, int]:
     existing_signals = db.execute(
@@ -307,6 +309,7 @@ def _sync_signal_for_context(
                 signal_score=signal_score,
                 score_explanation=score_explanation,
                 explanation=explanation,
+                narrative_summary=narrative_summary,
                 created_at=generated_at,
             )
         )
@@ -323,9 +326,184 @@ def _sync_signal_for_context(
     current_signal.signal_score = signal_score
     current_signal.score_explanation = score_explanation
     current_signal.explanation = explanation
-    current_signal.created_at = generated_at
+    current_signal.narrative_summary = narrative_summary
     updated += 1
     return created, updated, deleted
+
+
+def generate_signals_for_players(
+    db: Session,
+    player_ids: list[int],
+) -> SignalGenerationResult:
+    """Recompute signals for a specific set of players.
+
+    Used by the incremental ingest path after new game data is loaded for known players.
+    Builds the full signal generation context (opponent history, pace) globally so that
+    per-player metrics remain accurate relative to the whole league, then restricts
+    the computation loop to the provided player IDs.
+
+    Future Kafka consumer plug-in point:
+        After a stream consumer processes a game event and loads it via
+        load_nba_games_incremental(), it calls this function with the IDs of the
+        players whose stats just changed. Signals are updated in near-real-time
+        without reprocessing the entire player roster.
+
+    Args:
+        player_ids: internal DB player IDs whose signals should be regenerated.
+    """
+    if not player_ids:
+        return SignalGenerationResult()
+
+    result = SignalGenerationResult()
+    try:
+        context = build_signal_generation_context(db)
+        latest_event_date = max(context.game_dates.values()) if context.game_dates else None
+
+        players = db.execute(
+            select(Player)
+            .options(selectinload(Player.league))
+            .where(Player.id.in_(player_ids))
+            .order_by(Player.id)
+        ).scalars().all()
+
+        for player in players:
+            stats = db.execute(
+                select(PlayerGameStat)
+                .join(Game, PlayerGameStat.game_id == Game.id)
+                .where(PlayerGameStat.player_id == player.id)
+                .order_by(Game.game_date, Game.id)
+            ).scalars().all()
+
+            metrics = METRICS_BY_LEAGUE[player.league.name]
+            valid_contexts: set[tuple[int, str]] = set()
+            metric_stats = {
+                metric_name: [stat for stat in stats if getattr(stat, metric_name, None) is not None]
+                for metric_name in metrics
+            }
+            usage_snapshots = (
+                {
+                    snapshot.game_id: snapshot
+                    for snapshot in build_metric_snapshots(
+                        "usage_rate",
+                        metric_stats.get("usage_rate", []),
+                        game_dates_by_game_id=context.game_dates,
+                    )
+                }
+                if "usage_rate" in metrics
+                else {}
+            )
+
+            for metric_name in metrics:
+                snapshots = build_metric_snapshots(
+                    metric_name,
+                    metric_stats.get(metric_name, []),
+                    game_dates_by_game_id=context.game_dates,
+                )
+                for snapshot in snapshots:
+                    generated_at = datetime.utcnow()
+                    valid_contexts.add((snapshot.game_id, metric_name))
+                    usage_snapshot = usage_snapshots.get(snapshot.game_id)
+                    contextual_snapshot = snapshot.with_context(
+                        opponent_average_allowed=context.opponent_average_allowed.get((snapshot.source_stat_id, metric_name)),
+                        opponent_rank=context.opponent_rank.get((snapshot.source_stat_id, metric_name)),
+                        pace_proxy=context.game_pace_proxy.get(snapshot.game_id),
+                        usage_shift=(
+                            snapshot.current_value - snapshot.medium_window.rolling_avg
+                            if metric_name == "usage_rate"
+                            else (usage_snapshot.current_value - usage_snapshot.medium_window.rolling_avg if usage_snapshot else None)
+                        ),
+                    )
+
+                    rolling_metric, rolling_created = _upsert_rolling_metric(
+                        db,
+                        player_id=player.id,
+                        game_id=contextual_snapshot.game_id,
+                        source_stat_id=contextual_snapshot.source_stat_id,
+                        metric_name=metric_name,
+                        snapshot=contextual_snapshot,
+                        generated_at=generated_at,
+                    )
+                    db.flush()
+                    _sync_rolling_metric_baseline_samples(
+                        db,
+                        rolling_metric_id=rolling_metric.id,
+                        baseline_stat_ids=contextual_snapshot.baseline_stat_ids,
+                    )
+
+                    signal_type = classify_signal(contextual_snapshot, metric_name)
+                    signal_score = 0.0
+                    score_explanation = ""
+                    if signal_type is not None:
+                        signal_score, score_explanation = score_signal(
+                            contextual_snapshot,
+                            signal_type=signal_type,
+                            event_date=contextual_snapshot.event_date,
+                            latest_event_date=latest_event_date,
+                        )
+
+                    explanation = build_explanation(
+                        player.name,
+                        metric_name,
+                        contextual_snapshot.current_value,
+                        contextual_snapshot.baseline_value,
+                        contextual_snapshot.z_score,
+                        signal_type,
+                        snapshot=contextual_snapshot,
+                    )
+
+                    narrative = (
+                        build_narrative_summary(signal_type, contextual_snapshot, metric_name)
+                        if signal_type is not None
+                        else None
+                    )
+
+                    created, updated, deleted = _sync_signal_for_context(
+                        db,
+                        player=player,
+                        game_id=contextual_snapshot.game_id,
+                        rolling_metric_id=rolling_metric.id,
+                        source_stat_id=contextual_snapshot.source_stat_id,
+                        metric_name=metric_name,
+                        signal_type=signal_type,
+                        current_value=contextual_snapshot.current_value,
+                        baseline_value=contextual_snapshot.baseline_value,
+                        z_score=contextual_snapshot.z_score,
+                        signal_score=signal_score,
+                        score_explanation=score_explanation,
+                        explanation=explanation,
+                        narrative_summary=narrative,
+                        generated_at=generated_at,
+                    )
+
+                    result = SignalGenerationResult(
+                        created_signals=result.created_signals + created,
+                        updated_signals=result.updated_signals + updated,
+                        deleted_signals=result.deleted_signals + deleted,
+                        created_rolling_metrics=result.created_rolling_metrics + int(rolling_created),
+                        updated_rolling_metrics=result.updated_rolling_metrics + int(not rolling_created),
+                        deleted_rolling_metrics=result.deleted_rolling_metrics,
+                    )
+
+            deleted_rolling_metrics = _delete_stale_rolling_metrics(db, player_id=player.id, valid_contexts=valid_contexts)
+            deleted_signals = _delete_stale_signals(db, player_id=player.id, valid_contexts=valid_contexts)
+            result = SignalGenerationResult(
+                created_signals=result.created_signals,
+                updated_signals=result.updated_signals,
+                deleted_signals=result.deleted_signals + deleted_signals,
+                created_rolling_metrics=result.created_rolling_metrics,
+                updated_rolling_metrics=result.updated_rolling_metrics,
+                deleted_rolling_metrics=result.deleted_rolling_metrics + deleted_rolling_metrics,
+            )
+
+        db.commit()
+        return result
+    except Exception as exc:
+        db.rollback()
+        raise SignalGenerationError(
+            "Incremental signal generation failed and transaction was rolled back.",
+            partial_result=result,
+            cause=exc,
+        ) from exc
 
 
 def generate_signals(db: Session) -> SignalGenerationResult:
@@ -419,6 +597,12 @@ def generate_signals(db: Session) -> SignalGenerationResult:
                         snapshot=contextual_snapshot,
                     )
 
+                    narrative = (
+                        build_narrative_summary(signal_type, contextual_snapshot, metric_name)
+                        if signal_type is not None
+                        else None
+                    )
+
                     created, updated, deleted = _sync_signal_for_context(
                         db,
                         player=player,
@@ -433,6 +617,7 @@ def generate_signals(db: Session) -> SignalGenerationResult:
                         signal_score=signal_score,
                         score_explanation=score_explanation,
                         explanation=explanation,
+                        narrative_summary=narrative,
                         generated_at=generated_at,
                     )
 

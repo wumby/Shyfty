@@ -83,6 +83,8 @@ export function formatMovementLabel(signal: Signal): string {
 }
 
 export function formatSignalSummary(signal: Signal): string {
+  if (signal.narrative_summary) return signal.narrative_summary;
+
   const metric = getMetricLabel(signal);
   const deltaPercent = getDeltaPercent(signal);
   const window = signal.baseline_window ?? 'recent baseline';
@@ -111,4 +113,16 @@ export function formatRelativeTime(value: string): string {
   if (diffSeconds < 86400) return `${Math.round(diffSeconds / 3600)}h ago`;
   if (diffSeconds < 604800) return `${Math.round(diffSeconds / 86400)}d ago`;
   return new Date(value).toLocaleDateString();
+}
+
+export function getSignalMomentum(signal: Signal, tracked = false, sortMode?: string | null): number {
+  const totalReactions = signal.reaction_summary.strong + signal.reaction_summary.agree + signal.reaction_summary.risky;
+  const hoursSincePost = Math.max(0, (Date.now() - new Date(signal.created_at).getTime()) / 3600000);
+  const recencyBoost = Math.max(0, 2.2 - hoursSincePost / 10);
+  const engagementBoost = Math.min(3, totalReactions * 0.25 + signal.comment_count * 0.55);
+  const followBoost = tracked ? 2.4 : 0;
+  const sortBoost = sortMode === 'most_discussed' ? engagementBoost * 0.6 : 0;
+  const importanceBoost = getImportanceScore(signal) / 55;
+
+  return importanceBoost + engagementBoost + recencyBoost + followBoost + sortBoost;
 }

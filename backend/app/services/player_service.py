@@ -1,7 +1,7 @@
 from typing import Optional
 
 from sqlalchemy import and_, func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from app.models.game import Game
 from app.models.league import League
@@ -11,7 +11,7 @@ from app.models.rolling_metric import RollingMetric
 from app.models.signal import Signal
 from app.models.team import Team
 from app.models.user_follow import UserFollow
-from app.schemas.player import MetricSeriesPoint, PlayerDetail, PlayerRead
+from app.schemas.player import GameLogRow, MetricSeriesPoint, PlayerDetail, PlayerRead, SeasonAveragesRow
 from app.services.signal_service import build_signal_read
 
 
@@ -100,6 +100,90 @@ def get_player_signals(db: Session, player_id: int):
         build_signal_read(signal, player_name, team_name, league_name, event_date, rolling_metric)
         for signal, player_name, team_name, league_name, event_date, rolling_metric in rows
     ]
+
+
+def get_player_gamelog(db: Session, player_id: int, season: Optional[str] = None) -> list[GameLogRow]:
+    HomeTeam = aliased(Team)
+    AwayTeam = aliased(Team)
+
+    query = (
+        select(
+            Game.id,
+            Game.game_date,
+            Game.season,
+            Game.home_team_id,
+            Game.away_team_id,
+            HomeTeam.name,
+            AwayTeam.name,
+            Player.team_id,
+            PlayerGameStat,
+        )
+        .join(PlayerGameStat, PlayerGameStat.game_id == Game.id)
+        .join(Player, Player.id == PlayerGameStat.player_id)
+        .join(HomeTeam, Game.home_team_id == HomeTeam.id)
+        .join(AwayTeam, Game.away_team_id == AwayTeam.id)
+        .where(PlayerGameStat.player_id == player_id)
+    )
+    if season:
+        query = query.where(Game.season == season)
+    query = query.order_by(Game.game_date.desc())
+
+    rows = db.execute(query).all()
+
+    result = []
+    for game_id, game_date, game_season, home_team_id, away_team_id, home_name, away_name, player_team_id, stat in rows:
+        is_home = player_team_id == home_team_id
+        result.append(GameLogRow(
+            game_id=game_id,
+            game_date=game_date,
+            season=game_season,
+            opponent=away_name if is_home else home_name,
+            home_away="Home" if is_home else "Away",
+            points=stat.points,
+            rebounds=stat.rebounds,
+            assists=stat.assists,
+            passing_yards=stat.passing_yards,
+            rushing_yards=stat.rushing_yards,
+            receiving_yards=stat.receiving_yards,
+            touchdowns=stat.touchdowns,
+            usage_rate=stat.usage_rate,
+        ))
+    return result
+
+
+def get_player_season_averages(db: Session, player_id: int) -> list[SeasonAveragesRow]:
+    rows = db.execute(
+        select(Game.season, PlayerGameStat)
+        .join(PlayerGameStat, PlayerGameStat.game_id == Game.id)
+        .where(PlayerGameStat.player_id == player_id)
+        .where(Game.season.isnot(None))
+        .order_by(Game.season.desc(), Game.game_date.desc())
+    ).all()
+
+    by_season: dict[str, list] = {}
+    for season, stat in rows:
+        by_season.setdefault(season, []).append(stat)
+
+    def _avg(stats, attr):
+        vals = [getattr(s, attr) for s in stats if getattr(s, attr) is not None]
+        return round(sum(vals) / len(vals), 1) if vals else None
+
+    result = []
+    for season in sorted(by_season.keys(), reverse=True):
+        stats = by_season[season]
+        result.append(SeasonAveragesRow(
+            season=season,
+            games_played=len(stats),
+            points=_avg(stats, "points"),
+            rebounds=_avg(stats, "rebounds"),
+            assists=_avg(stats, "assists"),
+            passing_yards=_avg(stats, "passing_yards"),
+            rushing_yards=_avg(stats, "rushing_yards"),
+            receiving_yards=_avg(stats, "receiving_yards"),
+            touchdowns=_avg(stats, "touchdowns"),
+            usage_rate=_avg(stats, "usage_rate"),
+        ))
+    return result
 
 
 def get_player_metric_series(db: Session, player_id: int) -> list[MetricSeriesPoint]:

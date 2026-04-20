@@ -1,15 +1,17 @@
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user, get_db
 from app.models.user import User
-from app.schemas.player import MetricSeriesPoint, PlayerDetail, PlayerRead
+from app.schemas.player import GameLogRow, MetricSeriesPoint, PlayerDetail, PlayerRead, SeasonAveragesRow
 from app.schemas.signal import SignalRead
 from app.services.player_service import (
     get_player_detail,
+    get_player_gamelog,
     get_player_metric_series,
+    get_player_season_averages,
     get_player_signals,
     list_players,
 )
@@ -40,6 +42,23 @@ def get_player(
 @router.get("/players/{player_id}/signals", response_model=list[SignalRead])
 def get_player_signal_feed(player_id: int, db: Session = Depends(get_db)) -> list[SignalRead]:
     return get_player_signals(db, player_id)
+
+
+@router.get("/players/{player_id}/gamelog", response_model=list[GameLogRow])
+def get_player_gamelog_route(
+    player_id: int,
+    season: Optional[str] = Query(default=None),
+    db: Session = Depends(get_db),
+) -> list[GameLogRow]:
+    return get_player_gamelog(db, player_id, season=season)
+
+
+@router.get("/players/{player_id}/season-averages", response_model=list[SeasonAveragesRow])
+def get_player_season_averages_route(
+    player_id: int,
+    db: Session = Depends(get_db),
+) -> list[SeasonAveragesRow]:
+    return get_player_season_averages(db, player_id)
 
 
 @router.get("/players/{player_id}/metrics", response_model=list[MetricSeriesPoint])

@@ -399,6 +399,63 @@ def classification_reason(
     return _classification_reason_from_snapshot(signal_type, fallback_snapshot, metric_name)
 
 
+def build_narrative_summary(
+    signal_type: str,
+    snapshot: MetricSnapshot,
+    metric_name: str,
+) -> str:
+    """Punchy, emotionally compelling one-liner for card display."""
+    metric = _metric_phrase(metric_name).lower()
+    metric_title = _metric_phrase(metric_name)
+    az = abs(snapshot.z_score)
+    medium_z = snapshot.medium_window.z_score
+    trend = snapshot.trend_slope or 0.0
+
+    if signal_type == "SPIKE":
+        if az >= 3.5:
+            return f"Career-level {metric} burst — extreme outlier vs. any window"
+        if az >= 2.5 and medium_z > 1.5:
+            return f"Sharpest {metric} surge in recent games — trend accelerating"
+        if az >= 2.5:
+            return f"Explosive {metric} performance — largest spike in the window"
+        if az >= 1.5:
+            return f"Strong {metric} output — well above recent trend"
+        return f"Above-average {metric} game — holds vs. baseline"
+
+    if signal_type == "DROP":
+        if az >= 3.5:
+            return f"Sharpest {metric} collapse in recent games — role shrinking fast"
+        if az >= 2.5 and medium_z < -1.5:
+            return f"Extended {metric} decline — sustained multi-game pattern"
+        if az >= 2.5:
+            return f"Significant {metric} drop — worst in recent stretch"
+        if az >= 1.5:
+            return f"Below-trend {metric} — flagged for continued pattern"
+        return f"Soft {metric} output — worth watching"
+
+    if signal_type == "SHIFT":
+        if snapshot.z_score > 0:
+            if trend > 0.02:
+                return f"Sustained {metric} role expansion — upward trend confirmed"
+            return f"{metric_title} trending higher from recent baseline"
+        else:
+            if trend < -0.02:
+                return f"{metric_title} role contracting — extended downward pattern"
+            return f"{metric_title} shifted below recent baseline"
+
+    if signal_type == "CONSISTENCY":
+        return f"{metric_title} floor locked in — unusually predictable stretch"
+
+    if signal_type == "OUTLIER":
+        if az >= 4.0:
+            return f"Historic {metric} outlier — unprecedented vs. any window"
+        if az >= 3.0:
+            return f"Extreme {metric} outlier — well outside all windows"
+        return f"Unusual {metric} outlier — flagged across multiple windows"
+
+    return f"Unusual {metric} signal detected"
+
+
 def build_explanation(
     player_name: str,
     metric_name: str,

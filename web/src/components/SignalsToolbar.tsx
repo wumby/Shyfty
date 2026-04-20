@@ -17,9 +17,9 @@ interface SignalsToolbarProps {
 
 const sortOptions: Array<{ value: SortMode; label: string }> = [
   { value: 'newest', label: 'Newest' },
+  { value: 'most_discussed', label: 'Most Discussed' },
   { value: 'most_important', label: 'Most Important' },
   { value: 'biggest_deviation', label: 'Biggest Deviation' },
-  { value: 'most_discussed', label: 'Most Discussed' },
 ];
 
 const feedOptions: Array<{ value: FeedMode; label: string }> = [
@@ -116,7 +116,9 @@ export function SignalsToolbar({
                   onClick={() => onChangeFilters({ ...filters, feed: option.value })}
                   className={`rounded-full border px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] transition ${
                     (filters.feed ?? 'all') === option.value
-                      ? 'border-accent/40 bg-accentSoft text-[#ffd8bd]'
+                      ? option.value === 'following'
+                        ? 'border-accent/50 bg-accentSoft text-[#fff0e1] shadow-[0_0_22px_rgba(249,115,22,0.16)]'
+                        : 'border-accent/40 bg-accentSoft text-[#ffd8bd]'
                       : 'border-border bg-white/[0.03] text-muted hover:border-borderStrong hover:text-ink'
                   }`}
                 >
@@ -132,7 +134,11 @@ export function SignalsToolbar({
                   onClick={() => onChangeFilters({ ...filters, sort: option.value })}
                   className={`rounded-full border px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] transition ${
                     (filters.sort ?? 'newest') === option.value
-                      ? 'border-accent/40 bg-accentSoft text-[#ffd8bd]'
+                      ? option.value === 'most_discussed'
+                        ? 'border-accent/50 bg-accentSoft text-[#fff0e1] shadow-[0_0_22px_rgba(249,115,22,0.14)]'
+                        : 'border-accent/40 bg-accentSoft text-[#ffd8bd]'
+                      : option.value === 'most_discussed'
+                        ? 'border-accent/20 bg-accent/5 text-[#f4c39f] hover:border-accent/40 hover:text-[#ffe2cb]'
                       : 'border-border bg-white/[0.03] text-muted hover:border-borderStrong hover:text-ink'
                   }`}
                 >

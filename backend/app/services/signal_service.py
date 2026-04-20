@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Optional
 
 from sqlalchemy import and_, case, func, or_, select
@@ -306,10 +306,10 @@ def _get_engagement_context(db: Session, user_id: int) -> dict[str, object]:
 def _apply_sort(query, sort_mode: str):
     baseline_guard = case((func.abs(Signal.baseline_value) < 1, 1), else_=func.abs(Signal.baseline_value))
     if sort_mode == SORT_MODE_IMPORTANT:
-        return query.order_by(func.coalesce(Signal.signal_score, 0).desc(), Signal.created_at.desc(), Signal.id.desc())
+        return query.order_by(func.coalesce(Signal.signal_score, 0).desc(), Game.game_date.desc(), Signal.id.desc())
     if sort_mode == SORT_MODE_DEVIATION:
-        return query.order_by((func.abs(Signal.current_value - Signal.baseline_value) / baseline_guard).desc(), Signal.created_at.desc(), Signal.id.desc())
-    return query.order_by(Signal.created_at.desc(), Signal.id.desc())
+        return query.order_by((func.abs(Signal.current_value - Signal.baseline_value) / baseline_guard).desc(), Game.game_date.desc(), Signal.id.desc())
+    return query.order_by(Game.game_date.desc(), Signal.id.desc())
 
 
 def _build_signal_items(rows, db: Session, current_user_id: Optional[int]) -> list[SignalRead]:
@@ -360,6 +360,8 @@ def list_signals(
     favorited_only: bool = False,
     sort_mode: str = SORT_MODE_NEWEST,
     feed_mode: str = FEED_MODE_ALL,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
 ) -> PaginatedSignals:
     query = _base_signal_query()
 
@@ -371,6 +373,10 @@ def list_signals(
         query = query.where(Player.name.ilike(f"%{player}%"))
     if signal_type:
         query = query.where(Signal.signal_type.ilike(signal_type))
+    if date_from is not None:
+        query = query.where(Game.game_date >= date_from)
+    if date_to is not None:
+        query = query.where(Game.game_date <= date_to)
     if before_id is not None and sort_mode == SORT_MODE_NEWEST and feed_mode == FEED_MODE_ALL:
         query = query.where(Signal.id < before_id)
 

@@ -28,6 +28,7 @@ class Signal(Base):
     signal_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     score_explanation: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     explanation: Mapped[str] = mapped_column(String(255), nullable=False)
+    narrative_summary: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     player = relationship("Player", back_populates="signals")

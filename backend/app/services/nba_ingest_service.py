@@ -87,10 +87,22 @@ def fetch_recent_nba_data(
     days_back: int = 21,
     max_games: int = 50,
     output_root: Optional[Path] = None,
+    date_from_override: Optional[date] = None,
+    date_to_override: Optional[date] = None,
+    sleep_between_games: float = 0.0,
 ) -> FetchResult:
+    """Fetch NBA data and write a raw snapshot to disk.
+
+    date_from_override / date_to_override: use explicit dates instead of days_back.
+    sleep_between_games: seconds to sleep between per-game API calls (use ~1.0 for
+        backfill runs to stay well within free-tier rate limits).
+    """
+    import time
+
     season_value = _normalize_season(season)
     today = date.today()
-    date_from = today - timedelta(days=days_back)
+    date_to = date_to_override or today
+    date_from = date_from_override or (today - timedelta(days=days_back))
     output_root = output_root or raw_nba_root()
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     output_dir = output_root / f"{stamp}_{season_value.replace('-', '_')}"
@@ -107,7 +119,7 @@ def fetch_recent_nba_data(
             "SeasonType": season_type,
             "Sorter": "DATE",
             "DateFrom": _iso_date(date_from),
-            "DateTo": _iso_date(today),
+            "DateTo": _iso_date(date_to),
         },
     )
     _write_json(output_dir / "leaguegamelog.json", league_game_log)
@@ -123,7 +135,7 @@ def fetch_recent_nba_data(
 
     all_players = _request_json(
         "commonallplayers",
-        {"IsOnlyCurrentSeason": 1, "LeagueID": "00", "Season": season_value},
+        {"IsOnlyCurrentSeason": 0, "LeagueID": "00", "Season": season_value},
     )
     _write_json(output_dir / "commonallplayers.json", all_players)
 
@@ -136,6 +148,8 @@ def fetch_recent_nba_data(
 
     skipped_games = 0
     for game_id in selected_game_ids:
+        if sleep_between_games > 0:
+            time.sleep(sleep_between_games)
         try:
             traditional = _request_json(
                 "boxscoretraditionalv2",
@@ -172,7 +186,7 @@ def fetch_recent_nba_data(
         "season_type": season_type,
         "fetched_at": datetime.now(timezone.utc).isoformat(),
         "date_from": _iso_date(date_from),
-        "date_to": _iso_date(today),
+        "date_to": _iso_date(date_to),
         "game_ids": selected_game_ids,
         "team_ids": team_ids,
         "skipped_games": skipped_games,

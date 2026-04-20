@@ -53,6 +53,7 @@ export interface Signal {
     trend_direction: 'up' | 'down' | 'flat';
   };
   classification_reason?: string;
+  narrative_summary?: string;
   reaction_summary: ReactionSummary;
   user_reaction: ReactionType | null;
   comment_count: number;
@@ -146,12 +147,43 @@ export interface Comment {
   can_report: boolean;
 }
 
+export interface GameLogRow {
+  game_id: number;
+  game_date: string;
+  season: string | null;
+  opponent: string;
+  home_away: 'Home' | 'Away';
+  points: number | null;
+  rebounds: number | null;
+  assists: number | null;
+  passing_yards: number | null;
+  rushing_yards: number | null;
+  receiving_yards: number | null;
+  touchdowns: number | null;
+  usage_rate: number | null;
+}
+
+export interface SeasonAveragesRow {
+  season: string;
+  games_played: number;
+  points: number | null;
+  rebounds: number | null;
+  assists: number | null;
+  passing_yards: number | null;
+  rushing_yards: number | null;
+  receiving_yards: number | null;
+  touchdowns: number | null;
+  usage_rate: number | null;
+}
+
 export interface SignalFilters {
   league?: string;
   signal_type?: string;
   player?: string;
   sort?: SortMode;
   feed?: FeedMode;
+  date_from?: string;
+  date_to?: string;
 }
 
 export interface IngestRun {

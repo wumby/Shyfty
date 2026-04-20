@@ -103,6 +103,31 @@ export function CommentsPanel({ signalId, initialComments }: Props) {
 
   return (
     <div className="mt-2">
+      {/* Input first — makes first interaction feel immediate */}
+      <form onSubmit={(e) => void handleSubmit(e)} className="mb-3 flex gap-2">
+        <textarea
+          ref={inputRef}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              void handleSubmit(e as unknown as React.FormEvent);
+            }
+          }}
+          placeholder={currentUser ? 'Add a read…' : 'Sign in to comment'}
+          rows={1}
+          className="flex-1 resize-none rounded-lg border border-slate-700/60 bg-slate-800/60 px-3 py-2 text-[13px] text-slate-200 placeholder-slate-600 focus:border-slate-600 focus:outline-none"
+        />
+        <button
+          type="submit"
+          disabled={submitting || !draft.trim()}
+          className="flex-none rounded-lg bg-blue-600/80 px-3 py-2 text-[12px] font-medium text-white transition hover:bg-blue-600 disabled:opacity-40"
+        >
+          {submitting ? '…' : 'Post'}
+        </button>
+      </form>
+
       {loading ? (
         <div className="space-y-2 py-2">
           {[1, 2].map((i) => (
@@ -112,8 +137,8 @@ export function CommentsPanel({ signalId, initialComments }: Props) {
       ) : (
         <div className="space-y-3 py-1">
           {comments.length === 0 && (
-            <p className="rounded-2xl border border-border bg-white/[0.02] px-3 py-3 text-[12px] text-muted">
-              No discussion yet. The first useful read here usually sets the tone for everyone else.
+            <p className="text-[12px] italic text-muted/50">
+              Set the tone on this signal. Be the first read everyone else reacts to.
             </p>
           )}
           {comments.map((c) => (
@@ -190,29 +215,6 @@ export function CommentsPanel({ signalId, initialComments }: Props) {
         </div>
       )}
 
-      <form onSubmit={(e) => void handleSubmit(e)} className="mt-3 flex gap-2">
-        <textarea
-          ref={inputRef}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              void handleSubmit(e as unknown as React.FormEvent);
-            }
-          }}
-          placeholder={currentUser ? 'Add a comment…' : 'Sign in to comment'}
-          rows={1}
-          className="flex-1 resize-none rounded-lg border border-slate-700/60 bg-slate-800/60 px-3 py-2 text-[13px] text-slate-200 placeholder-slate-600 focus:border-slate-600 focus:outline-none"
-        />
-        <button
-          type="submit"
-          disabled={submitting || !draft.trim()}
-          className="flex-none rounded-lg bg-blue-600/80 px-3 py-2 text-[12px] font-medium text-white transition hover:bg-blue-600 disabled:opacity-40"
-        >
-          {submitting ? '…' : 'Post'}
-        </button>
-      </form>
       {error && <p className="mt-1 text-[11px] text-red-400">{error}</p>}
     </div>
   );

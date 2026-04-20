@@ -13,6 +13,7 @@ class Game(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     league_id: Mapped[int] = mapped_column(ForeignKey("leagues.id"), nullable=False)
     game_date: Mapped[date] = mapped_column(nullable=False)
+    season: Mapped[Optional[str]] = mapped_column(String(7), nullable=True, index=True)
     home_team_id: Mapped[int] = mapped_column(ForeignKey("teams.id"), nullable=False)
     away_team_id: Mapped[int] = mapped_column(ForeignKey("teams.id"), nullable=False)
     source_system: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)

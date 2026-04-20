@@ -104,7 +104,7 @@ export function SignalDetailDrawer({ signalId, onClose }: Props) {
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted">
                   <button
                     type="button"
-                    onClick={() => { navigate(`/players/${signal.player_id}`); onClose(); }}
+                    onClick={() => { navigate(`/players/${signal.player_id}`, { state: { returnTo: window.location.pathname + window.location.search, fromFeed: true } }); onClose(); }}
                     className="transition hover:text-ink"
                   >
                     Player context
@@ -159,20 +159,6 @@ export function SignalDetailDrawer({ signalId, onClose }: Props) {
                 {signal.classification_reason ? <p className="mt-3 text-[11px] uppercase tracking-[0.14em] text-muted">{signal.classification_reason}</p> : null}
               </div>
 
-              {trace.baseline_samples.length > 0 && (
-                <div className="rounded-[22px] border border-border bg-white/[0.03] px-4 py-3">
-                  <div className="eyebrow mb-2">Recent History</div>
-                  <div className="space-y-2">
-                    {trace.baseline_samples.slice(-4).map((sample) => (
-                      <div key={sample.stat_id} className="flex items-center justify-between text-sm">
-                        <span className="text-muted">{formatEventDate(sample.game_date)}</span>
-                        <span className="font-mono text-[#d9e3f1]">{sample.value.toFixed(1)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               <div className="rounded-[22px] border border-border bg-white/[0.03] px-4 py-3">
                 <div className="mb-3 flex items-center justify-between">
                   <div>
@@ -191,17 +177,34 @@ export function SignalDetailDrawer({ signalId, onClose }: Props) {
                   <CommentsPanel signalId={signal.id} />
                 ) : trace.discussion_preview.length > 0 ? (
                   <div className="space-y-2">
-                    {trace.discussion_preview.map((comment) => (
+                    {trace.discussion_preview.map((comment, index) => (
                       <div key={comment.id} className="rounded-2xl border border-border bg-white/[0.02] px-3 py-3">
-                        <div className="text-[11px] font-semibold text-[#d9e3f1]">{comment.user_email.split('@')[0]}</div>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-[11px] font-semibold text-[#d9e3f1]">{comment.user_email.split('@')[0]}</div>
+                          {index === 0 ? <div className="text-[10px] uppercase tracking-[0.16em] text-[#ffd8bd]">Top comment</div> : null}
+                        </div>
                         <p className="mt-1 text-sm text-muted">{comment.body}</p>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-muted">No discussion yet.</p>
+                  <p className="text-sm text-muted">Set the tone on this signal.</p>
                 )}
               </div>
+
+              {trace.baseline_samples.length > 0 && (
+                <div className="rounded-[22px] border border-border bg-white/[0.03] px-4 py-3">
+                  <div className="eyebrow mb-2">Recent History</div>
+                  <div className="space-y-2">
+                    {trace.baseline_samples.slice(-4).map((sample) => (
+                      <div key={sample.stat_id} className="flex items-center justify-between text-sm">
+                        <span className="text-muted">{formatEventDate(sample.game_date)}</span>
+                        <span className="font-mono text-[#d9e3f1]">{sample.value.toFixed(1)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {trace.related_signals.length > 0 && (
                 <div className="rounded-[22px] border border-border bg-white/[0.03] px-4 py-3">

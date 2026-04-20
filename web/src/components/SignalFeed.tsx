@@ -4,6 +4,7 @@ import { EmptyState } from './EmptyState';
 import { SignalCard } from './SignalCard';
 import type { FeedContext, Signal } from '../types';
 import { useSignalStore } from '../store/useSignalStore';
+import { getSignalMomentum } from '../lib/signalFormat';
 
 interface SignalFeedProps {
   signals: Signal[];
@@ -19,6 +20,7 @@ export function SignalFeed({ signals, onOpenDetail, paginated = false, feedConte
   const loadMore = useSignalStore((state) => state.loadMore);
   const hasMore = useSignalStore((state) => state.hasMore);
   const loadingMore = useSignalStore((state) => state.loadingMore);
+  const profile = useSignalStore((state) => state.profile);
 
   useEffect(() => {
     if (!paginated) return undefined;
@@ -49,10 +51,34 @@ export function SignalFeed({ signals, onOpenDetail, paginated = false, feedConte
     );
   }
 
+  const rankedSignals = [...signals]
+    .map((signal, index) => {
+      const isTracked =
+        profile?.follows.players.includes(signal.player_id) ||
+        profile?.follows.teams.includes(signal.team_id) ||
+        false;
+      const momentum = getSignalMomentum(signal, isTracked, feedContext?.sort_mode);
+
+      return {
+        signal,
+        index,
+        featuredScore: momentum,
+        softRank: -index + momentum * 0.45,
+      };
+    })
+    .sort((left, right) => right.softRank - left.softRank);
+
+  const featuredIds = new Set(
+    [...rankedSignals]
+      .sort((left, right) => right.featuredScore - left.featuredScore)
+      .slice(0, 2)
+      .map(({ signal }) => signal.id),
+  );
+
   return (
     <div className="h-full overflow-y-auto" ref={containerRef}>
       <div className="panel-surface overflow-hidden bg-transparent">
-        {signals.map((signal) => (
+        {rankedSignals.map(({ signal }) => (
           <SignalCard key={signal.id} signal={signal} onOpenDetail={onOpenDetail} />
         ))}
         {paginated && hasMore && (

@@ -88,6 +88,7 @@ class SignalRead(BaseModel):
     classification_reason: str
     summary_template: str
     summary_template_inputs: SignalSummaryTemplateInputs
+    narrative_summary: Optional[str] = None
     reaction_summary: ReactionSummaryRead
     user_reaction: Optional[ReactionType]
     comment_count: int = 0

@@ -1,6 +1,7 @@
 import type {
   Comment,
   FeedMode,
+  GameLogRow,
   IngestStatus,
   MetricSeriesPoint,
   PaginatedSignals,
@@ -9,6 +10,7 @@ import type {
   ProfilePreferences,
   ReactionType,
   SavedView,
+  SeasonAveragesRow,
   Signal,
   SignalFilters,
   SignalTrace,
@@ -57,6 +59,8 @@ export const api = {
     if (filters.player) query.set('player', filters.player);
     if (filters.sort) query.set('sort', filters.sort);
     if (filters.feed) query.set('feed', filters.feed);
+    if (filters.date_from) query.set('date_from', filters.date_from);
+    if (filters.date_to) query.set('date_to', filters.date_to);
     if (beforeId != null) query.set('before_id', String(beforeId));
     if (favorited) query.set('favorited', 'true');
     query.set('limit', '24');
@@ -73,6 +77,13 @@ export const api = {
   },
   getPlayerSignals(id: string) {
     return request<Signal[]>(`/players/${id}/signals`);
+  },
+  getPlayerGamelog(id: string, season?: string) {
+    const query = season ? `?season=${encodeURIComponent(season)}` : '';
+    return request<GameLogRow[]>(`/players/${id}/gamelog${query}`);
+  },
+  getPlayerSeasonAverages(id: string) {
+    return request<SeasonAveragesRow[]>(`/players/${id}/season-averages`);
   },
   getPlayerMetrics(id: string) {
     return request<MetricSeriesPoint[]>(`/players/${id}/metrics`);

@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -44,6 +45,8 @@ def get_signals(
     limit: int = 24,
     before_id: Optional[int] = Query(default=None, alias="before_id"),
     favorited: bool = False,
+    date_from: Optional[date] = Query(default=None, alias="date_from"),
+    date_to: Optional[date] = Query(default=None, alias="date_to"),
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user),
 ) -> PaginatedSignals:
@@ -59,6 +62,8 @@ def get_signals(
         favorited_only=favorited,
         sort_mode=sort,
         feed_mode=feed,
+        date_from=date_from,
+        date_to=date_to,
     )
 
 

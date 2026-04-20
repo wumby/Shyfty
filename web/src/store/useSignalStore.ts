@@ -38,6 +38,8 @@ interface SignalStore {
   fetchIngestStatus: () => Promise<void>;
   triggerIngest: () => Promise<void>;
   fetchProfile: () => Promise<void>;
+  toggleFollowPlayer: (playerId: number, currentlyFollowed: boolean) => Promise<void>;
+  toggleFollowTeam: (teamId: number, currentlyFollowed: boolean) => Promise<void>;
   updatePreferences: (payload: Partial<ProfilePreferences>) => Promise<void>;
   saveView: (name: string) => Promise<void>;
   deleteSavedView: (savedViewId: number) => Promise<void>;
@@ -217,6 +219,42 @@ export const useSignalStore = create<SignalStore>((set, get) => ({
       set({ profile });
     } catch {
       set({ profile: null });
+    }
+  },
+
+  toggleFollowPlayer: async (playerId, currentlyFollowed) => {
+    const profile = get().profile;
+    if (!profile) return;
+    const nextPlayers = currentlyFollowed
+      ? profile.follows.players.filter((id) => id !== playerId)
+      : [...profile.follows.players, playerId];
+    set({ profile: { ...profile, follows: { ...profile.follows, players: nextPlayers } } });
+    try {
+      if (currentlyFollowed) {
+        await api.unfollowPlayer(playerId);
+      } else {
+        await api.followPlayer(playerId);
+      }
+    } catch {
+      set({ profile });
+    }
+  },
+
+  toggleFollowTeam: async (teamId, currentlyFollowed) => {
+    const profile = get().profile;
+    if (!profile) return;
+    const nextTeams = currentlyFollowed
+      ? profile.follows.teams.filter((id) => id !== teamId)
+      : [...profile.follows.teams, teamId];
+    set({ profile: { ...profile, follows: { ...profile.follows, teams: nextTeams } } });
+    try {
+      if (currentlyFollowed) {
+        await api.unfollowTeam(teamId);
+      } else {
+        await api.followTeam(teamId);
+      }
+    } catch {
+      set({ profile });
     }
   },
 

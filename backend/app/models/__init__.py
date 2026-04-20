@@ -1,4 +1,6 @@
 from app.models.comment_report import CommentReport
+from app.models.ingest_run import IngestRun
+from app.models.raw_ingest_event import RawIngestEvent
 from app.models.game import Game
 from app.models.league import League
 from app.models.player import Player
@@ -18,6 +20,8 @@ from app.models.user_session import UserSession
 
 __all__ = [
     "CommentReport",
+    "IngestRun",
+    "RawIngestEvent",
     "Game",
     "League",
     "Player",
