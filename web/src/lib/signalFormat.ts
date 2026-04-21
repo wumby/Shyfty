@@ -1,5 +1,15 @@
 import type { Signal } from '../types';
 
+export function normalizeExpectedCopy(text: string): string {
+  return text
+    .replace(/\brecent baseline over (?:the )?last \d+ games\b/gi, 'expected')
+    .replace(/\bhis recent baseline over (?:the )?last \d+ games\b/gi, 'expected')
+    .replace(/\bthe recent baseline\b/gi, 'expected')
+    .replace(/\brecent baseline\b/gi, 'expected')
+    .replace(/\blast \d+ games\b/gi, 'expected')
+    .replace(/\bbaseline\b/gi, 'expected');
+}
+
 export function formatMetricName(metricName: string): string {
   return metricName.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
 }
@@ -17,7 +27,6 @@ export function getImportanceScore(signal: Signal): number {
     SPIKE: 72,
     DROP: 72,
     SHIFT: 60,
-    CONSISTENCY: 52,
   };
 
   return Math.min(typeFloor[signal.signal_type] + Math.min(strength * 8, 15), 100);
@@ -28,7 +37,6 @@ export function formatSignalLabel(signalType: Signal['signal_type']): string {
     SPIKE: 'Spike',
     DROP: 'Drop',
     SHIFT: 'Shift',
-    CONSISTENCY: 'Consistency',
     OUTLIER: 'Outlier',
   };
   return labels[signalType];
@@ -60,7 +68,6 @@ export function formatDelta(signal: Signal): string {
 export function getSignalDirection(signal: Signal): 'positive' | 'negative' | 'neutral' {
   const deltaPercent = getDeltaPercent(signal);
 
-  if (signal.signal_type === 'CONSISTENCY') return 'neutral';
   if (deltaPercent === null) {
     const rawDelta = signal.current_value - signal.baseline_value;
     if (Math.abs(rawDelta) < 0.05) return 'neutral';
@@ -75,11 +82,11 @@ export function formatMovementLabel(signal: Signal): string {
   const metric = getMetricLabel(signal);
   const deltaPercent = getDeltaPercent(signal);
   if (deltaPercent === null) {
-    return `${metric} vs baseline`;
+    return `${metric} vs expected`;
   }
 
   const direction = deltaPercent >= 0 ? 'above' : 'below';
-  return `${Math.abs(Math.round(deltaPercent))}% ${direction} baseline`;
+  return `${Math.abs(Math.round(deltaPercent))}% ${direction} expected`;
 }
 
 export function formatSignalSummary(signal: Signal): string {
@@ -87,7 +94,7 @@ export function formatSignalSummary(signal: Signal): string {
 
   const metric = getMetricLabel(signal);
   const deltaPercent = getDeltaPercent(signal);
-  const window = signal.baseline_window ?? 'recent baseline';
+  const window = 'expected';
 
   if (deltaPercent === null) {
     const rawDelta = signal.current_value - signal.baseline_value;

@@ -36,7 +36,6 @@ enum SignalFormatting {
         case "SPIKE": return "Spike"
         case "DROP": return "Drop"
         case "SHIFT": return "Shift"
-        case "CONSISTENCY": return "Consistency"
         case "OUTLIER": return "Outlier"
         default: return signalType
         }
@@ -112,7 +111,6 @@ enum SignalFormatting {
         case "SPIKE": return Color(red: 0.24, green: 0.82, blue: 0.56)
         case "DROP": return Color(red: 0.96, green: 0.39, blue: 0.44)
         case "SHIFT": return Color(red: 0.95, green: 0.67, blue: 0.24)
-        case "CONSISTENCY": return Color(red: 0.35, green: 0.83, blue: 0.91)
         default: return Color(red: 0.86, green: 0.43, blue: 1.0)
         }
     }

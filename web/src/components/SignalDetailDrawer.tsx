@@ -18,7 +18,6 @@ const signalTypeColor: Record<string, string> = {
   SPIKE: 'text-emerald-300',
   DROP: 'text-rose-300',
   SHIFT: 'text-amber-300',
-  CONSISTENCY: 'text-sky-300',
   OUTLIER: 'text-fuchsia-300',
 };
 

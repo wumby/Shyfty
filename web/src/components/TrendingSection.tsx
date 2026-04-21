@@ -13,7 +13,6 @@ const typeTone: Record<Signal['signal_type'], string> = {
   SPIKE: 'text-green-400',
   DROP: 'text-red-400',
   SHIFT: 'text-amber-400',
-  CONSISTENCY: 'text-blue-400',
   OUTLIER: 'text-purple-400',
 };
 

@@ -7,9 +7,30 @@ import { PageIntro } from '../components/PageIntro';
 import { SectionHeader } from '../components/SectionHeader';
 import { SignalDetailDrawer } from '../components/SignalDetailDrawer';
 import { useSignalStore } from '../store/useSignalStore';
+import type { Signal } from '../types';
 
 const LEAGUES = ['All', 'NBA', 'NFL'];
-const SIGNAL_TYPES = ['All', 'OUTLIER', 'SPIKE', 'DROP', 'CONSISTENCY', 'SHIFT'] as const;
+const SIGNAL_TYPES = ['All', 'OUTLIER', 'SPIKE', 'DROP', 'SHIFT'] as const;
+
+function groupSignalsByPlayerGame(signals: Signal[]): Signal[][] {
+  const grouped = new Map<string, Signal[]>();
+
+  for (const signal of signals) {
+    const key = `${signal.player_id}:${signal.game_id}`;
+    const existing = grouped.get(key);
+    if (existing) {
+      existing.push(signal);
+    } else {
+      grouped.set(key, [signal]);
+    }
+  }
+
+  return [...grouped.values()].map((group) =>
+    [...group].sort(
+      (left, right) => Math.abs(right.current_value - right.baseline_value) - Math.abs(left.current_value - left.baseline_value),
+    ),
+  );
+}
 
 function FreshnessBar() {
   const { ingestStatus, fetchIngestStatus } = useSignalStore();
@@ -52,6 +73,7 @@ export function SignalFeedPage() {
   const activeSignalType = SIGNAL_TYPES.includes(signalTypeFromUrl as (typeof SIGNAL_TYPES)[number])
     ? signalTypeFromUrl
     : 'All';
+  const groupedSignals = groupSignalsByPlayerGame(signals);
 
   useEffect(() => {
     setFilters({
@@ -137,10 +159,10 @@ export function SignalFeedPage() {
             </div>
           ) : (
             <>
-              {signals.map((signal) => (
+              {groupedSignals.map((signalGroup) => (
                 <LastGameSignalCard
-                  key={signal.id}
-                  signal={signal}
+                  key={`${signalGroup[0]?.player_id ?? 'player'}-${signalGroup[0]?.game_id ?? 'game'}`}
+                  signals={signalGroup}
                   onOpenDetail={(signalId) => setDetailSignalId(signalId)}
                 />
               ))}

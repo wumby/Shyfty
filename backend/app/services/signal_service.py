@@ -44,6 +44,7 @@ SORT_MODE_DISCUSSED = "most_discussed"
 FEED_MODE_ALL = "all"
 FEED_MODE_FOLLOWING = "following"
 FEED_MODE_FOR_YOU = "for_you"
+EXCLUDED_SIGNAL_TYPES = {"CONSISTENCY"}
 
 
 def _parse_iso(value: Optional[str]) -> Optional[datetime]:
@@ -286,6 +287,7 @@ def _base_signal_query():
         .outerjoin(away_team, Game.away_team_id == away_team.id)
         .outerjoin(comment_count_subq, comment_count_subq.c.signal_id == Signal.id)
         .outerjoin(reaction_count_subq, reaction_count_subq.c.signal_id == Signal.id)
+        .where(~Signal.signal_type.in_(EXCLUDED_SIGNAL_TYPES))
     )
 
 

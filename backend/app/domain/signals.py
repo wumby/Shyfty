@@ -134,7 +134,6 @@ def importance_score(signal_type: str, z_score: float) -> float:
         "SPIKE": 68.0,
         "DROP": 68.0,
         "SHIFT": 58.0,
-        "CONSISTENCY": 40.0,
     }.get(signal_type, 50.0)
     strength_bonus = min(abs(z_score) * 8.0, 15.0)
     return round(min(type_floor + strength_bonus, 100.0), 1)
@@ -277,8 +276,6 @@ def _classify_from_snapshot(snapshot: MetricSnapshot, metric_name: str) -> Optio
     if metric_name == "usage_rate":
         usage_movement = movement_pct(snapshot.current_value, snapshot.medium_window.rolling_avg)
         if usage_movement is not None and abs(usage_movement) < thresholds.usage_shift_pct:
-            if snapshot.short_window.rolling_stddev <= thresholds.consistency_std and abs(short_z) <= 0.5:
-                return "CONSISTENCY"
             return None
 
     if max(abs(short_z), abs(snapshot.medium_window.z_score)) >= thresholds.outlier_z:
@@ -289,8 +286,6 @@ def _classify_from_snapshot(snapshot: MetricSnapshot, metric_name: str) -> Optio
         return "DROP"
     if metric_name == "usage_rate" and abs(short_z) >= thresholds.shift_z:
         return "SHIFT"
-    if snapshot.short_window.rolling_stddev <= thresholds.consistency_std and abs(short_z) <= 0.5 and not snapshot.high_volatility:
-        return "CONSISTENCY"
     return None
 
 
@@ -364,11 +359,6 @@ def _classification_reason_from_snapshot(signal_type: Optional[str], snapshot: M
         return (
             f"{metric_label(metric_name)} triggered a role shift with short |z|={abs(short_z):.2f}, "
             f"medium z={medium_z:.2f}, usage shift={usage_shift:+.2f}.{suffix}"
-        )
-    if signal_type == "CONSISTENCY":
-        return (
-            f"Short-window variance stayed low at {snapshot.short_window.rolling_stddev:.2f}, below the "
-            f"consistency threshold of {thresholds.consistency_std:.2f}; volatility index={snapshot.volatility_index:.2f}.{suffix}"
         )
     return "No classification threshold was met."
 
@@ -451,9 +441,6 @@ def build_narrative_summary(
                 return f"{metric_title} role contracting — extended downward pattern"
             return f"{metric_title} shifted below recent baseline"
 
-    if signal_type == "CONSISTENCY":
-        return f"{metric_title} floor locked in — unusually predictable stretch"
-
     if signal_type == "OUTLIER":
         if az >= 4.0:
             return f"Historic {metric} outlier — unprecedented vs. any window"
@@ -475,11 +462,6 @@ def build_explanation(
 ) -> str:
     metric_phrase = _metric_phrase(metric_name)
     baseline_window = BASELINE_WINDOW_SIZE + 1
-    if signal_type == "CONSISTENCY":
-        return (
-            f"{metric_phrase} stayed tightly anchored to {player_name}'s recent baseline "
-            f"over the last {baseline_window} games"
-        )
     if signal_type == "SHIFT":
         direction_text = "up" if current >= baseline else "down"
         usage_text = ""
@@ -537,9 +519,7 @@ def score_signal(
         + recency_factor * scoring.recency_bonus
         - min(volatility_penalty, 24.0)
     )
-    if signal_type == "CONSISTENCY":
-        score *= 0.72
-    elif signal_type == "SHIFT":
+    if signal_type == "SHIFT":
         score *= 0.9
 
     bounded = round(max(0.0, min(score, scoring.max_score)), 1)
@@ -587,6 +567,4 @@ def metric_success(signal_type: str, *, baseline_value: float, future_values: li
         return future_avg >= baseline_value
     if signal_type == "DROP":
         return future_avg <= baseline_value
-    if signal_type == "CONSISTENCY":
-        return max(future_values) - min(future_values) <= max(abs(baseline_value) * 0.15, 1.0)
     return False

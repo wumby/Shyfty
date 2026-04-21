@@ -164,7 +164,6 @@ The signal engine computes rolling averages, rolling standard deviation, z-score
 - `DROP`: `z <= -1.5`
 - `OUTLIER`: `|z| >= 2.5`
 - `SHIFT`: usage-rate z-score magnitude `>= 1.0`
-- `CONSISTENCY`: low recent variance
 
 The generator now backfills all eligible historical game contexts, not just the latest one, and reruns update existing contexts instead of recreating duplicate rows.
 

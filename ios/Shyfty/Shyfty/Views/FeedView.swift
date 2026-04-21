@@ -6,7 +6,7 @@ struct FeedView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     private let leagues = ["ALL", "NBA", "NFL"]
-    private let signalTypes = ["ALL", "SPIKE", "DROP", "SHIFT", "CONSISTENCY", "OUTLIER"]
+    private let signalTypes = ["ALL", "SPIKE", "DROP", "SHIFT", "OUTLIER"]
 
     var body: some View {
         NavigationStack {

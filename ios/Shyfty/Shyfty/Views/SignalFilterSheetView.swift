@@ -5,7 +5,7 @@ struct SignalFilterSheetView: View {
     @Environment(\.dismiss) private var dismiss
 
     private let leagues = ["ALL", "NBA", "NFL"]
-    private let signalTypes = ["ALL", "SPIKE", "DROP", "SHIFT", "CONSISTENCY", "OUTLIER"]
+    private let signalTypes = ["ALL", "SPIKE", "DROP", "SHIFT", "OUTLIER"]
 
     var body: some View {
         NavigationStack {

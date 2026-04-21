@@ -1,4 +1,4 @@
-export type SignalType = 'SPIKE' | 'DROP' | 'SHIFT' | 'CONSISTENCY' | 'OUTLIER';
+export type SignalType = 'SPIKE' | 'DROP' | 'SHIFT' | 'OUTLIER';
 export type ReactionType = 'strong' | 'agree' | 'risky';
 export type SortMode = 'newest' | 'most_important' | 'biggest_deviation' | 'most_discussed';
 export type FeedMode = 'all' | 'following' | 'for_you';

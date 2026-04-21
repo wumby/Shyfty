@@ -9,14 +9,13 @@ interface FilterBarProps {
 }
 
 const leagues = ['ALL', 'NBA', 'NFL'];
-const types = ['ALL', 'SPIKE', 'DROP', 'SHIFT', 'CONSISTENCY', 'OUTLIER'];
+const types = ['ALL', 'SPIKE', 'DROP', 'SHIFT', 'OUTLIER'];
 
 const typeTone: Record<string, string> = {
   ALL: 'text-slate-300',
   SPIKE: 'text-green-400',
   DROP: 'text-red-400',
   SHIFT: 'text-amber-400',
-  CONSISTENCY: 'text-blue-400',
   OUTLIER: 'text-purple-400',
 };
 

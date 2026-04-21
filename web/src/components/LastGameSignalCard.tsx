@@ -1,80 +1,136 @@
 import type { Signal } from '../types';
-import { formatEventDate, formatSignalLabel, getMetricLabel, getSignalDirection } from '../lib/signalFormat';
+import { formatEventDate, getMetricLabel, getSignalDirection, normalizeExpectedCopy } from '../lib/signalFormat';
+
+interface LastGameSignalCardProps {
+  signals: Signal[];
+  onOpenDetail?: (signalId: number) => void;
+}
 
 function formatStatValue(signal: Signal, value: number): string {
   if (signal.metric_name === 'usage_rate') {
     const normalized = Math.abs(value) <= 1 ? value * 100 : value;
-    return `${normalized.toFixed(1)}%`;
+    const rounded = Number.isInteger(normalized) ? normalized.toFixed(0) : normalized.toFixed(1);
+    return `${rounded}%`;
   }
-  const rounded = Number.isInteger(value) ? value.toString() : value.toFixed(1);
-  return rounded;
+
+  return Number.isInteger(value) ? value.toString() : value.toFixed(1);
 }
 
-function getDirectionCopy(signal: Signal): string {
+function getDirectionArrow(signal: Signal): string {
   const direction = getSignalDirection(signal);
-  if (direction === 'positive') return 'Above normal';
-  if (direction === 'negative') return 'Below normal';
+  if (direction === 'positive') return '↑';
+  if (direction === 'negative') return '↓';
+  return '→';
+}
+
+function getOpponentLabel(signal: Signal): string | null {
+  if (!signal.opponent) return null;
+  const cleaned = signal.opponent.trim();
+  if (!cleaned) return null;
+
+  const parts = cleaned.split(/\s+/);
+  return parts.length > 1 ? parts[parts.length - 1] : cleaned;
+}
+
+function getResultLabel(signal: Signal): string | null {
+  if (!signal.game_result) return null;
+  if (signal.game_result === 'W') return 'W';
+  if (signal.game_result === 'L') return 'L';
+  return signal.game_result;
+}
+
+function formatFinalScore(score: string | null | undefined): string | null {
+  if (!score) return null;
+  return score.replace(/\s*-\s*/g, '–');
+}
+
+function getContextRow(signal: Signal): string {
+  const parts: string[] = [];
+  const opponent = getOpponentLabel(signal);
+  const homeAway = signal.home_away === 'Away' || signal.home_away === '@' ? '@' : 'vs';
+
+  if (opponent) {
+    parts.push(`${homeAway} ${opponent}`);
+  }
+
+  const resultLabel = getResultLabel(signal);
+  if (resultLabel) {
+    parts.push(formatFinalScore(signal.final_score) ? `${resultLabel} ${formatFinalScore(signal.final_score)}` : resultLabel);
+  } else if (signal.final_score) {
+    parts.push(formatFinalScore(signal.final_score) ?? signal.final_score);
+  }
+
+  if (signal.event_date) {
+    parts.push(formatEventDate(signal.event_date));
+  }
+
+  return parts.join(' • ');
+}
+
+function getBadge(signal: Signal): { label: string; tone: string } | null {
+  if (signal.signal_type === 'OUTLIER') {
+    return {
+      label: 'Outlier',
+      tone: 'border border-fuchsia-500/20 bg-fuchsia-500/10 text-fuchsia-300',
+    };
+  }
+
+  return null;
+}
+
+function getExplanation(signal: Signal): string {
+  const direction = getSignalDirection(signal);
+  const source = normalizeExpectedCopy(signal.explanation || signal.narrative_summary || '').toLowerCase();
+
+  if (source.includes('far below') || source.includes('well below')) return 'Far below normal';
+  if (source.includes('below')) return 'Below normal';
+  if (source.includes('far above') || source.includes('well above') || source.includes('outlier')) return 'Well above typical';
+  if (source.includes('above')) return 'Above typical';
+  if (source.includes('shift')) return direction === 'negative' ? 'Lighter role than usual' : 'Bigger role than usual';
+
+  if (direction === 'positive') return 'Well above typical';
+  if (direction === 'negative') return 'Far below normal';
   return 'Near normal';
 }
 
-function getSignalTypeTone(signalType: Signal['signal_type']): string {
-  switch (signalType) {
-    case 'SPIKE':
-      return 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300';
-    case 'DROP':
-      return 'border-rose-500/20 bg-rose-500/10 text-rose-300';
-    case 'CONSISTENCY':
-      return 'border-sky-500/20 bg-sky-500/10 text-sky-300';
-    case 'OUTLIER':
-      return 'border-fuchsia-500/20 bg-fuchsia-500/10 text-fuchsia-300';
-    case 'SHIFT':
-      return 'border-amber-500/20 bg-amber-500/10 text-amber-300';
-    default:
-      return 'border-border bg-white/[0.03] text-muted';
-  }
+function getPrimaryBadge(signals: Signal[]): { label: string; tone: string } | null {
+  const outlier = signals.find((signal) => signal.signal_type === 'OUTLIER');
+  if (outlier) return getBadge(outlier);
+
+  return null;
 }
 
-export function LastGameSignalCard({
-  signal,
-  onOpenDetail,
-}: {
-  signal: Signal;
-  onOpenDetail?: (signalId: number) => void;
-}) {
-  const direction = getSignalDirection(signal);
-  const metric = getMetricLabel(signal);
-  const actualValue = formatStatValue(signal, signal.current_value);
-  const expectedValue = formatStatValue(signal, signal.baseline_value);
-  const dateLabel = signal.event_date ? formatEventDate(signal.event_date) : 'Last game';
-  const resultLabel = signal.game_result ?? 'Result unavailable';
-  const resultTone =
-    signal.game_result === 'W'
-      ? 'text-success'
-      : signal.game_result === 'L'
-        ? 'text-danger'
-        : 'text-muted';
-  const valueTone =
-    direction === 'positive'
-      ? 'text-success'
-      : direction === 'negative'
-        ? 'text-danger'
-        : 'text-ink';
+export function LastGameSignalCard({ signals, onOpenDetail }: LastGameSignalCardProps) {
+  const [primarySignal, ...otherSignals] = signals;
+  if (!primarySignal) return null;
+
+  const badge = getPrimaryBadge(signals);
+  const orderedSignals = [primarySignal, ...otherSignals].sort(
+    (left, right) => Math.abs(right.current_value - right.baseline_value) - Math.abs(left.current_value - left.baseline_value),
+  );
+  const contextRow = getContextRow(primarySignal);
+  const seenExplanations = new Set<string>();
+
   return (
-    <article className="panel-surface px-4 py-4 sm:px-5">
-      <div className="flex items-start justify-between gap-4">
+    <article className="panel-surface px-4 py-3.5 sm:px-5 sm:py-4">
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="mb-2">
-            <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${getSignalTypeTone(signal.signal_type)}`}>
-              {formatSignalLabel(signal.signal_type)}
-            </span>
-          </div>
-          <div className="text-2xl font-semibold text-ink">{signal.player_name}</div>
-          <div className="mt-1 text-sm text-muted">{signal.team_name} · {signal.league_name}</div>
+          {badge ? (
+            <div className="mb-1.5">
+              <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${badge.tone}`}>
+                {badge.label}
+              </span>
+            </div>
+          ) : null}
+
+          <div className="text-[25px] font-semibold leading-none text-ink sm:text-[28px]">{primarySignal.player_name}</div>
+          {contextRow ? <div className="mt-1 text-sm font-medium text-muted">{contextRow}</div> : null}
         </div>
+
         {onOpenDetail ? (
           <button
             type="button"
-            onClick={() => onOpenDetail(signal.id)}
+            onClick={() => onOpenDetail(primarySignal.id)}
             className="rounded-full border border-border bg-white/[0.03] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted transition hover:border-borderStrong hover:text-ink"
           >
             Details
@@ -82,49 +138,43 @@ export function LastGameSignalCard({
         ) : null}
       </div>
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr),220px]">
-        <div className="min-w-0">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">Stat</div>
-          <div className="mt-1 text-3xl font-semibold text-ink">{metric}</div>
-          <div className={`mt-2 text-4xl font-semibold tracking-tight ${valueTone}`}>{actualValue}</div>
-          <div className="mt-2 inline-flex rounded-full bg-white/[0.03] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
-            {getDirectionCopy(signal)}
-          </div>
-        </div>
+      <div className="mt-3 space-y-1.5">
+        {orderedSignals.map((signal) => {
+          const direction = getSignalDirection(signal);
+          const valueTone =
+            direction === 'positive'
+              ? 'text-success'
+              : direction === 'negative'
+                ? 'text-danger'
+                : 'text-ink';
+          const explanation = getExplanation(signal);
+          const showExplanation = explanation !== 'Near normal' && !seenExplanations.has(explanation);
+          if (showExplanation) seenExplanations.add(explanation);
 
-        <div className="grid gap-2">
-          <div className="rounded-[18px] bg-white/[0.03] px-3 py-3">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Last game</div>
-            <div className="mt-1 text-xl font-semibold text-ink">{actualValue}</div>
-          </div>
-          <div className="rounded-[18px] bg-white/[0.03] px-3 py-3">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Expected</div>
-            <div className="mt-1 text-xl font-semibold text-ink">{expectedValue}</div>
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[18px] bg-white/[0.03] px-3 py-3 text-sm">
-        <div>
-          <span className="text-muted">Opponent</span>
-          <span className="ml-2 font-semibold text-ink">
-            {signal.opponent ? `${signal.home_away ?? 'vs'} ${signal.opponent}` : 'Unavailable'}
-          </span>
-        </div>
-        <div>
-          <span className="text-muted">Result</span>
-          <span className={`ml-2 font-semibold ${resultTone}`}>{resultLabel}</span>
-        </div>
-        {signal.final_score ? (
-          <div>
-            <span className="text-muted">Final</span>
-            <span className="ml-2 font-semibold text-ink">{signal.final_score}</span>
-          </div>
-        ) : null}
-        <div>
-          <span className="text-muted">Date</span>
-          <span className="ml-2 font-semibold text-ink">{dateLabel}</span>
-        </div>
+          return (
+            <div key={signal.id} className="rounded-[14px] bg-white/[0.03] px-3 py-2">
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-baseline gap-1.5">
+                  <span className={`shrink-0 text-[21px] font-semibold leading-none tracking-tight tabular-nums sm:text-[23px] ${valueTone}`}>
+                    {formatStatValue(signal, signal.current_value)}
+                  </span>
+                  <span aria-hidden="true" className={`shrink-0 text-[15px] leading-none ${valueTone}`}>{getDirectionArrow(signal)}</span>
+                  <span className="min-w-0 truncate text-[14px] font-medium leading-tight text-ink sm:text-[15px]">
+                    {getMetricLabel(signal)}
+                  </span>
+                  <span className="shrink-0 text-[12px] font-medium tracking-normal text-muted/75">
+                    (vs {formatStatValue(signal, signal.baseline_value)})
+                  </span>
+                </div>
+                {showExplanation ? (
+                  <p className="mt-0.5 text-[12px] leading-4.5 text-muted/70">
+                    — {explanation}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </article>
   );

@@ -12,6 +12,7 @@ import {
   getImportance,
   formatSignalSummary,
   getSignalDirection,
+  normalizeExpectedCopy,
 } from '../lib/signalFormat';
 import { useAuthStore } from '../store/useAuthStore';
 import { useSignalStore } from '../store/useSignalStore';
@@ -21,7 +22,6 @@ const toneMap: Record<Signal['signal_type'], string> = {
   SPIKE: 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-300',
   DROP: 'border border-rose-500/20 bg-rose-500/10 text-rose-300',
   SHIFT: 'border border-amber-500/20 bg-amber-500/10 text-amber-300',
-  CONSISTENCY: 'border border-sky-500/20 bg-sky-500/10 text-sky-300',
   OUTLIER: 'border border-fuchsia-500/20 bg-fuchsia-500/10 text-fuchsia-300',
 };
 
@@ -74,7 +74,7 @@ const reactionMeta: Array<{ type: ReactionType; label: string }> = [
 export function SignalCard({ signal, onOpenDetail }: { signal: Signal; onOpenDetail?: (id: number) => void }) {
   const importance = getImportance(signal);
   const importanceScore = getImportanceScore(signal);
-  const summary = formatSignalSummary(signal);
+  const summary = normalizeExpectedCopy(formatSignalSummary(signal));
   const direction = getSignalDirection(signal);
   const directionStyles = directionTone[direction];
   const location = useLocation();
@@ -177,7 +177,9 @@ export function SignalCard({ signal, onOpenDetail }: { signal: Signal; onOpenDet
         <div className="mt-2 rounded-[18px] bg-white/[0.03] px-3 py-2">
           <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Why it matters</div>
           <p className={`mt-1 text-[12px] leading-5 ${directionStyles.context} ${expanded ? '' : 'line-clamp-2'}`}>
-            {signal.explanation || signal.narrative_summary || 'This signal stands out from the player’s recent baseline and deserves a closer look.'}
+            {normalizeExpectedCopy(
+              signal.explanation || signal.narrative_summary || 'This signal stands out from the player’s expected output and deserves a closer look.',
+            )}
           </p>
         </div>
 

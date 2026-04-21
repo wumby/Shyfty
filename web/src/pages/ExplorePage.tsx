@@ -10,7 +10,7 @@ import { api } from '../services/api';
 import { useSignalStore } from '../store/useSignalStore';
 import type { PaginatedSignals, SignalType, SortMode } from '../types';
 
-const SIGNAL_TYPES: SignalType[] = ['SPIKE', 'DROP', 'SHIFT', 'CONSISTENCY', 'OUTLIER'];
+const SIGNAL_TYPES: SignalType[] = ['SPIKE', 'DROP', 'SHIFT', 'OUTLIER'];
 const LEAGUES = ['NBA', 'NFL'];
 const SORT_OPTIONS: { value: SortMode; label: string }[] = [
   { value: 'newest', label: 'Newest' },
