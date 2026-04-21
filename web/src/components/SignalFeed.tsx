@@ -82,7 +82,7 @@ export function SignalFeed({ signals, onOpenDetail, paginated = false, feedConte
           <SignalCard key={signal.id} signal={signal} onOpenDetail={onOpenDetail} />
         ))}
         {paginated && hasMore && (
-          <div ref={sentinelRef} className="flex items-center justify-center border-t border-border px-4 py-4">
+          <div ref={sentinelRef} className="flex items-center justify-center px-4 py-4">
             {loadingMore && (
               <div className="text-[11px] uppercase tracking-[0.2em] text-muted">Loading more…</div>
             )}

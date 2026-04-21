@@ -44,6 +44,10 @@ export interface Signal {
   movement_pct: number | null;
   metric_label?: string;
   trend_direction?: 'up' | 'down' | 'flat';
+  opponent?: string | null;
+  home_away?: string | null;
+  game_result?: string | null;
+  final_score?: string | null;
   summary_template?: string;
   summary_template_inputs?: {
     current_value: number;
@@ -81,6 +85,7 @@ export interface Team {
   name: string;
   league_name: string;
   player_count: number;
+  signal_count?: number;
   is_followed: boolean;
 }
 

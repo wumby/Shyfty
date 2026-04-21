@@ -4,7 +4,7 @@ from datetime import date, datetime, timezone
 from typing import Optional
 
 from sqlalchemy import and_, case, func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from app.domain.signals import (
     BASELINE_WINDOW_SIZE,
@@ -22,6 +22,7 @@ from app.domain.signals import (
 from app.models.game import Game
 from app.models.league import League
 from app.models.player import Player
+from app.models.player_game_stat import PlayerGameStat
 from app.models.rolling_metric import RollingMetric
 from app.models.signal import Signal
 from app.models.signal_comment import SignalComment
@@ -164,6 +165,10 @@ def build_signal_read(
     user_reaction: Optional[str] = None,
     comment_count: int = 0,
     is_favorited: bool = False,
+    opponent: Optional[str] = None,
+    home_away: Optional[str] = None,
+    game_result: Optional[str] = None,
+    final_score: Optional[str] = None,
 ) -> SignalRead:
     baseline_window = baseline_window_label()
     movement = movement_pct(signal.current_value, signal.baseline_value)
@@ -201,6 +206,10 @@ def build_signal_read(
         metric_label=readable_metric_label,
         trend_direction=direction,
         rolling_stddev=rolling_stddev,
+        opponent=opponent,
+        home_away=home_away,
+        game_result=game_result,
+        final_score=final_score,
         classification_reason=classification_reason(signal.signal_type, snapshot, signal.metric_name),
         summary_template="metric_vs_recent_baseline",
         summary_template_inputs=SignalSummaryTemplateInputs(
@@ -242,6 +251,8 @@ def _reaction_count_subquery():
 def _base_signal_query():
     comment_count_subq = _comment_count_subquery()
     reaction_count_subq = _reaction_count_subquery()
+    home_team = aliased(Team)
+    away_team = aliased(Team)
     return (
         select(
             Signal,
@@ -252,6 +263,11 @@ def _base_signal_query():
             RollingMetric,
             func.coalesce(comment_count_subq.c.comment_count, 0).label("comment_count"),
             func.coalesce(reaction_count_subq.c.reaction_count, 0).label("reaction_count"),
+            PlayerGameStat.plus_minus,
+            Game.home_team_id,
+            Game.away_team_id,
+            home_team.name.label("home_team_name"),
+            away_team.name.label("away_team_name"),
         )
         .join(Player, Signal.player_id == Player.id)
         .join(Team, Signal.team_id == Team.id)
@@ -265,6 +281,9 @@ def _base_signal_query():
                 RollingMetric.metric_name == Signal.metric_name,
             ),
         )
+        .outerjoin(PlayerGameStat, PlayerGameStat.id == Signal.source_stat_id)
+        .outerjoin(home_team, Game.home_team_id == home_team.id)
+        .outerjoin(away_team, Game.away_team_id == away_team.id)
         .outerjoin(comment_count_subq, comment_count_subq.c.signal_id == Signal.id)
         .outerjoin(reaction_count_subq, reaction_count_subq.c.signal_id == Signal.id)
     )
@@ -317,21 +336,48 @@ def _build_signal_items(rows, db: Session, current_user_id: Optional[int]) -> li
     reaction_summaries = get_reaction_summaries(db, signal_ids)
     user_reactions = get_user_reactions(db, user_id=current_user_id, signal_ids=signal_ids)
     favorited_ids = get_favorited_signal_ids(db, user_id=current_user_id, signal_ids=signal_ids)
-    return [
-        build_signal_read(
-            signal,
-            player_name,
-            team_name,
-            league_name,
-            event_date,
-            rolling_metric,
-            reaction_summary=reaction_summaries.get(signal.id),
-            user_reaction=user_reactions.get(signal.id),
-            comment_count=comment_count,
-            is_favorited=signal.id in favorited_ids,
+    items: list[SignalRead] = []
+    for (
+        signal,
+        player_name,
+        team_name,
+        league_name,
+        event_date,
+        rolling_metric,
+        comment_count,
+        _reaction_count,
+        plus_minus,
+        home_team_id,
+        away_team_id,
+        home_team_name,
+        away_team_name,
+    ) in rows:
+        is_home = signal.team_id == home_team_id
+        opponent = away_team_name if is_home else home_team_name
+        home_away = "vs" if is_home else "@"
+        game_result = None
+        if plus_minus is not None and plus_minus != 0:
+            game_result = "W" if plus_minus > 0 else "L"
+
+        items.append(
+            build_signal_read(
+                signal,
+                player_name,
+                team_name,
+                league_name,
+                event_date,
+                rolling_metric,
+                reaction_summary=reaction_summaries.get(signal.id),
+                user_reaction=user_reactions.get(signal.id),
+                comment_count=comment_count,
+                is_favorited=signal.id in favorited_ids,
+                opponent=opponent,
+                home_away=home_away,
+                game_result=game_result,
+                final_score=None,
+            )
         )
-        for signal, player_name, team_name, league_name, event_date, rolling_metric, comment_count, _reaction_count in rows
-    ]
+    return items
 
 
 def _personalized_reason(feed_mode: str, current_user_id: Optional[int], items: list[SignalRead]) -> Optional[str]:

@@ -1,112 +1,65 @@
 import { useEffect, useState } from 'react';
-import { Link, useLocation, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 
 import { EmptyState } from '../components/EmptyState';
 import { LoadingState } from '../components/LoadingState';
+import { PageIntro } from '../components/PageIntro';
 import { PlayerHeader } from '../components/PlayerHeader';
+import { SectionHeader } from '../components/SectionHeader';
 import { SignalCard } from '../components/SignalCard';
 import { SignalDetailDrawer } from '../components/SignalDetailDrawer';
 import { TrendChart } from '../components/TrendChart';
 import { api } from '../services/api';
-import { useAuthStore } from '../store/useAuthStore';
-import { useSignalStore } from '../store/useSignalStore';
 import type { GameLogRow, MetricSeriesPoint, PlayerDetail, SeasonAveragesRow, Signal } from '../types';
 
-// ── Season comparison table ───────────────────────────────────────────────────
-
-function fmt(val: number | null, decimals = 1): string {
-  return val == null ? '—' : val.toFixed(decimals);
+function formatValue(value: number | null, decimals = 1) {
+  return value == null ? '—' : value.toFixed(decimals);
 }
 
-function Delta({ current, prior }: { current: number | null; prior: number | null }) {
-  if (current == null || prior == null) return null;
-  const diff = current - prior;
-  if (Math.abs(diff) < 0.05) return <span className="text-muted text-[11px]">—</span>;
-  const up = diff > 0;
-  return (
-    <span className={`text-[11px] font-medium ${up ? 'text-green-400' : 'text-red-400'}`}>
-      {up ? '↑' : '↓'} {Math.abs(diff).toFixed(1)}
-    </span>
-  );
-}
+function KeyStatsRow({ player, rows }: { player: PlayerDetail; rows: SeasonAveragesRow[] }) {
+  const current = rows[0];
 
-function SeasonComparisonTable({ rows, league }: { rows: SeasonAveragesRow[]; league: string }) {
-  const isNBA = league === 'NBA';
-  const current = rows[0] ?? null;
-  const prior = rows[1] ?? null;
+  if (!current) {
+    return (
+      <section className="panel-surface px-4 py-4">
+        <SectionHeader
+          title="Key Stats"
+          description="Season-level averages will appear here once enough data has been ingested."
+        />
+      </section>
+    );
+  }
 
-  if (!current) return null;
-
-  const nbaStats = [
-    { label: 'PPG', cur: current.points, pri: prior?.points },
-    { label: 'RPG', cur: current.rebounds, pri: prior?.rebounds },
-    { label: 'APG', cur: current.assists, pri: prior?.assists },
-    { label: 'GP', cur: current.games_played, pri: prior?.games_played, noDecimal: true },
-  ];
-  const nflStats = [
-    { label: 'Pass Yds', cur: current.passing_yards, pri: prior?.passing_yards, decimals: 0 },
-    { label: 'Rush Yds', cur: current.rushing_yards, pri: prior?.rushing_yards, decimals: 0 },
-    { label: 'Rec Yds', cur: current.receiving_yards, pri: prior?.receiving_yards, decimals: 0 },
-    { label: 'TD/G', cur: current.touchdowns, pri: prior?.touchdowns },
-    { label: 'GP', cur: current.games_played, pri: prior?.games_played, noDecimal: true },
-  ];
-  const stats = isNBA ? nbaStats : nflStats;
+  const stats =
+    player.league_name === 'NBA'
+      ? [
+          { label: 'PPG', value: formatValue(current.points) },
+          { label: 'RPG', value: formatValue(current.rebounds) },
+          { label: 'APG', value: formatValue(current.assists) },
+        ]
+      : [
+          { label: 'Pass Yds', value: formatValue(current.passing_yards, 0) },
+          { label: 'Rush Yds', value: formatValue(current.rushing_yards, 0) },
+          { label: 'Rec Yds', value: formatValue(current.receiving_yards, 0) },
+        ];
 
   return (
-    <section className="panel-surface px-5 py-4">
-      <div className="eyebrow mb-3">Season Averages</div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border text-[10px] uppercase tracking-[0.14em] text-muted">
-              <th className="pb-2 pr-4 text-left font-semibold">Season</th>
-              {stats.map((s) => (
-                <th key={s.label} className="pb-2 pr-3 text-right font-semibold">{s.label}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, idx) => {
-              const prevRow = rows[idx + 1] ?? null;
-              type Cell = { val: number | null; pri: number | null | undefined; noDecimal?: boolean; decimals?: number };
-              const cells: Cell[] = isNBA
-                ? [
-                    { val: row.points, pri: prevRow?.points },
-                    { val: row.rebounds, pri: prevRow?.rebounds },
-                    { val: row.assists, pri: prevRow?.assists },
-                    { val: row.games_played, pri: prevRow?.games_played, noDecimal: true },
-                  ]
-                : [
-                    { val: row.passing_yards, pri: prevRow?.passing_yards, decimals: 0 },
-                    { val: row.rushing_yards, pri: prevRow?.rushing_yards, decimals: 0 },
-                    { val: row.receiving_yards, pri: prevRow?.receiving_yards, decimals: 0 },
-                    { val: row.touchdowns, pri: prevRow?.touchdowns },
-                    { val: row.games_played, pri: prevRow?.games_played, noDecimal: true },
-                  ];
-              return (
-                <tr key={row.season} className="border-b border-border/40 last:border-0">
-                  <td className="py-2.5 pr-4 font-medium text-ink">{row.season}</td>
-                  {cells.map((cell, ci) => (
-                    <td key={ci} className="py-2.5 pr-3 text-right">
-                      <div className="text-ink font-semibold">
-                        {cell.noDecimal ? String(cell.val ?? '—') : fmt(cell.val, cell.decimals ?? 1)}
-                      </div>
-                      {idx === 0 && (
-                        <Delta current={cell.val} prior={cell.pri ?? null} />
-                      )}
-                    </td>
-                  ))}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+    <section className="panel-surface px-4 py-4">
+      <SectionHeader
+        title="Key Stats"
+        description="Use these quick numbers to orient yourself before reading recent signals or the game log."
+      />
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        {stats.map((stat) => (
+          <div key={stat.label} className="rounded-[20px] bg-white/[0.03] px-4 py-4">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">{stat.label}</div>
+            <div className="mt-2 text-2xl font-semibold text-ink">{stat.value}</div>
+          </div>
+        ))}
       </div>
     </section>
   );
 }
-
-// ── Game log table ───────────────────────────────────────────────────────────
 
 function GameLogTable({
   rows,
@@ -119,29 +72,33 @@ function GameLogTable({
   league: string;
   seasons: string[];
   selectedSeason: string | null;
-  onSeasonChange: (s: string | null) => void;
+  onSeasonChange: (value: string | null) => void;
 }) {
   const isNBA = league === 'NBA';
 
   return (
     <section className="panel-surface px-4 py-4">
-      <div className="mb-3 flex items-center justify-between">
-        <div className="eyebrow">Game Log</div>
-        {seasons.length > 1 && (
-          <select
-            value={selectedSeason ?? ''}
-            onChange={(e) => onSeasonChange(e.target.value || null)}
-            className="rounded-md border border-border bg-transparent px-2 py-1 text-[11px] text-muted focus:outline-none"
-          >
-            <option value="">All seasons</option>
-            {seasons.map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-        )}
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[480px] text-sm">
+      <SectionHeader
+        title="Game Log"
+        description="Review the recent game-by-game performance behind the profile and signals."
+        aside={
+          seasons.length > 1 ? (
+            <select
+              value={selectedSeason ?? ''}
+              onChange={(e) => onSeasonChange(e.target.value || null)}
+              className="field-shell px-3 py-2 text-sm"
+            >
+              <option value="">All seasons</option>
+              {seasons.map((season) => (
+                <option key={season} value={season}>{season}</option>
+              ))}
+            </select>
+          ) : null
+        }
+      />
+
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full min-w-[540px] text-sm">
           <thead>
             <tr className="border-b border-border text-[10px] uppercase tracking-[0.14em] text-muted">
               <th className="pb-2 pr-4 text-left font-semibold">Date</th>
@@ -188,19 +145,16 @@ function GameLogTable({
             ))}
           </tbody>
         </table>
-        {rows.length === 0 && (
-          <p className="py-6 text-center text-sm text-muted">No game log data yet.</p>
-        )}
+        {rows.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted">Game log data has not been loaded for this player yet.</p>
+        ) : null}
       </div>
     </section>
   );
 }
 
-// ── Page ─────────────────────────────────────────────────────────────────────
-
 export function PlayerDetailPage() {
   const { id = '' } = useParams();
-  const location = useLocation();
   const [player, setPlayer] = useState<PlayerDetail | null>(null);
   const [signals, setSignals] = useState<Signal[]>([]);
   const [allGamelog, setAllGamelog] = useState<GameLogRow[]>([]);
@@ -212,13 +166,6 @@ export function PlayerDetailPage() {
   const [showAllSignals, setShowAllSignals] = useState(false);
   const [detailSignalId, setDetailSignalId] = useState<number | null>(null);
   const [selectedSeason, setSelectedSeason] = useState<string | null>(null);
-  const currentUser = useAuthStore((state) => state.currentUser);
-  const fetchProfile = useSignalStore((state) => state.fetchProfile);
-
-  useEffect(() => {
-    if (!currentUser) return;
-    void fetchProfile();
-  }, [currentUser, fetchProfile]);
 
   useEffect(() => {
     async function load() {
@@ -244,70 +191,67 @@ export function PlayerDetailPage() {
         setLoading(false);
       }
     }
+
     void load();
   }, [id]);
 
   useEffect(() => {
-    if (selectedSeason) {
-      setGamelog(allGamelog.filter((r) => r.season === selectedSeason));
-    } else {
-      setGamelog(allGamelog);
-    }
+    setGamelog(selectedSeason ? allGamelog.filter((row) => row.season === selectedSeason) : allGamelog);
   }, [selectedSeason, allGamelog]);
 
   if (loading) return <LoadingState />;
   if (error || !player) return <EmptyState title="Player unavailable" copy={error ?? 'No player found.'} />;
 
-  const seasons = [...new Set(allGamelog.map((r) => r.season).filter((s): s is string => s != null))].sort().reverse();
+  const seasons = [...new Set(allGamelog.map((row) => row.season).filter((season): season is string => season != null))].sort().reverse();
   const visibleSignals = showAllSignals ? signals : signals.slice(0, 5);
 
   return (
     <>
-      <div className="space-y-5">
-        <div className="px-1">
-          <Link
-            to={(location.state as { returnTo?: string } | null)?.returnTo ?? '/'}
-            className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted transition hover:text-[#ffd8bd]"
-          >
-            Back to feed
-          </Link>
-        </div>
+      <div className="space-y-4">
+        <PageIntro
+          eyebrow="Player Profile"
+          title={player.name}
+          description={`Review ${player.team_name} context, recent signals, and game-level performance in one place.`}
+          breadcrumbs={[
+            { label: 'Teams', to: '/teams' },
+            { label: player.team_name },
+            { label: player.name },
+          ]}
+        />
 
         <PlayerHeader player={player} />
 
-        {seasonAverages.length > 0 && (
-          <SeasonComparisonTable rows={seasonAverages} league={player.league_name} />
-        )}
+        <KeyStatsRow player={player} rows={seasonAverages} />
 
-        {/* Latest signals */}
-        <section>
-          <div className="mb-2 flex items-center justify-between px-1">
-            <div className="eyebrow">
-              {signals.length > 0 ? `Latest Signals · ${signals.length} total` : 'Latest Signals'}
-            </div>
+        <section className="panel-surface px-4 py-4">
+          <SectionHeader
+            title="Recent Signals"
+            description="Start here to see why this player is surfacing now, then move into the game log for underlying detail."
+            aside={<div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">{signals.length} total</div>}
+          />
+
+          <div className="mt-4">
+            {signals.length === 0 ? (
+              <div className="rounded-[20px] bg-white/[0.03] px-4 py-5 text-sm text-muted">
+                No recent signals are active for this player. Use the game log below to review performance until new signals appear.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {visibleSignals.map((signal) => (
+                  <SignalCard key={signal.id} signal={signal} onOpenDetail={(signalId) => setDetailSignalId(signalId)} />
+                ))}
+                {signals.length > 5 ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllSignals((value) => !value)}
+                    className="w-full rounded-[22px] border border-border bg-white/[0.02] py-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted transition hover:text-ink"
+                  >
+                    {showAllSignals ? 'Show less' : `Show all ${signals.length} signals`}
+                  </button>
+                ) : null}
+              </div>
+            )}
           </div>
-          {signals.length === 0 ? (
-            <div className="panel-surface px-4 py-6 text-center text-sm text-muted">No signals yet.</div>
-          ) : (
-            <div className="space-y-2">
-              {visibleSignals.map((signal) => (
-                <SignalCard
-                  key={signal.id}
-                  signal={signal}
-                  onOpenDetail={(sid) => setDetailSignalId(sid)}
-                />
-              ))}
-              {signals.length > 5 && (
-                <button
-                  type="button"
-                  onClick={() => setShowAllSignals((v) => !v)}
-                  className="w-full rounded-[22px] border border-border bg-white/[0.02] py-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted transition hover:text-ink"
-                >
-                  {showAllSignals ? 'Show less' : `Show all ${signals.length} signals`}
-                </button>
-              )}
-            </div>
-          )}
         </section>
 
         <GameLogTable
@@ -318,14 +262,22 @@ export function PlayerDetailPage() {
           onSeasonChange={setSelectedSeason}
         />
 
-        {metrics.length > 0 && (
-          <TrendChart data={metrics} signals={signals} />
-        )}
+        {metrics.length > 0 ? (
+          <section className="panel-surface px-4 py-4">
+            <SectionHeader
+              title="Trend Context"
+              description="Use the trend view for longer-term context after reviewing the current profile and game log."
+            />
+            <div className="mt-4">
+              <TrendChart data={metrics} signals={signals} />
+            </div>
+          </section>
+        ) : null}
       </div>
 
-      {detailSignalId != null && (
+      {detailSignalId != null ? (
         <SignalDetailDrawer signalId={detailSignalId} onClose={() => setDetailSignalId(null)} />
-      )}
+      ) : null}
     </>
   );
 }

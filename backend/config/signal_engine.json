@@ -16,7 +16,15 @@
       "usage_shift_pct": 8.0,
       "high_volatility_index": 1.35
     },
-    "metrics": {}
+    "metrics": {
+      "usage_rate": {
+        "outlier_z": 4.0,
+        "spike_z": 2.25,
+        "drop_z": -2.25,
+        "shift_z": 1.5,
+        "usage_shift_pct": 15.0
+      }
+    }
   },
   "scoring": {
     "base_score": 24.0,

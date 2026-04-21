@@ -24,7 +24,7 @@ interface Props {
 export function TrendingSection({ onOpenDetail }: Props) {
   const [signals, setSignals] = useState<Signal[]>([]);
   const [loading, setLoading] = useState(true);
-  const [collapsed, setCollapsed] = useState(true);
+  const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
     api
@@ -50,17 +50,19 @@ export function TrendingSection({ onOpenDetail }: Props) {
   if (signals.length === 0) return null;
 
   return (
-    <section className="panel-surface px-4 py-2.5">
-      <div className="flex items-center justify-between gap-3">
+    <section className="panel-surface px-4 py-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="eyebrow">Trending Signals</div>
+          <p className="mt-1 text-sm text-muted">Use this strip to spot momentum before you move into the full board.</p>
+        </div>
         <button
           type="button"
           onClick={() => setCollapsed((v) => !v)}
-          className="flex items-center gap-2 transition-opacity hover:opacity-80"
+          className="rounded-full border border-border bg-white/[0.03] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted transition hover:border-borderStrong hover:text-ink"
         >
-          <div className="eyebrow">Trending</div>
-          <span className={`text-[9px] text-muted/40 transition-transform duration-200 ${collapsed ? '' : 'rotate-180'}`}>▲</span>
+          {collapsed ? 'Show' : 'Hide'}
         </button>
-        <div className="hidden text-[10px] uppercase tracking-[0.24em] text-[#ffd8bd]/60 sm:block">Pulse</div>
       </div>
 
       <div className={`card-expand ${collapsed ? '' : 'open'}`}>

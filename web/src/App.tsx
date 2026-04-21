@@ -1,7 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 
 import { AppShell } from './components/AppShell';
-import { ExplorePage } from './pages/ExplorePage';
 import { PlayerDetailPage } from './pages/PlayerDetailPage';
 import { PlayersPage } from './pages/PlayersPage';
 import { ProfilePage } from './pages/ProfilePage';
@@ -14,7 +13,6 @@ export default function App() {
     <Routes>
       <Route element={<AppShell />}>
         <Route path="/" element={<SignalFeedPage />} />
-        <Route path="/explore" element={<ExplorePage />} />
         <Route path="/players" element={<PlayersPage />} />
         <Route path="/players/:id" element={<PlayerDetailPage />} />
         <Route path="/teams" element={<TeamsPage />} />

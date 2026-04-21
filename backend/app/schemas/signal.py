@@ -85,6 +85,10 @@ class SignalRead(BaseModel):
     metric_label: str
     trend_direction: str
     rolling_stddev: float
+    opponent: Optional[str] = None
+    home_away: Optional[str] = None
+    game_result: Optional[str] = None
+    final_score: Optional[str] = None
     classification_reason: str
     summary_template: str
     summary_template_inputs: SignalSummaryTemplateInputs

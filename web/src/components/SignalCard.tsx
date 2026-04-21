@@ -94,7 +94,7 @@ export function SignalCard({ signal, onOpenDetail }: { signal: Signal; onOpenDet
   const engagementLabel =
     totalReactions > 0 || signal.comment_count > 0
       ? `${totalReactions} reaction${totalReactions === 1 ? '' : 's'} • ${signal.comment_count} discussing`
-      : 'Be the first read';
+      : 'No discussion yet';
   const engagementTone =
     engagementScore >= 12
       ? 'text-[#ffd8bd]'
@@ -126,7 +126,7 @@ export function SignalCard({ signal, onOpenDetail }: { signal: Signal; onOpenDet
   return (
     <article
       onClick={() => setExpanded((v) => !v)}
-      className={`signal-card-enter group relative grid cursor-pointer grid-cols-[minmax(0,1fr),88px] gap-3 border-b border-border px-3 py-2.5 transition-all duration-150 sm:grid-cols-[minmax(0,1fr),96px] sm:px-4 ${directionStyles.rowGlow} ${importance === 'High' ? 'bg-accent/[0.018]' : 'bg-transparent'} ${expanded ? '!bg-white/[0.03]' : ''} ${isTracked ? 'shadow-[inset_0_0_0_1px_rgba(249,115,22,0.08)]' : ''} hover:-translate-y-px`}
+      className={`signal-card-enter group relative grid cursor-pointer grid-cols-[minmax(0,1fr),92px] gap-4 px-3 py-3 transition-all duration-150 sm:grid-cols-[minmax(0,1fr),110px] sm:px-4 ${directionStyles.rowGlow} ${importance === 'High' ? 'bg-accent/[0.018]' : 'bg-transparent'} ${expanded ? '!bg-white/[0.03]' : ''} ${isTracked ? 'shadow-[inset_0_0_0_1px_rgba(249,115,22,0.08)]' : ''} hover:-translate-y-px`}
     >
       <div className={`absolute inset-y-3 left-0 w-[3px] rounded-full ${directionStyles.rail} ${importance === 'Watch' ? 'opacity-30' : 'opacity-70'}`} />
       {isTracked ? <div className="absolute right-4 top-4 h-2.5 w-2.5 rounded-full bg-accent shadow-[0_0_18px_rgba(249,115,22,0.75)]" /> : null}
@@ -174,17 +174,15 @@ export function SignalCard({ signal, onOpenDetail }: { signal: Signal; onOpenDet
           {summary}
         </p>
 
-        {!compact && signal.explanation ? (
-          <p className={`mt-1 text-[11px] leading-5 ${directionStyles.context} ${expanded ? '' : 'line-clamp-1'}`}>
-            {signal.explanation}
+        <div className="mt-2 rounded-[18px] bg-white/[0.03] px-3 py-2">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Why it matters</div>
+          <p className={`mt-1 text-[12px] leading-5 ${directionStyles.context} ${expanded ? '' : 'line-clamp-2'}`}>
+            {signal.explanation || signal.narrative_summary || 'This signal stands out from the player’s recent baseline and deserves a closer look.'}
           </p>
-        ) : null}
+        </div>
 
-        {/* Level 3: meta strip — always visible */}
-        <div className={`mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] ${directionStyles.meta}`}>
+        <div className={`mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] ${directionStyles.meta}`}>
           <span>{signal.team_name}</span>
-          <span className="text-white/10">•</span>
-          <span>{signal.league_name}</span>
           <span className="text-white/10">•</span>
           <span>{formatRelativeTime(signal.created_at)}</span>
           <span className="text-white/10">•</span>
@@ -280,7 +278,8 @@ export function SignalCard({ signal, onOpenDetail }: { signal: Signal; onOpenDet
 
       {/* Right: key metric */}
       <div className="self-start justify-self-end pt-0.5 text-right">
-        <div className={`text-[18px] font-semibold tracking-tight tabular-nums sm:text-[20px] ${directionStyles.delta}`}>
+        <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Delta</div>
+        <div className={`mt-1 text-[22px] font-semibold tracking-tight tabular-nums sm:text-[26px] ${directionStyles.delta}`}>
           {formatDelta(signal)}
         </div>
         <div className="mt-0.5 text-[10px] uppercase tracking-[0.14em] text-muted">
