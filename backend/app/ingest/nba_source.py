@@ -3,7 +3,7 @@
 Implements IngestSource for the NBA Stats API (polled batch, source_type=API).
 Wraps the existing fetch and incremental normalization services.
 
-Each game's combined boxscore (traditional + usage) is treated as one IngestEvent,
+Each game's combined boxscore (traditional + advanced + usage) is treated as one IngestEvent,
 matching the granularity a Kafka producer would use if this data were streamed.
 """
 from __future__ import annotations
@@ -52,7 +52,7 @@ class NBASAPISource(IngestSource):
         """Fetch recent NBA games and yield one IngestEvent per game.
 
         Writes raw JSON snapshots to disk as a side effect (existing behavior).
-        Each yielded event carries the merged traditional + usage boxscore payload
+        Each yielded event carries the merged traditional + advanced + usage boxscore payload
         for one game — matching the message granularity a Kafka producer would use.
         """
         fetch_result = fetch_recent_nba_data(season=season, days_back=days_back, max_games=max_games)
@@ -66,8 +66,9 @@ class NBASAPISource(IngestSource):
 
         for game_id in manifest["game_ids"]:
             traditional_path = snapshot_dir / "games" / f"{game_id}_traditional.json"
+            advanced_path = snapshot_dir / "games" / f"{game_id}_advanced.json"
             usage_path = snapshot_dir / "games" / f"{game_id}_usage.json"
-            if not traditional_path.exists() or not usage_path.exists():
+            if not traditional_path.exists():
                 continue
 
             raw_payload: dict[str, Any] = {
@@ -75,7 +76,8 @@ class NBASAPISource(IngestSource):
                 "game_id": game_id,
                 "snapshot_dir": str(snapshot_dir),
                 "traditional": _json.loads(traditional_path.read_text(encoding="utf-8")),
-                "usage": _json.loads(usage_path.read_text(encoding="utf-8")),
+                "advanced": _json.loads(advanced_path.read_text(encoding="utf-8")) if advanced_path.exists() else {},
+                "usage": _json.loads(usage_path.read_text(encoding="utf-8")) if usage_path.exists() else {},
             }
 
             yield IngestEvent(

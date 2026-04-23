@@ -1,4 +1,5 @@
 import unittest
+from datetime import date
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import mock
@@ -7,11 +8,15 @@ from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
 
 from app.db.base import Base
+from app.models.game import Game
+from app.models.league import League
 from app.models.player import Player
 from app.models.player_game_stat import PlayerGameStat
 from app.models.rolling_metric import RollingMetric
 from app.models.rolling_metric_baseline_sample import RollingMetricBaselineSample
 from app.models.signal import Signal
+from app.models.team import Team
+from app.models.team_game_stat import TeamGameStat
 from app.services.seed_service import seed_database
 from app.services.signal_generation_service import SignalGenerationError, generate_signals
 from app.services.signal_service import list_signals
@@ -161,6 +166,44 @@ class SignalGenerationServiceTests(unittest.TestCase):
         assert signal is not None
         self.assertEqual(signal.rolling_metric_id, rolling_metric.id)
         self.assertEqual(signal.source_stat_id, rolling_metric.source_stat_id)
+
+    def test_generate_signals_creates_team_signal_from_real_team_stats(self) -> None:
+        league = League(name="NBA")
+        self.session.add(league)
+        self.session.flush()
+
+        mavs = Team(name="Dallas Mavericks", league_id=league.id, source_system="nba_stats", source_id="1610612742")
+        suns = Team(name="Phoenix Suns", league_id=league.id, source_system="nba_stats", source_id="1610612756")
+        self.session.add_all([mavs, suns])
+        self.session.flush()
+
+        games = [
+            Game(league_id=league.id, game_date=date(2025, 1, 1), season="2024-25", home_team_id=mavs.id, away_team_id=suns.id, source_system="nba_stats", source_id="g1"),
+            Game(league_id=league.id, game_date=date(2025, 1, 3), season="2024-25", home_team_id=suns.id, away_team_id=mavs.id, source_system="nba_stats", source_id="g2"),
+            Game(league_id=league.id, game_date=date(2025, 1, 5), season="2024-25", home_team_id=mavs.id, away_team_id=suns.id, source_system="nba_stats", source_id="g3"),
+        ]
+        self.session.add_all(games)
+        self.session.flush()
+
+        self.session.add_all(
+            [
+                TeamGameStat(team_id=mavs.id, game_id=games[0].id, opponent_team_id=suns.id, opponent_name=suns.name, home_away="vs", points=100, rebounds=42, assists=24, fg_pct=0.48, fg3_pct=0.36, turnovers=12, pace=99.5, off_rating=108.2, source_system="nba_stats", source_game_id="g1", source_team_id="1610612742"),
+                TeamGameStat(team_id=mavs.id, game_id=games[1].id, opponent_team_id=suns.id, opponent_name=suns.name, home_away="@", points=102, rebounds=41, assists=25, fg_pct=0.47, fg3_pct=0.35, turnovers=13, pace=100.1, off_rating=109.0, source_system="nba_stats", source_game_id="g2", source_team_id="1610612742"),
+                TeamGameStat(team_id=mavs.id, game_id=games[2].id, opponent_team_id=suns.id, opponent_name=suns.name, home_away="vs", points=140, rebounds=45, assists=33, fg_pct=0.58, fg3_pct=0.44, turnovers=9, pace=104.9, off_rating=129.8, source_system="nba_stats", source_game_id="g3", source_team_id="1610612742"),
+            ]
+        )
+        self.session.commit()
+
+        result = generate_signals(self.session)
+
+        self.assertGreater(result.created_signals, 0)
+        signal = self.session.execute(
+            select(Signal).where(Signal.subject_type == "team", Signal.team_id == mavs.id)
+        ).scalar_one()
+        self.assertIsNone(signal.player_id)
+        self.assertEqual(signal.metric_name, "points")
+        self.assertEqual(signal.signal_type, "SPIKE")
+        self.assertIsNotNone(signal.source_team_stat_id)
 
 
 if __name__ == "__main__":

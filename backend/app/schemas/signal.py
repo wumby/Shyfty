@@ -62,7 +62,8 @@ class WindowContextRead(BaseModel):
 
 class SignalRead(BaseModel):
     id: int
-    player_id: int
+    subject_type: str = "player"
+    player_id: Optional[int] = None
     team_id: int
     game_id: int
     player_name: str
@@ -108,9 +109,11 @@ class BaselineSampleRead(BaseModel):
     value: float
     source_system: Optional[str]
     source_game_id: Optional[str]
-    source_player_id: Optional[str]
+    source_player_id: Optional[str] = None
+    source_team_id: Optional[str] = None
     raw_snapshot_path: Optional[str]
     raw_payload_path: Optional[str]
+    raw_advanced_payload_path: Optional[str] = None
     raw_record_index: Optional[int]
 
 
@@ -123,15 +126,17 @@ class SourceStatContextRead(BaseModel):
     raw_stats: dict[str, float]
     source_system: Optional[str]
     source_game_id: Optional[str]
-    source_player_id: Optional[str]
+    source_player_id: Optional[str] = None
+    source_team_id: Optional[str] = None
     raw_snapshot_path: Optional[str]
     raw_payload_path: Optional[str]
+    raw_advanced_payload_path: Optional[str] = None
     raw_record_index: Optional[int]
 
 
 class RollingMetricTraceRead(BaseModel):
     id: Optional[int]
-    player_id: int
+    player_id: Optional[int] = None
     game_id: int
     metric_name: str
     source_stat_id: Optional[int]

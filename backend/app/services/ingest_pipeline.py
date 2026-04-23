@@ -63,11 +63,12 @@ def run_full_ingest(
         logger.info("Ingest: normalizing snapshot → DB (clear_since=%s)", clear_since)
         load = load_nba_snapshot(db, clear_since=clear_since)
         logger.info(
-            "Ingest: loaded teams=%d players=%d games=%d stats=%d",
+            "Ingest: loaded teams=%d players=%d games=%d player_stats=%d team_stats=%d",
             load.teams_loaded,
             load.players_loaded,
             load.games_loaded,
             load.stats_loaded,
+            load.team_stats_loaded,
         )
 
         logger.info("Ingest: running signal engine")
@@ -166,14 +167,16 @@ def run_incremental_ingest(
         )
 
         affected_player_ids = load.affected_player_ids
-        if affected_player_ids:
+        affected_team_ids = load.affected_team_ids
+        if affected_player_ids or affected_team_ids:
             logger.info(
-                "Incremental ingest: regenerating signals for %d affected players",
+                "Incremental ingest: regenerating signals for %d affected players and %d teams",
                 len(affected_player_ids),
+                len(affected_team_ids),
             )
-            sig = generate_signals_for_players(db, affected_player_ids)
+            sig = generate_signals_for_players(db, affected_player_ids, team_ids=affected_team_ids)
         else:
-            logger.info("Incremental ingest: no new player data, skipping signal generation")
+            logger.info("Incremental ingest: no new player/team data, skipping signal generation")
             from app.services.signal_generation_service import SignalGenerationResult
             sig = SignalGenerationResult()
 
@@ -245,14 +248,16 @@ def run_season_backfill(
         )
 
         affected_player_ids = load.affected_player_ids
-        if affected_player_ids:
+        affected_team_ids = load.affected_team_ids
+        if affected_player_ids or affected_team_ids:
             logger.info(
-                "Season backfill: regenerating signals for %d affected players",
+                "Season backfill: regenerating signals for %d affected players and %d teams",
                 len(affected_player_ids),
+                len(affected_team_ids),
             )
-            sig = generate_signals_for_players(db, affected_player_ids)
+            sig = generate_signals_for_players(db, affected_player_ids, team_ids=affected_team_ids)
         else:
-            logger.info("Season backfill: no new player data, skipping signal generation")
+            logger.info("Season backfill: no new player/team data, skipping signal generation")
             from app.services.signal_generation_service import SignalGenerationResult
             sig = SignalGenerationResult()
 

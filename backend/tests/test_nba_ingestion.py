@@ -11,6 +11,7 @@ from app.models.game import Game
 from app.models.player import Player
 from app.models.player_game_stat import PlayerGameStat
 from app.models.team import Team
+from app.models.team_game_stat import TeamGameStat
 from app.services.nba_normalization_service import load_nba_snapshot
 
 
@@ -117,6 +118,29 @@ class NBAIngestionTests(unittest.TestCase):
                             ["0022400001", 1610612744, 201939, "Stephen Curry", "G", "34:00", 5, 7, 32],
                             ["0022400001", 1610612747, 2544, "LeBron James", "F", "36:00", 8, 9, 28],
                         ],
+                    },
+                    {
+                        "name": "TeamStats",
+                        "headers": ["GAME_ID", "TEAM_ID", "TEAM_NAME", "REB", "AST", "FG_PCT", "FG3_PCT", "TO", "PTS"],
+                        "rowSet": [
+                            ["0022400001", 1610612744, "Golden State Warriors", 44, 29, 0.512, 0.398, 13, 118],
+                            ["0022400001", 1610612747, "Los Angeles Lakers", 41, 24, 0.471, 0.361, 15, 109],
+                        ],
+                    }
+                ]
+            },
+        )
+        self._write_json(
+            "games/0022400001_advanced.json",
+            {
+                "resultSets": [
+                    {
+                        "name": "TeamStats",
+                        "headers": ["GAME_ID", "TEAM_ID", "PACE", "OFF_RATING"],
+                        "rowSet": [
+                            ["0022400001", 1610612744, 101.4, 116.7],
+                            ["0022400001", 1610612747, 101.4, 108.1],
+                        ],
                     }
                 ]
             },
@@ -143,6 +167,7 @@ class NBAIngestionTests(unittest.TestCase):
         self.assertEqual(result.players_loaded, 2)
         self.assertEqual(result.teams_loaded, 2)
         self.assertEqual(result.stats_loaded, 2)
+        self.assertEqual(result.team_stats_loaded, 2)
         self.assertEqual(result.skipped_stat_rows, 0)
 
         game = self.session.execute(select(Game)).scalar_one()
@@ -152,9 +177,11 @@ class NBAIngestionTests(unittest.TestCase):
         player_count = self.session.execute(select(func.count()).select_from(Player)).scalar_one()
         team_count = self.session.execute(select(func.count()).select_from(Team)).scalar_one()
         stat_count = self.session.execute(select(func.count()).select_from(PlayerGameStat)).scalar_one()
+        team_stat_count = self.session.execute(select(func.count()).select_from(TeamGameStat)).scalar_one()
         self.assertEqual(player_count, 2)
         self.assertEqual(team_count, 2)
         self.assertEqual(stat_count, 2)
+        self.assertEqual(team_stat_count, 2)
 
         curry = self.session.execute(select(Player).where(Player.name == "Stephen Curry")).scalar_one()
         self.assertEqual(curry.position, "G")
@@ -166,6 +193,79 @@ class NBAIngestionTests(unittest.TestCase):
         self.assertEqual(curry_stat.raw_record_index, 0)
         self.assertTrue(curry_stat.raw_snapshot_path)
         self.assertTrue(curry_stat.raw_payload_path.endswith("0022400001_traditional.json"))
+
+        team_stat = self.session.execute(select(TeamGameStat).where(TeamGameStat.team_id == curry.team_id)).scalar_one()
+        self.assertEqual(team_stat.points, 118)
+        self.assertEqual(team_stat.off_rating, 116.7)
+        self.assertEqual(team_stat.home_away, "vs")
+
+    def test_load_nba_snapshot_persists_team_stats_without_advanced_payload(self) -> None:
+        self._write_json(
+            "manifest.json",
+            {
+                "source_system": "nba_stats",
+                "season": "2024-25",
+                "season_type": "Regular Season",
+                "game_ids": ["0022400001"],
+                "team_ids": [1610612744, 1610612747],
+            },
+        )
+        self._write_json(
+            "leaguegamelog.json",
+            {
+                "resultSets": [
+                    {
+                        "name": "LeagueGameLog",
+                        "headers": ["SEASON_ID", "TEAM_ID", "TEAM_ABBREVIATION", "TEAM_NAME", "GAME_ID", "GAME_DATE", "MATCHUP"],
+                        "rowSet": [
+                            ["22024", 1610612744, "GSW", "Golden State Warriors", "0022400001", "2025-01-05", "GSW vs. LAL"],
+                            ["22024", 1610612747, "LAL", "Los Angeles Lakers", "0022400001", "2025-01-05", "LAL @ GSW"],
+                        ],
+                    }
+                ]
+            },
+        )
+        self._write_json(
+            "commonallplayers.json",
+            {
+                "resultSets": [
+                    {
+                        "name": "CommonAllPlayers",
+                        "headers": ["PERSON_ID", "DISPLAY_FIRST_LAST", "TEAM_ID"],
+                        "rowSet": [],
+                    }
+                ]
+            },
+        )
+        self._write_json(
+            "games/0022400001_traditional.json",
+            {
+                "resultSets": [
+                    {
+                        "name": "PlayerStats",
+                        "headers": ["GAME_ID", "TEAM_ID", "PLAYER_ID", "PLAYER_NAME", "START_POSITION", "MIN", "REB", "AST", "PTS"],
+                        "rowSet": [],
+                    },
+                    {
+                        "name": "TeamStats",
+                        "headers": ["GAME_ID", "TEAM_ID", "TEAM_NAME", "REB", "AST", "FG_PCT", "FG3_PCT", "TO", "PTS"],
+                        "rowSet": [
+                            ["0022400001", 1610612744, "Golden State Warriors", 44, 29, 0.512, 0.398, 13, 118],
+                            ["0022400001", 1610612747, "Los Angeles Lakers", 41, 24, 0.471, 0.361, 15, 109],
+                        ],
+                    }
+                ]
+            },
+        )
+
+        result = load_nba_snapshot(self.session, snapshot_dir=self.snapshot_dir)
+
+        self.assertEqual(result.team_stats_loaded, 2)
+        warriors = self.session.execute(select(Team).where(Team.name == "Golden State Warriors")).scalar_one()
+        team_stat = self.session.execute(select(TeamGameStat).where(TeamGameStat.team_id == warriors.id)).scalar_one()
+        self.assertEqual(team_stat.points, 118)
+        self.assertIsNone(team_stat.pace)
+        self.assertIsNone(team_stat.off_rating)
 
     def test_load_nba_snapshot_allows_missing_usage_payload(self) -> None:
         self._write_json(

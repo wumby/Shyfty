@@ -28,6 +28,7 @@ from app.models.signal import Signal
 from app.models.signal_comment import SignalComment
 from app.models.signal_reaction import SignalReaction
 from app.models.team import Team
+from app.models.team_game_stat import TeamGameStat
 from app.models.user_favorite import UserFavorite
 from app.models.user_follow import UserFollow
 from app.schemas.reaction import ReactionSummaryRead
@@ -157,7 +158,7 @@ def effective_metric_to_snapshot(signal: Signal, rolling_metric: Optional[Rollin
 
 def build_signal_read(
     signal: Signal,
-    player_name: str,
+    player_name: Optional[str],
     team_name: str,
     league_name: str,
     event_date,
@@ -184,10 +185,11 @@ def build_signal_read(
     )
     return SignalRead(
         id=signal.id,
+        subject_type=signal.subject_type,
         player_id=signal.player_id,
         team_id=signal.team_id,
         game_id=signal.game_id,
-        player_name=player_name,
+        player_name=player_name or team_name,
         team_name=team_name,
         league_name=league_name,
         signal_type=signal.signal_type,
@@ -269,8 +271,10 @@ def _base_signal_query():
             Game.away_team_id,
             home_team.name.label("home_team_name"),
             away_team.name.label("away_team_name"),
+            TeamGameStat.opponent_name,
+            TeamGameStat.home_away,
         )
-        .join(Player, Signal.player_id == Player.id)
+        .outerjoin(Player, Signal.player_id == Player.id)
         .join(Team, Signal.team_id == Team.id)
         .join(League, Signal.league_id == League.id)
         .join(Game, Signal.game_id == Game.id)
@@ -283,6 +287,7 @@ def _base_signal_query():
             ),
         )
         .outerjoin(PlayerGameStat, PlayerGameStat.id == Signal.source_stat_id)
+        .outerjoin(TeamGameStat, TeamGameStat.id == Signal.source_team_stat_id)
         .outerjoin(home_team, Game.home_team_id == home_team.id)
         .outerjoin(away_team, Game.away_team_id == away_team.id)
         .outerjoin(comment_count_subq, comment_count_subq.c.signal_id == Signal.id)
@@ -353,13 +358,13 @@ def _build_signal_items(rows, db: Session, current_user_id: Optional[int]) -> li
         away_team_id,
         home_team_name,
         away_team_name,
+        team_stat_opponent_name,
+        team_stat_home_away,
     ) in rows:
         is_home = signal.team_id == home_team_id
-        opponent = away_team_name if is_home else home_team_name
-        home_away = "vs" if is_home else "@"
-        game_result = None
-        if plus_minus is not None and plus_minus != 0:
-            game_result = "W" if plus_minus > 0 else "L"
+        opponent = team_stat_opponent_name or (away_team_name if is_home else home_team_name)
+        home_away = team_stat_home_away or ("vs" if is_home else "@")
+        game_result = None if signal.subject_type == "team" else ("W" if plus_minus and plus_minus > 0 else "L" if plus_minus and plus_minus < 0 else None)
 
         items.append(
             build_signal_read(
@@ -542,22 +547,22 @@ def list_related_signals(
     db: Session,
     *,
     signal_id: int,
-    player_id: int,
+    player_id: Optional[int],
     team_id: int,
     metric_name: str,
     current_user_id: Optional[int],
     limit: int = 4,
 ) -> list[SignalRead]:
+    clauses = [
+        Signal.team_id == team_id,
+        Signal.metric_name == metric_name,
+    ]
+    if player_id is not None:
+        clauses.insert(0, Signal.player_id == player_id)
     query = (
         _base_signal_query()
         .where(Signal.id != signal_id)
-        .where(
-            or_(
-                Signal.player_id == player_id,
-                Signal.team_id == team_id,
-                Signal.metric_name == metric_name,
-            )
-        )
+        .where(or_(*clauses))
         .order_by(Signal.created_at.desc(), Signal.id.desc())
         .limit(limit)
     )

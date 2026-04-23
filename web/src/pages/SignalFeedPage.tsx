@@ -10,13 +10,27 @@ import { useSignalStore } from '../store/useSignalStore';
 import type { Signal } from '../types';
 
 const LEAGUES = ['All', 'NBA', 'NFL'];
-const SIGNAL_TYPES = ['All', 'OUTLIER', 'SPIKE', 'DROP', 'SHIFT'] as const;
+
+const SIGNAL_TYPE_FILTERS = [
+  { label: 'All', value: 'All' },
+  { label: 'Outliers', value: 'OUTLIER' },
+  { label: 'Breakouts', value: 'SPIKE' },
+  { label: 'Dips', value: 'DROP' },
+  { label: 'Swings', value: 'SHIFT' },
+] as const;
+
+type SignalTypeFilterValue = (typeof SIGNAL_TYPE_FILTERS)[number]['value'];
+
+function getSignalPriority(signal: Signal): number {
+  if (typeof signal.importance === 'number') return signal.importance;
+  return Math.abs(signal.z_score);
+}
 
 function groupSignalsByPlayerGame(signals: Signal[]): Signal[][] {
   const grouped = new Map<string, Signal[]>();
 
   for (const signal of signals) {
-    const key = `${signal.player_id}:${signal.game_id}`;
+    const key = `${signal.subject_type ?? 'player'}:${signal.player_id ?? signal.team_id}:${signal.game_id}`;
     const existing = grouped.get(key);
     if (existing) {
       existing.push(signal);
@@ -27,7 +41,7 @@ function groupSignalsByPlayerGame(signals: Signal[]): Signal[][] {
 
   return [...grouped.values()].map((group) =>
     [...group].sort(
-      (left, right) => Math.abs(right.current_value - right.baseline_value) - Math.abs(left.current_value - left.baseline_value),
+      (left, right) => getSignalPriority(right) - getSignalPriority(left),
     ),
   );
 }
@@ -70,9 +84,9 @@ export function SignalFeedPage() {
   const leagueFromUrl = searchParams.get('league') ?? 'All';
   const activeLeague = LEAGUES.includes(leagueFromUrl) ? leagueFromUrl : 'All';
   const signalTypeFromUrl = searchParams.get('signal_type') ?? 'All';
-  const activeSignalType = SIGNAL_TYPES.includes(signalTypeFromUrl as (typeof SIGNAL_TYPES)[number])
+  const activeSignalType = (SIGNAL_TYPE_FILTERS.some((f) => f.value === signalTypeFromUrl)
     ? signalTypeFromUrl
-    : 'All';
+    : 'All') as SignalTypeFilterValue;
   const groupedSignals = groupSignalsByPlayerGame(signals);
 
   useEffect(() => {
@@ -135,16 +149,14 @@ export function SignalFeedPage() {
           </div>
 
           <div className="mt-3 flex flex-wrap gap-2">
-            {SIGNAL_TYPES.map((signalType) => (
+            {SIGNAL_TYPE_FILTERS.map((filter) => (
               <button
-                key={signalType}
+                key={filter.value}
                 type="button"
-                onClick={() => updateParams({ league: activeLeague, signal_type: signalType })}
-                className={`pill-button ${activeSignalType === signalType ? 'pill-button-active' : ''}`}
+                onClick={() => updateParams({ league: activeLeague, signal_type: filter.value })}
+                className={`pill-button ${activeSignalType === filter.value ? 'pill-button-active' : ''}`}
               >
-                {signalType === 'All'
-                  ? 'All Types'
-                  : signalType.charAt(0) + signalType.slice(1).toLowerCase()}
+                {filter.label}
               </button>
             ))}
           </div>

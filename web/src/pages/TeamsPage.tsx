@@ -37,7 +37,7 @@ export function TeamsPage() {
       <PageIntro
         eyebrow="Team Directory"
         title="Teams"
-        description="Browse teams and see where signals are coming from. Pick a league, scan team activity, then open a team to drill into roster-level detail."
+        description="Browse teams by current signal activity. Pick a league, scan the live board, then open a team to inspect its latest signals."
         aside={<div className="rounded-full bg-white/[0.04] px-4 py-2 text-xs uppercase tracking-[0.22em] text-[#ffd8bd]">{filtered.length} shown</div>}
       />
 
@@ -110,7 +110,7 @@ export function TeamsPage() {
                               <div className="h-2.5 w-2.5 rounded-full bg-accent shadow-[0_0_14px_rgba(249,115,22,0.45)]" />
                             </div>
                             <div className="mt-4 flex items-center justify-between text-sm">
-                              <span className="text-muted">{activityCount} activity markers</span>
+                              <span className="text-muted">{activityCount} active signals</span>
                               <span className="font-semibold text-[#ffd8bd]">Open team</span>
                             </div>
                           </Link>

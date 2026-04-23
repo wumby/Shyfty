@@ -10,10 +10,12 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.domain.signals import (
     METRICS_BY_LEAGUE,
+    TEAM_METRICS_BY_LEAGUE,
     build_explanation,
     build_metric_snapshots,
     build_narrative_summary,
     classify_signal,
+    movement_pct,
     score_signal,
 )
 from app.models.game import Game
@@ -22,6 +24,8 @@ from app.models.player_game_stat import PlayerGameStat
 from app.models.rolling_metric import RollingMetric
 from app.models.rolling_metric_baseline_sample import RollingMetricBaselineSample
 from app.models.signal import Signal
+from app.models.team import Team
+from app.models.team_game_stat import TeamGameStat
 
 
 @dataclass(frozen=True)
@@ -253,6 +257,30 @@ def _delete_stale_signals(db: Session, *, player_id: int, valid_contexts: set[tu
     return deleted
 
 
+def _delete_stale_team_signals(db: Session, *, team_id: int, valid_contexts: set[tuple[int, str]]) -> int:
+    existing_contexts = db.execute(
+        select(Signal.game_id, Signal.metric_name).where(
+            Signal.team_id == team_id,
+            Signal.subject_type == "team",
+        )
+    ).all()
+    stale_contexts = [context for context in existing_contexts if context not in valid_contexts]
+    if not stale_contexts:
+        return 0
+
+    deleted = 0
+    for game_id, metric_name in stale_contexts:
+        deleted += db.execute(
+            delete(Signal).where(
+                Signal.team_id == team_id,
+                Signal.subject_type == "team",
+                Signal.game_id == game_id,
+                Signal.metric_name == metric_name,
+            )
+        ).rowcount or 0
+    return deleted
+
+
 def _sync_signal_for_context(
     db: Session,
     *,
@@ -299,8 +327,10 @@ def _sync_signal_for_context(
                 game_id=game_id,
                 rolling_metric_id=rolling_metric_id,
                 source_stat_id=source_stat_id,
+                source_team_stat_id=None,
                 team_id=player.team_id,
                 league_id=player.league_id,
+                subject_type="player",
                 signal_type=signal_type,
                 metric_name=metric_name,
                 current_value=current_value,
@@ -318,8 +348,10 @@ def _sync_signal_for_context(
 
     current_signal.team_id = player.team_id
     current_signal.league_id = player.league_id
+    current_signal.subject_type = "player"
     current_signal.rolling_metric_id = rolling_metric_id
     current_signal.source_stat_id = source_stat_id
+    current_signal.source_team_stat_id = None
     current_signal.current_value = current_value
     current_signal.baseline_value = baseline_value
     current_signal.z_score = z_score
@@ -331,9 +363,213 @@ def _sync_signal_for_context(
     return created, updated, deleted
 
 
+def _sync_team_signal_for_context(
+    db: Session,
+    *,
+    team: Team,
+    game_id: int,
+    source_team_stat_id: int,
+    metric_name: str,
+    signal_type: Optional[str],
+    current_value: float,
+    baseline_value: float,
+    z_score: float,
+    signal_score: float,
+    score_explanation: str,
+    explanation: str,
+    narrative_summary: Optional[str],
+    generated_at: datetime,
+) -> tuple[int, int, int]:
+    existing_signals = db.execute(
+        select(Signal).where(
+            Signal.team_id == team.id,
+            Signal.subject_type == "team",
+            Signal.game_id == game_id,
+            Signal.metric_name == metric_name,
+        )
+    ).scalars().all()
+
+    created = 0
+    updated = 0
+    deleted = 0
+
+    for existing in existing_signals:
+        if signal_type is None or existing.signal_type != signal_type:
+            db.delete(existing)
+            deleted += 1
+
+    if signal_type is None:
+        return created, updated, deleted
+
+    current_signal = next(
+        (
+            signal
+            for signal in existing_signals
+            if signal.metric_name == metric_name and signal.signal_type == signal_type
+        ),
+        None,
+    )
+    if current_signal is None:
+        db.add(
+            Signal(
+                player_id=None,
+                game_id=game_id,
+                rolling_metric_id=None,
+                source_stat_id=None,
+                source_team_stat_id=source_team_stat_id,
+                team_id=team.id,
+                league_id=team.league_id,
+                subject_type="team",
+                signal_type=signal_type,
+                metric_name=metric_name,
+                current_value=current_value,
+                baseline_value=baseline_value,
+                z_score=z_score,
+                signal_score=signal_score,
+                score_explanation=score_explanation,
+                explanation=explanation,
+                narrative_summary=narrative_summary,
+                created_at=generated_at,
+            )
+        )
+        created += 1
+        return created, updated, deleted
+
+    current_signal.player_id = None
+    current_signal.rolling_metric_id = None
+    current_signal.source_stat_id = None
+    current_signal.source_team_stat_id = source_team_stat_id
+    current_signal.team_id = team.id
+    current_signal.league_id = team.league_id
+    current_signal.subject_type = "team"
+    current_signal.current_value = current_value
+    current_signal.baseline_value = baseline_value
+    current_signal.z_score = z_score
+    current_signal.signal_score = signal_score
+    current_signal.score_explanation = score_explanation
+    current_signal.explanation = explanation
+    current_signal.narrative_summary = narrative_summary
+    updated += 1
+    return created, updated, deleted
+
+
+def _generate_team_signals(
+    db: Session,
+    *,
+    result: SignalGenerationResult,
+    team_ids: Optional[list[int]] = None,
+) -> SignalGenerationResult:
+    teams_query = select(Team).options(selectinload(Team.league))
+    if team_ids:
+        teams_query = teams_query.where(Team.id.in_(team_ids))
+    teams = db.execute(teams_query.order_by(Team.id)).scalars().all()
+
+    for team in teams:
+        metrics = TEAM_METRICS_BY_LEAGUE.get(team.league.name if team.league else "", [])
+        if not metrics:
+            continue
+
+        team_stats = db.execute(
+            select(TeamGameStat)
+            .join(Game, TeamGameStat.game_id == Game.id)
+            .where(TeamGameStat.team_id == team.id)
+            .order_by(Game.game_date, Game.id)
+        ).scalars().all()
+        metric_stats = {
+            metric_name: [stat for stat in team_stats if getattr(stat, metric_name, None) is not None]
+            for metric_name in metrics
+        }
+        candidates_by_game: dict[int, tuple[str, object, float, float, float, float]] = {}
+
+        for metric_name in metrics:
+            snapshots = build_metric_snapshots(
+                metric_name,
+                metric_stats.get(metric_name, []),
+            )
+            for snapshot in snapshots:
+                deviation_pct = movement_pct(snapshot.current_value, snapshot.baseline_value)
+                if deviation_pct is None or abs(deviation_pct) < 20.0:
+                    continue
+                stat = next((team_stat for team_stat in team_stats if team_stat.id == snapshot.source_stat_id), None)
+                if stat is None:
+                    continue
+                score = abs(deviation_pct)
+                current_best = candidates_by_game.get(snapshot.game_id)
+                if current_best is None or score > current_best[5]:
+                    candidates_by_game[snapshot.game_id] = (
+                        metric_name,
+                        snapshot,
+                        snapshot.current_value,
+                        snapshot.baseline_value,
+                        deviation_pct,
+                        score,
+                    )
+
+        valid_contexts: set[tuple[int, str]] = set()
+        for game_id, (metric_name, snapshot, current_value, baseline_value, deviation_pct, score) in candidates_by_game.items():
+            stat = next((team_stat for team_stat in team_stats if team_stat.id == snapshot.source_stat_id), None)
+            if stat is None:
+                continue
+            signal_type = "SPIKE" if deviation_pct >= 0 else "DROP"
+            generated_at = datetime.utcnow()
+            valid_contexts.add((game_id, metric_name))
+            explanation = build_explanation(
+                team.name,
+                metric_name,
+                current_value,
+                baseline_value,
+                snapshot.z_score,
+                signal_type,
+                snapshot=snapshot,
+            )
+            narrative = build_narrative_summary(signal_type, snapshot, metric_name)
+            signal_score = min(round(score + min(abs(snapshot.z_score) * 8.0, 15.0), 1), 100.0)
+            score_explanation = (
+                f"Team signal from {metric_name} deviation of {deviation_pct:+.1f}% "
+                f"vs. the rolling baseline over the last {len(snapshot.short_window.values)} games."
+            )
+            created, updated, deleted = _sync_team_signal_for_context(
+                db,
+                team=team,
+                game_id=game_id,
+                source_team_stat_id=stat.id,
+                metric_name=metric_name,
+                signal_type=signal_type,
+                current_value=current_value,
+                baseline_value=baseline_value,
+                z_score=snapshot.z_score,
+                signal_score=signal_score,
+                score_explanation=score_explanation,
+                explanation=explanation,
+                narrative_summary=narrative,
+                generated_at=generated_at,
+            )
+            result = SignalGenerationResult(
+                created_signals=result.created_signals + created,
+                updated_signals=result.updated_signals + updated,
+                deleted_signals=result.deleted_signals + deleted,
+                created_rolling_metrics=result.created_rolling_metrics,
+                updated_rolling_metrics=result.updated_rolling_metrics,
+                deleted_rolling_metrics=result.deleted_rolling_metrics,
+            )
+
+        deleted_signals = _delete_stale_team_signals(db, team_id=team.id, valid_contexts=valid_contexts)
+        result = SignalGenerationResult(
+            created_signals=result.created_signals,
+            updated_signals=result.updated_signals,
+            deleted_signals=result.deleted_signals + deleted_signals,
+            created_rolling_metrics=result.created_rolling_metrics,
+            updated_rolling_metrics=result.updated_rolling_metrics,
+            deleted_rolling_metrics=result.deleted_rolling_metrics,
+        )
+
+    return result
+
+
 def generate_signals_for_players(
     db: Session,
     player_ids: list[int],
+    team_ids: Optional[list[int]] = None,
 ) -> SignalGenerationResult:
     """Recompute signals for a specific set of players.
 
@@ -351,7 +587,7 @@ def generate_signals_for_players(
     Args:
         player_ids: internal DB player IDs whose signals should be regenerated.
     """
-    if not player_ids:
+    if not player_ids and not team_ids:
         return SignalGenerationResult()
 
     result = SignalGenerationResult()
@@ -359,12 +595,14 @@ def generate_signals_for_players(
         context = build_signal_generation_context(db)
         latest_event_date = max(context.game_dates.values()) if context.game_dates else None
 
-        players = db.execute(
-            select(Player)
-            .options(selectinload(Player.league))
-            .where(Player.id.in_(player_ids))
-            .order_by(Player.id)
-        ).scalars().all()
+        players = []
+        if player_ids:
+            players = db.execute(
+                select(Player)
+                .options(selectinload(Player.league))
+                .where(Player.id.in_(player_ids))
+                .order_by(Player.id)
+            ).scalars().all()
 
         for player in players:
             stats = db.execute(
@@ -495,6 +733,7 @@ def generate_signals_for_players(
                 deleted_rolling_metrics=result.deleted_rolling_metrics + deleted_rolling_metrics,
             )
 
+        result = _generate_team_signals(db, result=result, team_ids=team_ids)
         db.commit()
         return result
     except Exception as exc:
@@ -641,6 +880,7 @@ def generate_signals(db: Session) -> SignalGenerationResult:
                 deleted_rolling_metrics=result.deleted_rolling_metrics + deleted_rolling_metrics,
             )
 
+        result = _generate_team_signals(db, result=result)
         db.commit()
         return result
     except Exception as exc:

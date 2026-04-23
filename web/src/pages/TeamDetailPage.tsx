@@ -62,7 +62,7 @@ export function TeamDetailPage() {
       <PageIntro
         eyebrow="Team Profile"
         title={team.name}
-        description="See which players are surfacing signals for this team, then drill into the roster or recent activity."
+        description="Track the latest signals tied to this team. Player-by-player browsing stays in the Players tab."
         breadcrumbs={[
           { label: 'Teams', to: '/teams' },
           { label: team.name },
@@ -85,7 +85,7 @@ export function TeamDetailPage() {
       <section className="panel-surface px-4 py-4">
         <SectionHeader
           title="Team Snapshot"
-          description="Use this high-level summary to decide whether to inspect the roster or the latest signals next."
+          description="Use this summary to size up team-level activity before opening the newest signals."
         />
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
           <div className="rounded-[20px] bg-white/[0.03] px-4 py-4">
@@ -93,65 +93,58 @@ export function TeamDetailPage() {
             <div className="mt-2 text-2xl font-semibold text-ink">{team.league_name}</div>
           </div>
           <div className="rounded-[20px] bg-white/[0.03] px-4 py-4">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Tracked Players</div>
-            <div className="mt-2 text-2xl font-semibold text-ink">{team.player_count}</div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Active Signals</div>
+            <div className="mt-2 text-2xl font-semibold text-ink">{team.signal_count ?? team.recent_signals.length}</div>
           </div>
           <div className="rounded-[20px] bg-white/[0.03] px-4 py-4">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Recent Signals</div>
-            <div className="mt-2 text-2xl font-semibold text-ink">{team.recent_signals.length}</div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Tracked Players</div>
+            <div className="mt-2 text-2xl font-semibold text-ink">{team.player_count}</div>
           </div>
         </div>
       </section>
 
-      <div className="grid gap-4 lg:grid-cols-[320px,minmax(0,1fr)]">
-        <section className="panel-surface px-4 py-4">
-          <SectionHeader
-            title="Roster"
-            description="Open any player profile to move from team context into individual analysis."
-          />
-          {team.players.length === 0 ? (
-            <div className="mt-4 rounded-[20px] bg-white/[0.03] px-4 py-5 text-sm text-muted">
-              No tracked players are available for this team yet.
+      <section className="panel-surface px-4 py-4">
+        <SectionHeader
+          title="Latest Signals"
+          description="This page now leads with the newest team activity instead of roster browsing."
+        />
+        <div className="mt-4">
+          {team.recent_signals.length === 0 ? (
+            <div className="rounded-[20px] bg-white/[0.03] px-4 py-5 text-sm text-muted">
+              No recent signals are active for this team yet.
             </div>
           ) : (
-            <div className="mt-4 space-y-2">
-              {team.players.map((player) => (
-                <Link
-                  key={player.id}
-                  to={`/players/${player.id}`}
-                  className="flex items-center justify-between rounded-[18px] bg-white/[0.02] px-3 py-3 text-sm transition hover:bg-white/[0.05]"
-                >
-                  <div>
-                    <div className="font-medium text-ink">{player.name}</div>
-                    <div className="mt-1 text-xs text-muted">{player.position}</div>
-                  </div>
-                  <span className="font-semibold text-[#ffd8bd]">Open</span>
-                </Link>
+            <div className="space-y-2">
+              {team.recent_signals.map((signal) => (
+                <SignalCard key={signal.id} signal={signal} />
               ))}
             </div>
           )}
-        </section>
+        </div>
+      </section>
 
-        <section className="panel-surface px-4 py-4">
-          <SectionHeader
-            title="Recent Signals"
-            description="Start here to understand what is currently driving attention on this team."
-          />
-          <div className="mt-4">
-            {team.recent_signals.length === 0 ? (
-              <div className="rounded-[20px] bg-white/[0.03] px-4 py-5 text-sm text-muted">
-                No recent signals are active for this team. Browse the roster to inspect player profiles directly.
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {team.recent_signals.map((signal) => (
-                  <SignalCard key={signal.id} signal={signal} />
-                ))}
-              </div>
-            )}
+      <section className="panel-surface px-4 py-4">
+        <SectionHeader
+          title="Players Live Elsewhere"
+          description="Use the Players tab when you want roster-level exploration instead of the team signal board."
+        />
+        <div className="mt-4 flex flex-col gap-3 rounded-[20px] bg-white/[0.03] px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="text-sm font-medium text-ink">Roster browsing has been moved out of this page.</div>
+            <div className="mt-1 text-sm text-muted">
+              {team.players.length > 0
+                ? `${team.player_count} tracked players are available from the Players area.`
+                : 'Tracked players will appear in the Players area when roster data is available.'}
+            </div>
           </div>
-        </section>
-      </div>
+          <Link
+            to="/players"
+            className="inline-flex items-center justify-center rounded-full border border-border bg-white/[0.04] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-ink transition hover:border-borderStrong"
+          >
+            Open Players
+          </Link>
+        </div>
+      </section>
     </div>
   );
 }

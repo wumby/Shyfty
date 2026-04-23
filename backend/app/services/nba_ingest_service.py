@@ -7,8 +7,9 @@ import logging
 from pathlib import Path
 from typing import Any, Optional
 
-from nba_api.live.nba.endpoints import boxscore as live_boxscore
 from nba_api.stats.endpoints import (
+    BoxScoreAdvancedV2,
+    BoxScoreTraditionalV2,
     BoxScoreUsageV2,
     CommonAllPlayers,
     CommonTeamRoster,
@@ -64,173 +65,6 @@ def _has_dataset(payload: dict[str, Any], dataset_name: str) -> bool:
     return dataset_name in data_sets
 
 
-def _format_live_minutes(raw_minutes: Optional[str]) -> str:
-    if not raw_minutes:
-        return "0:00"
-
-    value = str(raw_minutes).strip()
-    if not value.startswith("PT"):
-        return value
-
-    minutes = 0
-    seconds = 0.0
-    body = value[2:]
-    if "M" in body:
-        minute_part, body = body.split("M", 1)
-        minutes = int(float(minute_part or 0))
-    if body.endswith("S"):
-        seconds = float(body[:-1] or 0)
-
-    return f"{minutes}:{int(seconds):02d}"
-
-
-def _build_live_traditional_payload(game_id: str) -> dict[str, Any]:
-    game = live_boxscore.BoxScore(game_id=game_id).get_dict()["game"]
-    game_date = str(game.get("gameEt") or game.get("gameTimeUTC") or "").split("T", 1)[0]
-
-    home_team = game["homeTeam"]
-    away_team = game["awayTeam"]
-    home_tricode = home_team.get("teamTricode", "HOME")
-    away_tricode = away_team.get("teamTricode", "AWAY")
-
-    player_rows: list[list[Any]] = []
-    team_rows: list[list[Any]] = []
-
-    def append_team(team: dict[str, Any], *, is_home: bool) -> None:
-        team_id = team["teamId"]
-        team_name = f"{team.get('teamCity', '').strip()} {team.get('teamName', '').strip()}".strip()
-        team_tricode = team.get("teamTricode", "")
-        opponent_tricode = away_tricode if is_home else home_tricode
-        matchup = f"{team_tricode} vs. {opponent_tricode}" if is_home else f"{team_tricode} @ {opponent_tricode}"
-
-        for player in team.get("players", []):
-            stats = player.get("statistics", {})
-            player_rows.append([
-                game_id,
-                team_id,
-                team_tricode,
-                team.get("teamCity", ""),
-                player["personId"],
-                player["name"],
-                player.get("position") or "",
-                "",
-                _format_live_minutes(stats.get("minutes")),
-                stats.get("reboundsTotal"),
-                stats.get("assists"),
-                stats.get("points"),
-                stats.get("steals"),
-                stats.get("blocks"),
-                stats.get("turnovers"),
-                stats.get("plusMinusPoints"),
-                stats.get("fieldGoalsPercentage"),
-                stats.get("threePointersPercentage"),
-                stats.get("freeThrowsPercentage"),
-                matchup,
-                game_date,
-                team_name,
-            ])
-
-        team_stats = team.get("statistics", {})
-        team_rows.append([
-            game_id,
-            team_id,
-            team_name,
-            team_tricode,
-            team.get("teamCity", ""),
-            _format_live_minutes(team_stats.get("minutes")),
-            team_stats.get("fieldGoalsMade"),
-            team_stats.get("fieldGoalsAttempted"),
-            team_stats.get("fieldGoalsPercentage"),
-            team_stats.get("threePointersMade"),
-            team_stats.get("threePointersAttempted"),
-            team_stats.get("threePointersPercentage"),
-            team_stats.get("freeThrowsMade"),
-            team_stats.get("freeThrowsAttempted"),
-            team_stats.get("freeThrowsPercentage"),
-            team_stats.get("reboundsOffensive"),
-            team_stats.get("reboundsDefensive"),
-            team_stats.get("reboundsTotal"),
-            team_stats.get("assists"),
-            team_stats.get("steals"),
-            team_stats.get("blocks"),
-            team_stats.get("turnovers"),
-            team_stats.get("foulsPersonal"),
-            team_stats.get("points"),
-            team_stats.get("plusMinusPoints"),
-        ])
-
-    append_team(home_team, is_home=True)
-    append_team(away_team, is_home=False)
-
-    return {
-        "resource": "boxscoretraditionalv2_live",
-        "parameters": {
-            "GameID": game_id,
-        },
-        "resultSets": [
-            {
-                "name": "PlayerStats",
-                "headers": [
-                    "GAME_ID",
-                    "TEAM_ID",
-                    "TEAM_ABBREVIATION",
-                    "TEAM_CITY",
-                    "PLAYER_ID",
-                    "PLAYER_NAME",
-                    "START_POSITION",
-                    "COMMENT",
-                    "MIN",
-                    "REB",
-                    "AST",
-                    "PTS",
-                    "STL",
-                    "BLK",
-                    "TO",
-                    "PLUS_MINUS",
-                    "FG_PCT",
-                    "FG3_PCT",
-                    "FT_PCT",
-                    "MATCHUP",
-                    "GAME_DATE",
-                    "TEAM_NAME",
-                ],
-                "rowSet": player_rows,
-            },
-            {
-                "name": "TeamStats",
-                "headers": [
-                    "GAME_ID",
-                    "TEAM_ID",
-                    "TEAM_NAME",
-                    "TEAM_ABBREVIATION",
-                    "TEAM_CITY",
-                    "MIN",
-                    "FGM",
-                    "FGA",
-                    "FG_PCT",
-                    "FG3M",
-                    "FG3A",
-                    "FG3_PCT",
-                    "FTM",
-                    "FTA",
-                    "FT_PCT",
-                    "OREB",
-                    "DREB",
-                    "REB",
-                    "AST",
-                    "STL",
-                    "BLK",
-                    "TO",
-                    "PF",
-                    "PTS",
-                    "PLUS_MINUS",
-                ],
-                "rowSet": team_rows,
-            },
-        ],
-    }
-
-
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -262,7 +96,7 @@ def fetch_recent_nba_data(
     """Fetch NBA data via nba_api and write a raw snapshot to disk.
 
     sleep_between_games: seconds to sleep between per-game API calls. Defaults
-        to 1.0s; also applied between traditional and usage calls per game.
+        to 1.0s; also applied between traditional, advanced, and usage calls per game.
     """
     import time
 
@@ -321,12 +155,26 @@ def fetch_recent_nba_data(
         if sleep_between_games > 0:
             time.sleep(sleep_between_games)
         try:
-            traditional = _build_live_traditional_payload(game_id)
-        except Exception:
+            traditional = BoxScoreTraditionalV2(game_id=game_id).get_dict()
+        except Exception as exc:
+            logger.warning("NBA traditional boxscore fetch failed for game %s: %s", game_id, exc)
             skipped_games += 1
             continue
 
         _write_json(output_dir / "games" / f"{game_id}_traditional.json", traditional)
+
+        advanced: dict[str, Any] = {}
+        try:
+            if sleep_between_games > 0:
+                time.sleep(sleep_between_games)
+            advanced = BoxScoreAdvancedV2(game_id=game_id).get_dict()
+        except Exception as exc:
+            logger.warning("NBA advanced boxscore fetch failed for game %s: %s", game_id, exc)
+
+        if _has_dataset(advanced, "TeamStats"):
+            _write_json(output_dir / "games" / f"{game_id}_advanced.json", advanced)
+        else:
+            logger.info("NBA advanced boxscore unavailable for game %s; team advanced stats will be skipped", game_id)
 
         usage: dict[str, Any] = {}
         try:

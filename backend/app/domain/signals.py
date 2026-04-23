@@ -8,11 +8,13 @@ from statistics import mean, pstdev
 from typing import Optional
 
 from app.core.signal_config import get_signal_config, signal_config_path
-from app.models.player_game_stat import PlayerGameStat
-
 METRICS_BY_LEAGUE = {
     "NBA": ["points", "rebounds", "assists", "steals", "blocks", "turnovers", "minutes_played", "usage_rate"],
     "NFL": ["passing_yards", "rushing_yards", "receiving_yards", "touchdowns", "usage_rate"],
+}
+
+TEAM_METRICS_BY_LEAGUE = {
+    "NBA": ["points", "pace", "fg_pct", "turnovers", "off_rating"],
 }
 
 BASELINE_WINDOW_SIZE = get_signal_config().windows.short_window
@@ -101,6 +103,10 @@ def metric_label(metric_name: str) -> str:
         "rushing_yards": "Rushing Yards",
         "receiving_yards": "Receiving Yards",
         "touchdowns": "Touchdowns",
+        "pace": "Pace",
+        "off_rating": "Offensive Rating",
+        "fg_pct": "Field Goal %",
+        "fg3_pct": "3PT %",
     }
     return labels.get(metric_name, metric_name.replace("_", " ").title())
 
@@ -119,6 +125,10 @@ def _metric_phrase(metric_name: str) -> str:
         "rushing_yards": "Rushing production",
         "receiving_yards": "Receiving production",
         "touchdowns": "Touchdown output",
+        "pace": "Pace",
+        "off_rating": "Offensive rating",
+        "fg_pct": "Shooting efficiency",
+        "fg3_pct": "Three-point accuracy",
     }
     return phrases.get(metric_name, metric_name.replace("_", " ").title())
 
@@ -207,14 +217,14 @@ def _volatility_index(short_stddev: float, medium_stddev: float) -> float:
     return short_stddev / medium_stddev
 
 
-def build_metric_snapshot(metric_name: str, stats: list[PlayerGameStat]) -> Optional[MetricSnapshot]:
+def build_metric_snapshot(metric_name: str, stats: list[object]) -> Optional[MetricSnapshot]:
     snapshots = build_metric_snapshots(metric_name, stats)
     return snapshots[-1] if snapshots else None
 
 
 def build_metric_snapshots(
     metric_name: str,
-    stats: list[PlayerGameStat],
+    stats: list[object],
     *,
     game_dates_by_game_id: Optional[dict[int, date]] = None,
 ) -> list[MetricSnapshot]:
@@ -452,7 +462,7 @@ def build_narrative_summary(
 
 
 def build_explanation(
-    player_name: str,
+    subject_name: str,
     metric_name: str,
     current: float,
     baseline: float,
@@ -468,12 +478,12 @@ def build_explanation(
         if snapshot is not None and snapshot.usage_shift is not None:
             usage_text = f" with usage moving {snapshot.usage_shift:+.1f} points versus the medium window"
         return (
-            f"{metric_phrase} role shifted {direction_text} against {player_name}'s recent baseline "
+            f"{metric_phrase} role shifted {direction_text} against {subject_name}'s recent baseline "
             f"over the last {baseline_window} games{usage_text}"
         )
     if math.isclose(baseline, 0.0, abs_tol=0.05):
         direction_text = "above" if current >= baseline else "below"
-        return f"{metric_phrase} is {direction_text} his recent baseline over the last {baseline_window} games"
+        return f"{metric_phrase} is {direction_text} the recent baseline over the last {baseline_window} games"
 
     percent_change = abs(((current - baseline) / baseline) * 100)
     rounded_change = max(1, int(round(percent_change)))
@@ -488,7 +498,7 @@ def build_explanation(
 
     return (
         f"{metric_phrase} is {rounded_change}% {qualifier}{direction_text} "
-        f"his recent baseline over the last {baseline_window} games"
+        f"the recent baseline over the last {baseline_window} games"
     )
 
 

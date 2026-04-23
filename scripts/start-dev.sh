@@ -125,7 +125,7 @@ echo "Applying backend migrations..."
   alembic upgrade head
 )
 
-current_stat_count() {
+current_stat_counts() {
   source .venv/bin/activate
   python - <<'PY'
 from sqlalchemy import inspect, text
@@ -134,16 +134,56 @@ from app.db.session import engine
 with engine.connect() as conn:
     inspector = inspect(conn)
     if "player_game_stats" not in inspector.get_table_names():
-        print(0)
+        print("0 0")
     else:
-        count = conn.execute(text("SELECT COUNT(*) FROM player_game_stats")).scalar_one()
-        print(count)
+        player_count = conn.execute(text("SELECT COUNT(*) FROM player_game_stats")).scalar_one()
+        team_count = 0
+        if "team_game_stats" in inspector.get_table_names():
+            team_count = conn.execute(text("SELECT COUNT(*) FROM team_game_stats")).scalar_one()
+        print(f"{player_count} {team_count}")
 PY
+}
+
+backfill_team_stats_from_latest_snapshot() {
+  (
+    source .venv/bin/activate
+    python - <<'PY'
+import json
+from datetime import date
+from pathlib import Path
+
+from app.db.session import SessionLocal
+from app.services.nba_ingest_service import raw_nba_root
+from app.services.nba_normalization_service import load_nba_snapshot
+from app.services.signal_generation_service import generate_signals
+
+latest_path = raw_nba_root() / "LATEST"
+if not latest_path.exists():
+    raise SystemExit("No latest NBA snapshot found for team-stat backfill.")
+
+snapshot_dir = Path(latest_path.read_text(encoding="utf-8").strip())
+manifest = json.loads((snapshot_dir / "manifest.json").read_text(encoding="utf-8"))
+clear_since = date.fromisoformat(manifest["date_from"])
+
+with SessionLocal() as db:
+    load = load_nba_snapshot(db, snapshot_dir=snapshot_dir, clear_since=clear_since)
+    signal_result = generate_signals(db)
+    print(
+        "Backfilled team stats from latest snapshot: "
+        f"games={load.games_loaded} players={load.players_loaded} "
+        f"player_stats={load.stats_loaded} team_stats={load.team_stats_loaded} "
+        f"signals_created={signal_result.created_signals} "
+        f"signals_updated={signal_result.updated_signals}"
+    )
+PY
+  )
 }
 
 run_seed_if_needed() {
   local mode="$1"
-  local stat_count=0
+  local player_stat_count=0
+  local team_stat_count=0
+  local stat_counts=""
   local -a seed_args=("--generate-signals")
 
   case "$mode" in
@@ -152,9 +192,15 @@ run_seed_if_needed() {
       return
       ;;
     auto)
-      stat_count="$(current_stat_count)"
-      if [[ "$stat_count" -gt 0 ]]; then
-        echo "Skipping seed step because existing stats were found ($stat_count rows)."
+      stat_counts="$(current_stat_counts)"
+      read -r player_stat_count team_stat_count <<< "$stat_counts"
+      if [[ "$player_stat_count" -gt 0 && "$team_stat_count" -gt 0 ]]; then
+        echo "Skipping seed step because existing player/team stats were found ($player_stat_count player rows, $team_stat_count team rows)."
+        return
+      fi
+      if [[ "$player_stat_count" -gt 0 && "$team_stat_count" -eq 0 ]]; then
+        echo "Player stats exist but team stats are missing; backfilling from the latest local NBA snapshot."
+        backfill_team_stats_from_latest_snapshot | tee "$ROOT/.run/seed.log"
         return
       fi
       echo "Database is empty; running real NBA seed before startup."

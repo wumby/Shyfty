@@ -54,7 +54,7 @@ export function SignalFeed({ signals, onOpenDetail, paginated = false, feedConte
   const rankedSignals = [...signals]
     .map((signal, index) => {
       const isTracked =
-        profile?.follows.players.includes(signal.player_id) ||
+        (signal.player_id != null && profile?.follows.players.includes(signal.player_id)) ||
         profile?.follows.teams.includes(signal.team_id) ||
         false;
       const momentum = getSignalMomentum(signal, isTracked, feedContext?.sort_mode);

@@ -17,6 +17,7 @@ from app.models.rolling_metric import RollingMetric
 from app.models.rolling_metric_baseline_sample import RollingMetricBaselineSample
 from app.models.signal import Signal
 from app.models.team import Team
+from app.models.team_game_stat import TeamGameStat
 from app.domain.seasons import season_from_date
 from app.services.nba_ingest_service import NBA_SOURCE_SYSTEM, raw_nba_root
 
@@ -29,7 +30,9 @@ class LoadResult:
     games_loaded: int
     stats_loaded: int
     skipped_stat_rows: int
+    team_stats_loaded: int = 0
     affected_player_ids: list = field(default_factory=list)
+    affected_team_ids: list = field(default_factory=list)
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -174,6 +177,16 @@ def _matchup_side(matchup: str) -> str:
     return "home" if "vs." in matchup else "away"
 
 
+def _team_stat_exists(db: Session, *, source_game_id: str, source_team_id: str) -> bool:
+    return db.execute(
+        select(TeamGameStat.id).where(
+            TeamGameStat.source_system == NBA_SOURCE_SYSTEM,
+            TeamGameStat.source_game_id == source_game_id,
+            TeamGameStat.source_team_id == source_team_id,
+        )
+    ).scalar_one_or_none() is not None
+
+
 def _clear_existing_nba_data(db: Session, *, clear_since=None) -> None:
     """Clear NBA data before reload.
 
@@ -199,6 +212,7 @@ def _clear_existing_nba_data(db: Session, *, clear_since=None) -> None:
         )
         db.execute(delete(RollingMetric).where(RollingMetric.player_id.in_(nba_player_ids)))
         db.execute(delete(PlayerGameStat).where(PlayerGameStat.game_id.in_(nba_game_ids)))
+        db.execute(delete(TeamGameStat).where(TeamGameStat.game_id.in_(nba_game_ids)))
         db.execute(delete(Game).where(Game.league_id == nba_league.id))
         db.execute(delete(Player).where(Player.league_id == nba_league.id))
         db.execute(delete(Team).where(Team.league_id == nba_league.id))
@@ -219,6 +233,7 @@ def _clear_existing_nba_data(db: Session, *, clear_since=None) -> None:
         ))
         db.execute(delete(RollingMetric).where(RollingMetric.game_id.in_(recent_game_ids)))
         db.execute(delete(PlayerGameStat).where(PlayerGameStat.game_id.in_(recent_game_ids)))
+        db.execute(delete(TeamGameStat).where(TeamGameStat.game_id.in_(recent_game_ids)))
         db.execute(delete(Game).where(
             Game.league_id == nba_league.id,
             Game.game_date >= clear_since,
@@ -292,17 +307,74 @@ def load_nba_snapshot(db: Session, *, snapshot_dir: Optional[Path] = None, clear
         )
 
     stats_loaded = 0
+    team_stats_loaded = 0
     skipped_stat_rows = 0
     for game_id in manifest["game_ids"]:
         game = game_cache.get(str(game_id))
         traditional_path = snapshot_dir / "games" / f"{game_id}_traditional.json"
+        advanced_path = snapshot_dir / "games" / f"{game_id}_advanced.json"
         usage_path = snapshot_dir / "games" / f"{game_id}_usage.json"
         if game is None or not traditional_path.exists():
             continue
 
-        traditional_rows = _to_rows(_read_json(traditional_path), "PlayerStats")
+        traditional_payload = _read_json(traditional_path)
+        advanced_payload = _read_json(advanced_path) if advanced_path.exists() else None
+        traditional_rows = _to_rows(traditional_payload, "PlayerStats")
+        team_rows = _optional_rows(traditional_payload, "TeamStats")
+        advanced_team_rows = _optional_rows(advanced_payload, "TeamStats")
         usage_rows = _optional_rows(_read_json(usage_path) if usage_path.exists() else None, "sqlPlayersUsage")
         usage_by_player_id = {str(row["PLAYER_ID"]): row for row in usage_rows}
+        advanced_by_team_id = {str(row["TEAM_ID"]): row for row in advanced_team_rows}
+
+        for raw_record_index, row in enumerate(team_rows):
+            team_key = str(row.get("TEAM_ID", ""))
+            team = team_cache.get(team_key)
+            if team is None:
+                skipped_stat_rows += 1
+                continue
+
+            advanced_row = advanced_by_team_id.get(team_key)
+            required_values = [
+                row.get("PTS"),
+                row.get("REB"),
+                row.get("AST"),
+                row.get("FG_PCT"),
+                row.get("FG3_PCT"),
+                row.get("TO"),
+            ]
+            if any(value is None for value in required_values):
+                skipped_stat_rows += 1
+                continue
+
+            is_home = team.id == game.home_team_id
+            opponent_team_id = game.away_team_id if is_home else game.home_team_id
+            opponent_team = next((cached_team for cached_team in team_cache.values() if cached_team.id == opponent_team_id), None)
+
+            db.add(
+                TeamGameStat(
+                    team_id=team.id,
+                    game_id=game.id,
+                    opponent_team_id=opponent_team_id,
+                    opponent_name=opponent_team.name if opponent_team is not None else None,
+                    home_away="vs" if is_home else "@",
+                    points=row.get("PTS"),
+                    rebounds=row.get("REB"),
+                    assists=row.get("AST"),
+                    fg_pct=row.get("FG_PCT"),
+                    fg3_pct=row.get("FG3_PCT"),
+                    turnovers=row.get("TO"),
+                    pace=advanced_row.get("PACE") if advanced_row else None,
+                    off_rating=advanced_row.get("OFF_RATING") if advanced_row else None,
+                    source_system=NBA_SOURCE_SYSTEM,
+                    source_game_id=str(game_id),
+                    source_team_id=team_key,
+                    raw_snapshot_path=str(snapshot_dir),
+                    raw_traditional_payload_path=str(traditional_path),
+                    raw_advanced_payload_path=str(advanced_path) if advanced_path.exists() else None,
+                    raw_record_index=raw_record_index,
+                )
+            )
+            team_stats_loaded += 1
 
         for raw_record_index, row in enumerate(traditional_rows):
             player_id = str(row["PLAYER_ID"])
@@ -364,8 +436,10 @@ def load_nba_snapshot(db: Session, *, snapshot_dir: Optional[Path] = None, clear
         players_loaded=len(player_cache),
         games_loaded=len(game_cache),
         stats_loaded=stats_loaded,
+        team_stats_loaded=team_stats_loaded,
         skipped_stat_rows=skipped_stat_rows,
         affected_player_ids=[p.id for p in player_cache.values()],
+        affected_team_ids=[team.id for team in team_cache.values()],
     )
 
 
@@ -398,10 +472,10 @@ def load_nba_games_incremental(
     Called by the incremental ingest path (via NBASAPISource.load_events) and
     suitable for processing individual events from a future Kafka stream consumer.
 
-    Idempotency: player_game_stats rows are skipped if (source_system,
-    source_game_id, source_player_id) already exists in the DB — enforced both
-    by the DB unique constraint (uq_player_game_stat_source) and the pre-check
-    here to avoid constraint-error noise on expected duplicates.
+    Idempotency: player_game_stats and team_game_stats rows are skipped if the
+    source game/entity pair already exists in the DB — enforced both by DB
+    constraints and the pre-checks here to avoid constraint-error noise on
+    expected duplicates.
 
     Future Kafka consumer plug-in point:
         A stream consumer calls this function with game_payloads=[message.value]
@@ -410,7 +484,8 @@ def load_nba_games_incremental(
 
     Args:
         game_payloads: list of raw payload dicts from IngestEvent.raw_payload.
-                       Each dict contains keys: game_id, snapshot_dir, traditional, usage.
+                       Each dict contains keys: game_id, snapshot_dir, traditional,
+                       advanced, usage.
     """
     league = _get_or_create_nba_league(db)
 
@@ -419,17 +494,22 @@ def load_nba_games_incremental(
     player_cache: dict[str, Player] = {}
 
     stats_loaded = 0
+    team_stats_loaded = 0
     skipped_stat_rows = 0
 
     for payload in game_payloads:
         game_id = str(payload["game_id"])
         snapshot_dir_str = payload.get("snapshot_dir", "")
         traditional_data = payload["traditional"]
-        usage_data = payload["usage"]
+        advanced_data = payload.get("advanced")
+        usage_data = payload.get("usage")
 
         traditional_rows = _to_rows(traditional_data, "PlayerStats")
+        team_rows = _optional_rows(traditional_data, "TeamStats")
+        advanced_rows = _optional_rows(advanced_data, "TeamStats")
         usage_rows = _optional_rows(usage_data, "sqlPlayersUsage")
         usage_by_player_id = {str(row["PLAYER_ID"]): row for row in usage_rows}
+        advanced_by_team_id = {str(row["TEAM_ID"]): row for row in advanced_rows}
 
         if not traditional_rows:
             continue
@@ -482,6 +562,65 @@ def load_nba_games_incremental(
             continue
 
         traditional_path_str = f"{snapshot_dir_str}/games/{game_id}_traditional.json"
+        advanced_path_str = f"{snapshot_dir_str}/games/{game_id}_advanced.json" if snapshot_dir_str else ""
+
+        for raw_record_index, row in enumerate(team_rows):
+            source_team_id = str(row.get("TEAM_ID", ""))
+            if not source_team_id:
+                skipped_stat_rows += 1
+                continue
+
+            if _team_stat_exists(db, source_game_id=game_id, source_team_id=source_team_id):
+                skipped_stat_rows += 1
+                continue
+
+            team = team_cache.get(source_team_id)
+            if team is None:
+                skipped_stat_rows += 1
+                continue
+
+            advanced_row = advanced_by_team_id.get(source_team_id)
+            required_values = [
+                row.get("PTS"),
+                row.get("REB"),
+                row.get("AST"),
+                row.get("FG_PCT"),
+                row.get("FG3_PCT"),
+                row.get("TO"),
+            ]
+            if any(value is None for value in required_values):
+                skipped_stat_rows += 1
+                continue
+
+            is_home = team.id == game.home_team_id
+            opponent_team_id = game.away_team_id if is_home else game.home_team_id
+            opponent_team = next((cached_team for cached_team in team_cache.values() if cached_team.id == opponent_team_id), None)
+
+            db.add(
+                TeamGameStat(
+                    team_id=team.id,
+                    game_id=game.id,
+                    opponent_team_id=opponent_team_id,
+                    opponent_name=opponent_team.name if opponent_team is not None else None,
+                    home_away="vs" if is_home else "@",
+                    points=row.get("PTS"),
+                    rebounds=row.get("REB"),
+                    assists=row.get("AST"),
+                    fg_pct=row.get("FG_PCT"),
+                    fg3_pct=row.get("FG3_PCT"),
+                    turnovers=row.get("TO"),
+                    pace=advanced_row.get("PACE") if advanced_row else None,
+                    off_rating=advanced_row.get("OFF_RATING") if advanced_row else None,
+                    source_system=NBA_SOURCE_SYSTEM,
+                    source_game_id=game_id,
+                    source_team_id=source_team_id,
+                    raw_snapshot_path=snapshot_dir_str or None,
+                    raw_traditional_payload_path=traditional_path_str or None,
+                    raw_advanced_payload_path=advanced_path_str or None,
+                    raw_record_index=raw_record_index,
+                )
+            )
+            team_stats_loaded += 1
 
         for raw_record_index, row in enumerate(traditional_rows):
             source_player_id = str(row["PLAYER_ID"])
@@ -548,6 +687,8 @@ def load_nba_games_incremental(
         players_loaded=len(player_cache),
         games_loaded=len(game_cache),
         stats_loaded=stats_loaded,
+        team_stats_loaded=team_stats_loaded,
         skipped_stat_rows=skipped_stat_rows,
         affected_player_ids=[p.id for p in player_cache.values()],
+        affected_team_ids=[team.id for team in team_cache.values()],
     )

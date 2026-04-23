@@ -11,6 +11,7 @@ from app.models.signal import Signal
 from app.models.signal_comment import SignalComment
 from app.models.signal_reaction import SignalReaction
 from app.models.team import Team
+from app.models.team_game_stat import TeamGameStat
 from app.models.user import User
 from app.models.user_favorite import UserFavorite
 from app.models.user_follow import UserFollow
@@ -32,6 +33,7 @@ __all__ = [
     "SignalComment",
     "SignalReaction",
     "Team",
+    "TeamGameStat",
     "User",
     "UserFavorite",
     "UserFollow",

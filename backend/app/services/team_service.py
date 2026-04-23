@@ -9,6 +9,7 @@ from app.models.player import Player
 from app.models.rolling_metric import RollingMetric
 from app.models.signal import Signal
 from app.models.team import Team
+from app.models.team_game_stat import TeamGameStat
 from app.models.user_follow import UserFollow
 from app.schemas.player import PlayerRead
 from app.schemas.team import TeamDetail, TeamRead
@@ -18,9 +19,16 @@ from app.services.reaction_service import get_reaction_summaries, get_user_react
 
 def list_teams(db: Session, current_user_id: Optional[int] = None) -> list[TeamRead]:
     rows = db.execute(
-        select(Team.id, Team.name, League.name, func.count(Player.id))
+        select(
+            Team.id,
+            Team.name,
+            League.name,
+            func.count(func.distinct(Player.id)),
+            func.count(func.distinct(Signal.id)),
+        )
         .join(League, Team.league_id == League.id)
         .outerjoin(Player, Player.team_id == Team.id)
+        .outerjoin(Signal, Signal.team_id == Team.id)
         .group_by(Team.id, Team.name, League.name)
         .order_by(League.name, Team.name)
     ).all()
@@ -35,8 +43,15 @@ def list_teams(db: Session, current_user_id: Optional[int] = None) -> list[TeamR
             ).scalars().all()
         )
     return [
-        TeamRead(id=team_id, name=name, league_name=league_name, player_count=player_count, is_followed=team_id in followed_ids)
-        for team_id, name, league_name, player_count in rows
+        TeamRead(
+            id=team_id,
+            name=name,
+            league_name=league_name,
+            player_count=player_count,
+            signal_count=signal_count,
+            is_followed=team_id in followed_ids,
+        )
+        for team_id, name, league_name, player_count, signal_count in rows
     ]
 
 
@@ -46,9 +61,16 @@ def get_team_detail(
     current_user_id: Optional[int] = None,
 ) -> Optional[TeamDetail]:
     row = db.execute(
-        select(Team.id, Team.name, League.name, func.count(Player.id))
+        select(
+            Team.id,
+            Team.name,
+            League.name,
+            func.count(func.distinct(Player.id)),
+            func.count(func.distinct(Signal.id)),
+        )
         .join(League, Team.league_id == League.id)
         .outerjoin(Player, Player.team_id == Team.id)
+        .outerjoin(Signal, Signal.team_id == Team.id)
         .where(Team.id == team_id)
         .group_by(Team.id, Team.name, League.name)
     ).one_or_none()
@@ -56,7 +78,7 @@ def get_team_detail(
     if row is None:
         return None
 
-    team_db_id, team_name, league_name, player_count = row
+    team_db_id, team_name, league_name, player_count, signal_count = row
 
     player_rows = db.execute(
         select(Player.id, Player.name, Player.position, Team.name, League.name)
@@ -72,8 +94,8 @@ def get_team_detail(
     ]
 
     signal_rows = db.execute(
-        select(Signal, Player.name, Team.name, League.name, Game.game_date, RollingMetric)
-        .join(Player, Signal.player_id == Player.id)
+        select(Signal, Player.name, Team.name, League.name, Game.game_date, RollingMetric, TeamGameStat.opponent_name, TeamGameStat.home_away)
+        .outerjoin(Player, Signal.player_id == Player.id)
         .join(Team, Signal.team_id == Team.id)
         .join(League, Signal.league_id == League.id)
         .join(Game, Signal.game_id == Game.id)
@@ -85,6 +107,7 @@ def get_team_detail(
                 RollingMetric.metric_name == Signal.metric_name,
             ),
         )
+        .outerjoin(TeamGameStat, TeamGameStat.id == Signal.source_team_stat_id)
         .where(Signal.team_id == team_id)
         .order_by(Signal.created_at.desc())
         .limit(20)
@@ -99,8 +122,10 @@ def get_team_detail(
             sig, pname, tname, lname, event_date, rolling_metric,
             reaction_summary=reaction_summaries.get(sig.id),
             user_reaction=user_reactions.get(sig.id),
+            opponent=opponent_name,
+            home_away=home_away,
         )
-        for sig, pname, tname, lname, event_date, rolling_metric in signal_rows
+        for sig, pname, tname, lname, event_date, rolling_metric, opponent_name, home_away in signal_rows
     ]
 
     return TeamDetail(
@@ -108,6 +133,7 @@ def get_team_detail(
         name=team_name,
         league_name=league_name,
         player_count=player_count,
+        signal_count=signal_count,
         is_followed=(
             current_user_id is not None and db.execute(
                 select(UserFollow.id).where(

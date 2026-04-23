@@ -12,6 +12,7 @@ from app.models.rolling_metric import RollingMetric
 from app.models.rolling_metric_baseline_sample import RollingMetricBaselineSample
 from app.models.signal import Signal
 from app.models.team import Team
+from app.models.team_game_stat import TeamGameStat
 from app.schemas.signal import (
     BaselineSampleRead,
     RollingMetricTraceRead,
@@ -44,6 +45,23 @@ def _raw_stat_map(stat: PlayerGameStat) -> dict[str, float]:
     }
 
 
+def _raw_team_stat_map(stat: TeamGameStat) -> dict[str, float]:
+    return {
+        key: float(value)
+        for key, value in {
+            "points": stat.points,
+            "rebounds": stat.rebounds,
+            "assists": stat.assists,
+            "fg_pct": stat.fg_pct,
+            "fg3_pct": stat.fg3_pct,
+            "turnovers": stat.turnovers,
+            "pace": stat.pace,
+            "off_rating": stat.off_rating,
+        }.items()
+        if value is not None
+    }
+
+
 def _build_source_stat_context(
     stat: PlayerGameStat,
     *,
@@ -67,6 +85,30 @@ def _build_source_stat_context(
     )
 
 
+def _build_team_source_stat_context(
+    stat: TeamGameStat,
+    *,
+    game_date,
+    metric_name: str,
+    current_value: float,
+) -> SourceStatContextRead:
+    return SourceStatContextRead(
+        stat_id=stat.id,
+        game_id=stat.game_id,
+        game_date=game_date,
+        metric_name=metric_name,
+        current_value=current_value,
+        raw_stats=_raw_team_stat_map(stat),
+        source_system=stat.source_system,
+        source_game_id=stat.source_game_id,
+        source_team_id=stat.source_team_id,
+        raw_snapshot_path=stat.raw_snapshot_path,
+        raw_payload_path=stat.raw_traditional_payload_path,
+        raw_advanced_payload_path=stat.raw_advanced_payload_path,
+        raw_record_index=stat.raw_record_index,
+    )
+
+
 def _build_baseline_sample(
     stat: PlayerGameStat,
     *,
@@ -86,6 +128,30 @@ def _build_baseline_sample(
         source_player_id=stat.source_player_id,
         raw_snapshot_path=stat.raw_snapshot_path,
         raw_payload_path=stat.raw_payload_path,
+        raw_record_index=stat.raw_record_index,
+    )
+
+
+def _build_team_baseline_sample(
+    stat: TeamGameStat,
+    *,
+    game_date,
+    metric_name: str,
+) -> Optional[BaselineSampleRead]:
+    value = getattr(stat, metric_name, None)
+    if value is None:
+        return None
+    return BaselineSampleRead(
+        stat_id=stat.id,
+        game_id=stat.game_id,
+        game_date=game_date,
+        value=float(value),
+        source_system=stat.source_system,
+        source_game_id=stat.source_game_id,
+        source_team_id=stat.source_team_id,
+        raw_snapshot_path=stat.raw_snapshot_path,
+        raw_payload_path=stat.raw_traditional_payload_path,
+        raw_advanced_payload_path=stat.raw_advanced_payload_path,
         raw_record_index=stat.raw_record_index,
     )
 
@@ -124,10 +190,44 @@ def _fallback_source_and_baseline(
     return current_stat, baseline_samples
 
 
+def _fallback_team_source_and_baseline(
+    db: Session,
+    *,
+    signal: Signal,
+) -> tuple[Optional[TeamGameStat], list[BaselineSampleRead]]:
+    stat_rows = db.execute(
+        select(TeamGameStat, Game.game_date)
+        .join(Game, TeamGameStat.game_id == Game.id)
+        .where(TeamGameStat.team_id == signal.team_id)
+        .order_by(Game.game_date, Game.id)
+    ).all()
+
+    current_index = next((index for index, (stat, _) in enumerate(stat_rows) if stat.game_id == signal.game_id), None)
+    if current_index is None:
+        return None, []
+
+    current_stat, _ = stat_rows[current_index]
+    observations = [
+        (stat, game_date)
+        for stat, game_date in stat_rows
+        if getattr(stat, signal.metric_name, None) is not None
+    ]
+    observation_index = next((index for index, (stat, _) in enumerate(observations) if stat.game_id == signal.game_id), None)
+    prior_values = observations[:observation_index] if observation_index is not None else []
+    baseline_rows = prior_values[-BASELINE_WINDOW_SIZE:] or prior_values
+
+    baseline_samples = []
+    for stat, game_date in baseline_rows:
+        sample = _build_team_baseline_sample(stat, game_date=game_date, metric_name=signal.metric_name)
+        if sample is not None:
+            baseline_samples.append(sample)
+    return current_stat, baseline_samples
+
+
 def inspect_signal(db: Session, signal_id: int) -> Optional[SignalTraceRead]:
     row = db.execute(
         select(Signal, Player.name, Team.name, League.name, Game.game_date, RollingMetric)
-        .join(Player, Signal.player_id == Player.id)
+        .outerjoin(Player, Signal.player_id == Player.id)
         .join(Team, Signal.team_id == Team.id)
         .join(League, Signal.league_id == League.id)
         .join(Game, Signal.game_id == Game.id)
@@ -146,18 +246,33 @@ def inspect_signal(db: Session, signal_id: int) -> Optional[SignalTraceRead]:
     signal, player_name, team_name, league_name, event_date, rolling_metric = row
 
     if rolling_metric is None:
-        rolling_metric = db.execute(
-            select(RollingMetric).where(
-                RollingMetric.player_id == signal.player_id,
-                RollingMetric.game_id == signal.game_id,
-                RollingMetric.metric_name == signal.metric_name,
-            )
-        ).scalar_one_or_none()
+        if signal.player_id is not None:
+            rolling_metric = db.execute(
+                select(RollingMetric).where(
+                    RollingMetric.player_id == signal.player_id,
+                    RollingMetric.game_id == signal.game_id,
+                    RollingMetric.metric_name == signal.metric_name,
+                )
+            ).scalar_one_or_none()
 
     source_stat = None
     baseline_samples: list[BaselineSampleRead] = []
 
-    if signal.source_stat_id is not None:
+    if signal.subject_type == "team" and signal.source_team_stat_id is not None:
+        source_row = db.execute(
+            select(TeamGameStat, Game.game_date)
+            .join(Game, TeamGameStat.game_id == Game.id)
+            .where(TeamGameStat.id == signal.source_team_stat_id)
+        ).one_or_none()
+        if source_row is not None:
+            stat, game_date = source_row
+            source_stat = _build_team_source_stat_context(
+                stat,
+                game_date=game_date,
+                metric_name=signal.metric_name,
+                current_value=float(getattr(stat, signal.metric_name) or signal.current_value),
+            )
+    elif signal.source_stat_id is not None:
         source_row = db.execute(
             select(PlayerGameStat, Game.game_date)
             .join(Game, PlayerGameStat.game_id == Game.id)
@@ -172,7 +287,20 @@ def inspect_signal(db: Session, signal_id: int) -> Optional[SignalTraceRead]:
                 current_value=_stat_value(stat, signal.metric_name) or signal.current_value,
             )
 
-    if rolling_metric is not None:
+    if signal.subject_type == "team":
+        fallback_stat, fallback_samples = _fallback_team_source_and_baseline(db, signal=signal)
+        if fallback_stat is None:
+            return None
+        if source_stat is None:
+            fallback_game_date = db.execute(select(Game.game_date).where(Game.id == fallback_stat.game_id)).scalar_one()
+            source_stat = _build_team_source_stat_context(
+                fallback_stat,
+                game_date=fallback_game_date,
+                metric_name=signal.metric_name,
+                current_value=float(getattr(fallback_stat, signal.metric_name) or signal.current_value),
+            )
+        baseline_samples = fallback_samples
+    elif rolling_metric is not None:
         baseline_rows = db.execute(
             select(PlayerGameStat, Game.game_date)
             .join(
@@ -188,7 +316,7 @@ def inspect_signal(db: Session, signal_id: int) -> Optional[SignalTraceRead]:
             if sample is not None:
                 baseline_samples.append(sample)
 
-    if source_stat is None or not baseline_samples:
+    if signal.subject_type != "team" and (source_stat is None or not baseline_samples):
         fallback_stat, fallback_samples = _fallback_source_and_baseline(db, signal=signal)
         if fallback_stat is None:
             return None

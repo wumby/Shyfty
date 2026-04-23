@@ -84,9 +84,11 @@ export function SignalCard({ signal, onOpenDetail }: { signal: Signal; onOpenDet
   const reactToSignal = useSignalStore((state) => state.reactToSignal);
   const toggleFavorite = useSignalStore((state) => state.toggleFavorite);
   const toggleFollowPlayer = useSignalStore((state) => state.toggleFollowPlayer);
+  const toggleFollowTeam = useSignalStore((state) => state.toggleFollowTeam);
   const profile = useSignalStore((state) => state.profile);
+  const isTeamSignal = signal.subject_type === 'team' || signal.player_id == null;
 
-  const isPlayerFollowed = profile?.follows.players.includes(signal.player_id) ?? false;
+  const isPlayerFollowed = signal.player_id != null ? (profile?.follows.players.includes(signal.player_id) ?? false) : false;
   const isTeamFollowed = profile?.follows.teams.includes(signal.team_id) ?? false;
   const isTracked = isPlayerFollowed || isTeamFollowed;
   const totalReactions = signal.reaction_summary.strong + signal.reaction_summary.agree + signal.reaction_summary.risky;
@@ -118,7 +120,13 @@ export function SignalCard({ signal, onOpenDetail }: { signal: Signal; onOpenDet
 
   async function handleFollowClick() {
     if (!currentUser) { openAuth('signin'); return; }
-    await toggleFollowPlayer(signal.player_id, isPlayerFollowed);
+    if (isTeamSignal) {
+      await toggleFollowTeam(signal.team_id, isTeamFollowed);
+      return;
+    }
+    if (signal.player_id != null) {
+      await toggleFollowPlayer(signal.player_id, isPlayerFollowed);
+    }
   }
 
   const stop = (e: React.MouseEvent) => e.stopPropagation();
@@ -146,25 +154,33 @@ export function SignalCard({ signal, onOpenDetail }: { signal: Signal; onOpenDet
 
         {/* Level 2: player name (linked) + metric + follow button */}
         <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5" onClick={stop}>
-          <Link
-            to={`/players/${signal.player_id}`}
-            state={{ returnTo: `${location.pathname}${location.search}`, fromFeed: true }}
-            className="text-[18px] font-semibold leading-none text-ink transition hover:scale-[1.01] hover:text-[#ffd8bd] sm:text-[20px]"
-          >
-            {signal.player_name}
-          </Link>
+          {signal.player_id != null ? (
+            <Link
+              to={`/players/${signal.player_id}`}
+              state={{ returnTo: `${location.pathname}${location.search}`, fromFeed: true }}
+              className="text-[18px] font-semibold leading-none text-ink transition hover:scale-[1.01] hover:text-[#ffd8bd] sm:text-[20px]"
+            >
+              {signal.player_name}
+            </Link>
+          ) : (
+            <span className="text-[18px] font-semibold leading-none text-ink sm:text-[20px]">{signal.player_name}</span>
+          )}
           <span className="text-[10px] uppercase tracking-[0.18em] text-muted">{getMetricLabel(signal)}</span>
           {currentUser && (
             <button
               type="button"
               onClick={() => void handleFollowClick()}
               className={`ml-1 rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.16em] transition ${
-                isPlayerFollowed
+                isTeamSignal
+                  ? isTeamFollowed
+                    ? 'border-accent/30 bg-accentSoft text-accent'
+                    : 'border-border/60 text-muted/50 hover:border-border hover:text-muted'
+                  : isPlayerFollowed
                   ? 'border-accent/30 bg-accentSoft text-accent'
                   : 'border-border/60 text-muted/50 hover:border-border hover:text-muted'
               }`}
             >
-              {isPlayerFollowed ? '✓ Following' : '+ Follow'}
+              {isTeamSignal ? (isTeamFollowed ? '✓ Team' : '+ Team') : isPlayerFollowed ? '✓ Following' : '+ Follow'}
             </button>
           )}
         </div>

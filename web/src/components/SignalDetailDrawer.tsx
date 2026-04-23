@@ -101,14 +101,18 @@ export function SignalDetailDrawer({ signalId, onClose }: Props) {
                 </div>
                 <h3 className="mt-1 text-3xl font-semibold text-ink">{signal.player_name}</h3>
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted">
-                  <button
-                    type="button"
-                    onClick={() => { navigate(`/players/${signal.player_id}`, { state: { returnTo: window.location.pathname + window.location.search, fromFeed: true } }); onClose(); }}
-                    className="transition hover:text-ink"
-                  >
-                    Player context
-                  </button>
-                  <span>•</span>
+                  {signal.player_id != null ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => { navigate(`/players/${signal.player_id}`, { state: { returnTo: window.location.pathname + window.location.search, fromFeed: true } }); onClose(); }}
+                        className="transition hover:text-ink"
+                      >
+                        Player context
+                      </button>
+                      <span>•</span>
+                    </>
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => { navigate(`/teams/${signal.team_id}`); onClose(); }}

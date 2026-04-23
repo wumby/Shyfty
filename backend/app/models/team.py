@@ -17,3 +17,4 @@ class Team(Base):
 
     league = relationship("League", back_populates="teams")
     players = relationship("Player", back_populates="team")
+    team_game_stats = relationship("TeamGameStat", back_populates="team", foreign_keys="TeamGameStat.team_id")

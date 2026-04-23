@@ -26,7 +26,8 @@ export interface FreshnessContext {
 
 export interface Signal {
   id: number;
-  player_id: number;
+  subject_type?: 'player' | 'team';
+  player_id: number | null;
   team_id: number;
   game_id: number;
   player_name: string;
