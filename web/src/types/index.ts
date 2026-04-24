@@ -1,4 +1,5 @@
-export type SignalType = 'SPIKE' | 'DROP' | 'SHIFT' | 'OUTLIER';
+export type SignalSeverity = 'SHIFT' | 'SWING' | 'OUTLIER';
+export type SignalType = SignalSeverity;
 export type ReactionType = 'strong' | 'agree' | 'risky';
 export type SortMode = 'newest' | 'most_important' | 'biggest_deviation' | 'most_discussed';
 export type FeedMode = 'all' | 'following' | 'for_you';
@@ -34,9 +35,12 @@ export interface Signal {
   team_name: string;
   league_name: string;
   signal_type: SignalType;
+  severity: SignalSeverity;
   metric_name: string;
   current_value: number;
   baseline_value: number;
+  performance: number | null;
+  deviation: number | null;
   z_score: number;
   explanation: string;
   importance?: number;

@@ -1,11 +1,12 @@
-from typing import Optional
+from typing import Literal, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 
 from app.api.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.signal import IngestStatusRead
 from app.services.scheduler import get_ingest_state, run_ingest_once
+from app.services.sync_service import get_default_sync_sources
 
 router = APIRouter()
 
@@ -24,11 +25,12 @@ def get_ingest_status() -> IngestStatusRead:
 @router.post("/ingest/trigger", status_code=status.HTTP_202_ACCEPTED)
 async def trigger_ingest(
     background_tasks: BackgroundTasks,
+    mode: Literal["bootstrap", "incremental"] = Query(default="incremental"),
     current_user: Optional[User] = Depends(get_current_user),
 ) -> dict:
     _require_user(current_user)
     state = get_ingest_state()
     if state["status"] == "running":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Ingest already running.")
-    background_tasks.add_task(run_ingest_once)
-    return {"message": "Ingest triggered."}
+    background_tasks.add_task(run_ingest_once, mode, get_default_sync_sources())
+    return {"message": f"{mode.capitalize()} sync triggered."}

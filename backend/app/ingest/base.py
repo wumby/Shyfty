@@ -118,3 +118,5 @@ class LoadSummary:
     stats_loaded: int = 0
     skipped_stat_rows: int = 0
     affected_player_ids: list[int] = field(default_factory=list)
+    affected_team_ids: list[int] = field(default_factory=list)
+    affected_game_ids: list[int] = field(default_factory=list)

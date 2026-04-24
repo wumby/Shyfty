@@ -1,108 +1,69 @@
 # Shyfty
 
-Shyfty is a sports signal engine for NBA and NFL player volatility. The product surfaces spikes, drops, shifts, consistency, and outlier events as a real-time feed rather than a traditional stats dashboard.
+Shyfty is a signal-first sports product for NBA and NFL data. The product is no longer built around a fake seeded universe or deep archive browsing. The core loop is now: sync real provider data, generate signals, and show only the context needed to explain those signals.
+
+## Direction
+
+- No manual/demo seed step is required for app startup.
+- The app can start against an empty database.
+- Real data is pulled in through sync jobs and bootstrap ingestion.
+- Current implementation supports real NBA sync and real NFL sync through SportsDataIO.
+- No seeded/demo fallback should be used for either league.
 
 ## Architecture
 
-Text diagram:
-
 - `backend/`
-  FastAPI app with SQLAlchemy models, Alembic-managed schema, domain logic, REST endpoints, and Postgres persistence
+  FastAPI app, SQLAlchemy models, Alembic migrations, signal generation, and sync orchestration
 - `scripts/`
-  Thin operational entrypoints for seeding and signal generation
+  Thin operational wrappers for sync and inspection commands
 - `web/`
-  React + TypeScript + Vite client using Zustand, React Router, Tailwind, and Recharts
+  React + TypeScript + Vite client focused on the live signal workflow
 - `ios/`
-  SwiftUI client using URLSession, NavigationStack, and Swift Charts
-- `infra/`
-  Docker Compose for Postgres and the backend API
-
-## Folder Structure
-
-```text
-Shyfty/
-├── backend/
-│   ├── alembic/
-│   ├── app/
-│   │   ├── api/
-│   │   ├── core/
-│   │   ├── db/
-│   │   ├── domain/
-│   │   ├── models/
-│   │   ├── schemas/
-│   │   └── services/
-│   ├── Dockerfile
-│   └── requirements.txt
-├── infra/
-│   └── docker-compose.yml
-├── ios/
-│   └── Shyfty/
-│       ├── Shyfty/
-│       └── Shyfty.xcodeproj/
-├── scripts/
-│   ├── run_signal_engine.py
-│   └── seed_db.py
-└── web/
-    ├── src/
-    │   ├── components/
-    │   ├── pages/
-    │   ├── services/
-    │   ├── store/
-    │   └── types/
-    └── package.json
-```
+  SwiftUI client
 
 ## Backend Setup
-
-### Option 1: Docker
-
-1. `cd infra`
-2. `docker compose up --build -d`
-
-Then seed and generate signals from the repo root:
 
 1. `cd backend`
 2. `python3 -m venv .venv`
 3. `source .venv/bin/activate`
 4. `pip install -r requirements.txt`
 5. `export DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/shyfty`
-6. `alembic upgrade head`
-7. `python ../scripts/seed_db.py`
-8. `python ../scripts/run_signal_engine.py`
-
-### Option 2: Local backend only
-
-1. Start Postgres locally
-2. `cd backend`
-3. `python3 -m venv .venv`
-4. `source .venv/bin/activate`
-5. `pip install -r requirements.txt`
-6. `export DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/shyfty`
+6. `export SPORTSDATAIO_NFL_API_KEY=your_real_key`
 7. `alembic upgrade head`
 8. `uvicorn app.main:app --reload --host 0.0.0.0 --port 8001`
 
-## NBA Ingestion Workflow
+## Sync Workflow
 
-The preferred local validation path is now NBA-only raw ingestion instead of the hand-seeded demo dataset.
+From the repo root:
 
-Commands from the repo root:
+1. Bootstrap real NBA data into an empty or sparse database:
+   `python scripts/run_sync.py --mode bootstrap --source nba --days-back 30 --max-games 50`
+2. Bootstrap both real providers into an empty or sparse database:
+   `python scripts/run_sync.py --mode bootstrap --source nba --source nfl --days-back 30 --max-games 50`
+3. Run a smaller incremental refresh:
+   `python scripts/run_sync.py --mode incremental --source nba --days-back 7 --max-games 50`
+4. Run a smaller incremental refresh across all configured providers:
+   `python scripts/run_sync.py --mode incremental`
+5. Inspect ingest artifacts if needed:
+   `python scripts/inspect_nba_ingest.py summary`
 
-1. Fetch recent NBA raw payloads
-   `python scripts/fetch_nba_data.py --season 2024-25 --days-back 21 --max-games 20`
-2. Normalize the latest raw snapshot into canonical tables
-   `DATABASE_URL=sqlite:////Users/jackziegler/Projects/Shyfty/shyfty.db python scripts/load_nba_data.py`
-3. Generate signals from the normalized data
-   `DATABASE_URL=sqlite:////Users/jackziegler/Projects/Shyfty/shyfty.db python scripts/run_signal_engine.py`
+Notes:
 
-Inspection helpers:
+- Raw NBA payloads are stored under `data/raw/nba/`.
+- NFL sync uses SportsDataIO's weekly final box score feeds and falls back to the most recent completed weeks from the latest finished season during offseason.
+- SportsDataIO's own documentation says the free trial uses scrambled data. For real NFL data, use a production or replay key only.
+- Sync runs are tracked in `ingest_runs`.
+- Source checkpoints are tracked in `sync_checkpoints`.
+- Games now retain `last_synced_at` and `signals_generated_at`.
 
-- `DATABASE_URL=sqlite:////Users/jackziegler/Projects/Shyfty/shyfty.db python scripts/inspect_nba_ingest.py summary`
-- `DATABASE_URL=sqlite:////Users/jackziegler/Projects/Shyfty/shyfty.db python scripts/inspect_nba_ingest.py games --limit 10`
-- `DATABASE_URL=sqlite:////Users/jackziegler/Projects/Shyfty/shyfty.db python scripts/inspect_nba_ingest.py players --limit 20`
-- `DATABASE_URL=sqlite:////Users/jackziegler/Projects/Shyfty/shyfty.db python scripts/inspect_signals.py signal <signal_id>`
+## Reset Workflow
 
-Raw payloads are stored under `data/raw/nba/` and the latest fetched snapshot path is recorded in `data/raw/nba/LATEST`.
-Normalized `player_game_stats` rows now retain source IDs and raw snapshot file references so signal traces can be followed from the product layer back to canonical rows and local raw payload files.
+If an older local database still contains legacy seeded rows, especially fake NFL data:
+
+- Remove only the legacy seeded NFL dataset:
+  `python scripts/reset_data.py --mode legacy-seeded-nfl`
+- Wipe all sports data and sync tracking while keeping user/auth tables:
+  `python scripts/reset_data.py --mode sports-data`
 
 ## Web Setup
 
@@ -110,102 +71,38 @@ Normalized `player_game_stats` rows now retain source IDs and raw snapshot file 
 2. `npm install`
 3. `npm run dev`
 
-Optional:
+Optional combined startup:
 
-- `VITE_API_BASE_URL=http://127.0.0.1:8001/api npm run dev`
-- `scripts/start-dev.sh` now supports integrated seeding through env vars:
-- `SHYFTY_DEV_SEED_MODE=auto|real|demo|skip` where `auto` seeds real NBA data only when `player_game_stats` is empty
-- `SHYFTY_DEV_SEED_SEASON=2024-25 SHYFTY_DEV_SEED_DAYS_BACK=21 SHYFTY_DEV_SEED_MAX_GAMES=20 bash scripts/start-dev.sh`
-- `SHYFTY_DEV_SEED_INCLUDE_NFL=0 bash scripts/start-dev.sh`
-- `scripts/stop-dev.sh` now also clears the transient `.run/seed.log`
+- `bash scripts/start-dev.sh`
+- `SHYFTY_DEV_BOOTSTRAP_ON_START=1 bash scripts/start-dev.sh`
+- `SHYFTY_DEV_BOOTSTRAP_ON_START=1 SHYFTY_DEV_BOOTSTRAP_DAYS_BACK=30 bash scripts/start-dev.sh`
 
-## iOS Setup
+`scripts/start-dev.sh` no longer seeds demo/sample rows. If bootstrap is enabled, it runs the real sync CLI before starting services and automatically includes `nfl` when `SPORTSDATAIO_NFL_API_KEY` is set.
 
-1. Open [ios/Shyfty/Shyfty.xcodeproj](/Users/jackziegler/Projects/Shyfty/ios/Shyfty/Shyfty.xcodeproj)
-2. Start the backend with `uvicorn app.main:app --reload --host 0.0.0.0 --port 8001`
-3. Run the `Shyfty` scheme in Xcode
+## Product Scope
 
-Debug base URL behavior:
+Kept:
 
-- iOS Simulator always uses `http://127.0.0.1:8001/api`
-- Physical iPhone Debug builds use `http://192.168.0.28:8001/api`
-- The physical-device Debug URL is supplied by the `SHYFTY_API_BASE_URL` build setting and injected into `ShyftyAPIBaseURL` in `Info-Debug.plist`
+- Signal feed
+- Player and team pages that support the signal story
+- Recent signal context and provenance
+- Saved views and personalization
 
-Notes:
+Deprioritized or being removed:
 
-- Your Mac and iPhone must be on the same local network for physical-device testing
-- If your Mac’s LAN IP changes, update `SHYFTY_API_BASE_URL` in the Xcode project Debug build settings
-- Debug builds include ATS exceptions for local HTTP access to `127.0.0.1` and `192.168.0.28`
-
-## Seeding and Signal Generation
-
-- Run migrations first: `cd backend && alembic upgrade head`
-- `python scripts/seed_db.py`
-- `python scripts/run_signal_engine.py`
-
-`scripts/seed_db.py` and `scripts/run_signal_engine.py` are thin entrypoints over backend CLI modules.
-Generation logic lives in `backend/app/domain/signals.py` and `backend/app/services/signal_generation_service.py`.
-
-`python scripts/seed_db.py` now fetches and loads real NBA data by default, then adds the demo NFL fixture set. Useful flags:
-
-- `python scripts/seed_db.py --generate-signals`
-- `python scripts/seed_db.py --season 2024-25 --days-back 21 --max-games 20`
-- `python scripts/seed_db.py --skip-nfl-demo`
-- `python scripts/seed_db.py --demo-only`
-
-The demo-only fallback dataset includes:
-
-- NBA: Luka Doncic, Nikola Jokic, Stephen Curry
-- NFL: Patrick Mahomes, Josh Allen, Justin Jefferson
-
-The signal engine computes rolling averages, rolling standard deviation, z-scores, and writes signal records using these rules:
-
-- `SPIKE`: `z >= 1.5`
-- `DROP`: `z <= -1.5`
-- `OUTLIER`: `|z| >= 2.5`
-- `SHIFT`: usage-rate z-score magnitude `>= 1.0`
-
-The generator now backfills all eligible historical game contexts, not just the latest one, and reruns update existing contexts instead of recreating duplicate rows.
+- Seed/demo workflows
+- Fake NFL fallback data
+- Deep basketball-reference-style history browsing
+- Large game-log/archive surfaces that do not directly support signals
 
 ## Tests
 
 - `cd backend && .venv/bin/python -m unittest discover -s tests -q`
 
-## API Overview
+Unit tests may still use small deterministic fixtures, but the runtime app path no longer depends on seed scripts or demo data.
 
-- `GET /api/health`
-- `GET /api/signals`
-- `GET /api/players`
-- `GET /api/players/{id}`
-- `GET /api/players/{id}/signals`
-- `GET /api/players/{id}/metrics`
-- `GET /api/teams`
+## Current Gaps
 
-## Real vs Mocked
-
-Real:
-
-- Postgres-backed schema
-- Alembic-managed schema lifecycle
-- Seeded player, team, game, stat, rolling metric, and signal records
-- Signal generation service writing idempotent historical rolling metric and signal records
-- Web and iOS clients fetching live API data
-
-Mocked or simplified:
-
-- NBA ingestion now loads recent raw payloads from `stats.nba.com` into canonical tables, but NFL remains seeded/demo-only
-- No auth, favorites persistence, or push notifications
-- No scheduler or background worker yet; ingestion is manual CLI-driven
-
-## Next Steps To Productionize
-
-1. Replace static seed inputs with sportsbook or official league data ingestion.
-2. Add background jobs for scheduled recomputation and cache invalidation.
-3. Add auth, saved filters, favorites persistence, and alert delivery.
-4. Harden migrations, tests, observability, and deploy environments.
-
-## Migration Notes
-
-- The API no longer auto-creates tables on startup. Run `alembic upgrade head` before seeding or starting the backend against a fresh database.
-- `0002_signal_generation_context` adds `game_id` to `signals` and `rolling_metrics`.
-- Existing environments with data should apply Alembic before running the refactored signal engine so existing rows are backfilled with the latest known game context.
+- Scheduler currently runs a simple once-daily sync model.
+- SportsDataIO integration is implemented against the documented weekly final feeds, but it still needs live-key validation in this repo environment.
+- Additional source-specific checkpoints and incremental cursors can be layered onto the new sync tracking without redesigning the core flow.

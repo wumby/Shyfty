@@ -15,8 +15,11 @@ from app.domain.signals import (
     importance_score,
     MetricSnapshot,
     WindowSnapshot,
+    deviation_from_expected,
     metric_label,
     movement_pct,
+    performance_ratio,
+    severity_for_deviation,
     trend_direction,
 )
 from app.models.game import Game
@@ -46,6 +49,32 @@ FEED_MODE_ALL = "all"
 FEED_MODE_FOLLOWING = "following"
 FEED_MODE_FOR_YOU = "for_you"
 EXCLUDED_SIGNAL_TYPES = {"CONSISTENCY"}
+
+
+def _deviation_expr():
+    return func.abs((Signal.current_value / Signal.baseline_value) - 1)
+
+
+def _severity_order_expr():
+    deviation = _deviation_expr()
+    return case(
+        (deviation >= 0.80, 3),
+        (deviation >= 0.40, 2),
+        (deviation >= 0.10, 1),
+        else_=0,
+    )
+
+
+def _severity_filter_expr(signal_type: str):
+    deviation = _deviation_expr()
+    normalized = signal_type.upper()
+    if normalized == "OUTLIER":
+        return deviation >= 0.80
+    if normalized == "SWING":
+        return and_(deviation >= 0.40, deviation < 0.80)
+    if normalized == "SHIFT":
+        return and_(deviation >= 0.10, deviation < 0.40)
+    return Signal.signal_type.ilike(signal_type)
 
 
 def _parse_iso(value: Optional[str]) -> Optional[datetime]:
@@ -174,10 +203,13 @@ def build_signal_read(
 ) -> SignalRead:
     baseline_window = baseline_window_label()
     movement = movement_pct(signal.current_value, signal.baseline_value)
+    performance = performance_ratio(signal.current_value, signal.baseline_value)
+    deviation = deviation_from_expected(signal.current_value, signal.baseline_value)
+    severity = severity_for_deviation(deviation) or signal.signal_type
     direction = trend_direction(signal.current_value, signal.baseline_value)
     readable_metric_label = metric_label(signal.metric_name)
     snapshot = effective_metric_to_snapshot(signal, rolling_metric)
-    signal_score = round(signal.signal_score or importance_score(signal.signal_type, signal.z_score), 1)
+    signal_score = round(signal.signal_score or importance_score(severity, signal.z_score, deviation), 1)
     rolling_stddev = (
         rolling_metric.short_rolling_stddev
         if rolling_metric and rolling_metric.short_rolling_stddev is not None
@@ -192,10 +224,13 @@ def build_signal_read(
         player_name=player_name or team_name,
         team_name=team_name,
         league_name=league_name,
-        signal_type=signal.signal_type,
+        signal_type=severity,
+        severity=severity,
         metric_name=signal.metric_name,
         current_value=signal.current_value,
         baseline_value=signal.baseline_value,
+        performance=performance,
+        deviation=deviation,
         z_score=signal.z_score,
         signal_score=signal_score,
         score_explanation=signal.score_explanation,
@@ -213,7 +248,7 @@ def build_signal_read(
         home_away=home_away,
         game_result=game_result,
         final_score=final_score,
-        classification_reason=classification_reason(signal.signal_type, snapshot, signal.metric_name),
+        classification_reason=classification_reason(severity, snapshot, signal.metric_name),
         summary_template="metric_vs_recent_baseline",
         summary_template_inputs=SignalSummaryTemplateInputs(
             current_value=signal.current_value,
@@ -256,6 +291,8 @@ def _base_signal_query():
     reaction_count_subq = _reaction_count_subquery()
     home_team = aliased(Team)
     away_team = aliased(Team)
+    signal_team_stat = aliased(TeamGameStat)
+    opponent_team_stat = aliased(TeamGameStat)
     return (
         select(
             Signal,
@@ -273,6 +310,8 @@ def _base_signal_query():
             away_team.name.label("away_team_name"),
             TeamGameStat.opponent_name,
             TeamGameStat.home_away,
+            signal_team_stat.points.label("signal_team_points"),
+            opponent_team_stat.points.label("opponent_team_points"),
         )
         .outerjoin(Player, Signal.player_id == Player.id)
         .join(Team, Signal.team_id == Team.id)
@@ -288,6 +327,14 @@ def _base_signal_query():
         )
         .outerjoin(PlayerGameStat, PlayerGameStat.id == Signal.source_stat_id)
         .outerjoin(TeamGameStat, TeamGameStat.id == Signal.source_team_stat_id)
+        .outerjoin(
+            signal_team_stat,
+            and_(signal_team_stat.game_id == Signal.game_id, signal_team_stat.team_id == Signal.team_id),
+        )
+        .outerjoin(
+            opponent_team_stat,
+            and_(opponent_team_stat.game_id == Signal.game_id, opponent_team_stat.team_id != Signal.team_id),
+        )
         .outerjoin(home_team, Game.home_team_id == home_team.id)
         .outerjoin(away_team, Game.away_team_id == away_team.id)
         .outerjoin(comment_count_subq, comment_count_subq.c.signal_id == Signal.id)
@@ -330,11 +377,17 @@ def _get_engagement_context(db: Session, user_id: int) -> dict[str, object]:
 
 
 def _apply_sort(query, sort_mode: str):
-    baseline_guard = case((func.abs(Signal.baseline_value) < 1, 1), else_=func.abs(Signal.baseline_value))
+    deviation_expr = _deviation_expr()
+    ranked_order = (
+        _severity_order_expr().desc(),
+        deviation_expr.desc(),
+        Game.game_date.desc(),
+        Signal.id.desc(),
+    )
     if sort_mode == SORT_MODE_IMPORTANT:
-        return query.order_by(func.coalesce(Signal.signal_score, 0).desc(), Game.game_date.desc(), Signal.id.desc())
+        return query.order_by(*ranked_order)
     if sort_mode == SORT_MODE_DEVIATION:
-        return query.order_by((func.abs(Signal.current_value - Signal.baseline_value) / baseline_guard).desc(), Game.game_date.desc(), Signal.id.desc())
+        return query.order_by(*ranked_order)
     return query.order_by(Game.game_date.desc(), Signal.id.desc())
 
 
@@ -360,11 +413,25 @@ def _build_signal_items(rows, db: Session, current_user_id: Optional[int]) -> li
         away_team_name,
         team_stat_opponent_name,
         team_stat_home_away,
+        signal_team_points,
+        opponent_team_points,
     ) in rows:
         is_home = signal.team_id == home_team_id
         opponent = team_stat_opponent_name or (away_team_name if is_home else home_team_name)
         home_away = team_stat_home_away or ("vs" if is_home else "@")
-        game_result = None if signal.subject_type == "team" else ("W" if plus_minus and plus_minus > 0 else "L" if plus_minus and plus_minus < 0 else None)
+        final_score = (
+            f"{int(signal_team_points)}-{int(opponent_team_points)}"
+            if signal_team_points is not None and opponent_team_points is not None
+            else None
+        )
+        score_result = (
+            "W"
+            if signal_team_points is not None and opponent_team_points is not None and signal_team_points > opponent_team_points
+            else "L"
+            if signal_team_points is not None and opponent_team_points is not None and signal_team_points < opponent_team_points
+            else None
+        )
+        game_result = score_result or (None if signal.subject_type == "team" else ("W" if plus_minus and plus_minus > 0 else "L" if plus_minus and plus_minus < 0 else None))
 
         items.append(
             build_signal_read(
@@ -381,7 +448,7 @@ def _build_signal_items(rows, db: Session, current_user_id: Optional[int]) -> li
                 opponent=opponent,
                 home_away=home_away,
                 game_result=game_result,
-                final_score=None,
+                final_score=final_score,
             )
         )
     return items
@@ -425,7 +492,7 @@ def list_signals(
     if player:
         query = query.where(Player.name.ilike(f"%{player}%"))
     if signal_type:
-        query = query.where(Signal.signal_type.ilike(signal_type))
+        query = query.where(_severity_filter_expr(signal_type))
     if date_from is not None:
         query = query.where(Game.game_date >= date_from)
     if date_to is not None:

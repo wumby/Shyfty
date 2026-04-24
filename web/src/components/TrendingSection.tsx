@@ -10,10 +10,9 @@ import {
 } from '../lib/signalFormat';
 
 const typeTone: Record<Signal['signal_type'], string> = {
-  SPIKE: 'text-green-400',
-  DROP: 'text-red-400',
-  SHIFT: 'text-amber-400',
   OUTLIER: 'text-purple-400',
+  SWING: 'text-amber-400',
+  SHIFT: 'text-slate-300',
 };
 
 interface Props {
@@ -70,7 +69,8 @@ export function TrendingSection({ onOpenDetail }: Props) {
             {signals.slice(0, 6).map((signal) => {
               const direction = getSignalDirection(signal);
               const importance = getImportance(signal);
-              const toneClass = typeTone[signal.signal_type];
+              const severity = signal.severity ?? signal.signal_type;
+              const toneClass = typeTone[severity];
 
               return (
                 <button
@@ -81,7 +81,7 @@ export function TrendingSection({ onOpenDetail }: Props) {
                 >
                   <div className="flex items-center justify-between">
                     <span className={`text-[10px] font-semibold uppercase tracking-[0.14em] ${toneClass}`}>
-                      {formatSignalLabel(signal.signal_type)}
+                      {formatSignalLabel(severity)}
                     </span>
                     {importance === 'High' && <span className="accent-dot h-1.5 w-1.5" />}
                   </div>

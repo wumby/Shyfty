@@ -16,6 +16,7 @@ interface AuthStore {
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   openAuth: (mode?: AuthMode) => void;
+  setAuthMode: (mode: AuthMode) => void;
   closeAuth: () => void;
 }
 
@@ -59,5 +60,6 @@ export const useAuthStore = create<AuthStore>((set) => ({
     set({ currentUser: null, authError: null, authPanelOpen: false });
   },
   openAuth: (mode = 'signin') => set({ authPanelOpen: true, authMode: mode, authError: null }),
+  setAuthMode: (mode) => set({ authMode: mode, authError: null }),
   closeAuth: () => set({ authPanelOpen: false, authError: null }),
 }));

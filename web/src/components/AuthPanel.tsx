@@ -13,6 +13,7 @@ export function AuthPanel() {
     signUp,
     signOut,
     openAuth,
+    setAuthMode,
     closeAuth,
   } = useAuthStore();
   const [email, setEmail] = useState('');
@@ -51,23 +52,33 @@ export function AuthPanel() {
         <button
           type="button"
           onClick={() => openAuth('signin')}
-          className="rounded-full border border-border bg-white/[0.03] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted transition hover:border-borderStrong hover:bg-white/[0.05] hover:text-ink"
+          className="rounded-full border border-accent/35 bg-accentSoft px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#ffd8bd] transition hover:border-accent/60 hover:bg-accent/20"
         >
-          Sign In
-        </button>
-        <button
-          type="button"
-          onClick={() => openAuth('signup')}
-          className="rounded-full border border-accent/35 bg-accent px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1f1308] transition hover:brightness-110"
-        >
-          Create Account
+          Account
         </button>
       </div>
       {authPanelOpen ? (
         <div className="panel-strong absolute right-0 top-[calc(100%+0.75rem)] z-30 w-[300px] p-4">
           <div className="mb-3 flex items-center justify-between gap-3">
-            <div className="eyebrow text-[#ffd8bd]">
-              {authMode === 'signin' ? 'Sign In' : 'Create Account'}
+            <div className="flex rounded-full border border-white/[0.08] bg-white/[0.03] p-1">
+              <button
+                type="button"
+                onClick={() => setAuthMode('signin')}
+                className={`rounded-full px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] transition ${
+                  authMode === 'signin' ? 'bg-accentSoft text-[#ffd8bd]' : 'text-muted hover:text-ink'
+                }`}
+              >
+                Sign In
+              </button>
+              <button
+                type="button"
+                onClick={() => setAuthMode('signup')}
+                className={`rounded-full px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] transition ${
+                  authMode === 'signup' ? 'bg-accentSoft text-[#ffd8bd]' : 'text-muted hover:text-ink'
+                }`}
+              >
+                Create
+              </button>
             </div>
             <button type="button" onClick={closeAuth} className="rounded-full border border-border bg-white/[0.03] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted transition hover:border-borderStrong hover:text-ink">
               Close

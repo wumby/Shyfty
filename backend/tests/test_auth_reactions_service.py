@@ -15,9 +15,9 @@ from app.services.auth_service import (
     revoke_session,
 )
 from app.services.reaction_service import remove_signal_reaction, set_signal_reaction
-from app.services.seed_service import seed_database
 from app.services.signal_generation_service import generate_signals
 from app.services.signal_service import list_signals
+from tests.support_fixtures import load_sample_signal_dataset
 
 
 class AuthReactionServiceTests(unittest.TestCase):
@@ -32,7 +32,7 @@ class AuthReactionServiceTests(unittest.TestCase):
         self.session_factory = sessionmaker(bind=self.engine, autoflush=False, autocommit=False, future=True)
         Base.metadata.create_all(bind=self.engine)
         self.session = self.session_factory()
-        seed_database(self.session)
+        load_sample_signal_dataset(self.session)
         generate_signals(self.session)
 
     def tearDown(self) -> None:

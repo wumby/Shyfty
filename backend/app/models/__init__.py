@@ -10,6 +10,7 @@ from app.models.rolling_metric_baseline_sample import RollingMetricBaselineSampl
 from app.models.signal import Signal
 from app.models.signal_comment import SignalComment
 from app.models.signal_reaction import SignalReaction
+from app.models.sync_checkpoint import SyncCheckpoint
 from app.models.team import Team
 from app.models.team_game_stat import TeamGameStat
 from app.models.user import User
@@ -32,6 +33,7 @@ __all__ = [
     "Signal",
     "SignalComment",
     "SignalReaction",
+    "SyncCheckpoint",
     "Team",
     "TeamGameStat",
     "User",

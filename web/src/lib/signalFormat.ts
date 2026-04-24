@@ -14,29 +14,46 @@ export function formatMetricName(metricName: string): string {
   return metricName.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+const metricLabels: Record<string, string> = {
+  points: 'Points',
+  rebounds: 'Rebounds',
+  assists: 'Assists',
+  steals: 'Steals',
+  blocks: 'Blocks',
+  turnovers: 'Turnovers',
+  minutes_played: 'Minutes',
+  usage_rate: 'Usage Rate',
+  passing_yards: 'Passing Yards',
+  rushing_yards: 'Rushing Yards',
+  receiving_yards: 'Receiving Yards',
+  touchdowns: 'Touchdowns',
+  pace: 'Pace',
+  off_rating: 'Offensive Rating',
+  fg_pct: 'Field Goal %',
+  fg3_pct: '3PT %',
+};
+
 export function getMetricLabel(signal: Signal): string {
-  return signal.metric_label || formatMetricName(signal.metric_name);
+  return metricLabels[signal.metric_name] || signal.metric_label || formatMetricName(signal.metric_name);
 }
 
 export function getImportanceScore(signal: Signal): number {
   if (typeof signal.importance === 'number') return signal.importance;
 
-  const strength = Math.abs(signal.z_score);
+  const strength = signal.deviation ?? Math.abs(signal.z_score);
   const typeFloor: Record<Signal['signal_type'], number> = {
     OUTLIER: 85,
-    SPIKE: 72,
-    DROP: 72,
-    SHIFT: 60,
+    SWING: 72,
+    SHIFT: 58,
   };
 
-  return Math.min(typeFloor[signal.signal_type] + Math.min(strength * 8, 15), 100);
+  return Math.min(typeFloor[signal.signal_type] + Math.min(strength * 20, 12), 100);
 }
 
 export function formatSignalLabel(signalType: Signal['signal_type']): string {
   const labels: Record<Signal['signal_type'], string> = {
-    SPIKE: 'Spike',
-    DROP: 'Drop',
     SHIFT: 'Shift',
+    SWING: 'Swing',
     OUTLIER: 'Outlier',
   };
   return labels[signalType];
@@ -50,16 +67,23 @@ export function getImportance(signal: Signal): 'High' | 'Medium' | 'Watch' {
 }
 
 export function getDeltaPercent(signal: Signal): number | null {
-  if (signal.movement_pct !== null && signal.movement_pct !== undefined) return signal.movement_pct;
-  if (Math.abs(signal.baseline_value) < 0.05) return null;
-  return ((signal.current_value - signal.baseline_value) / signal.baseline_value) * 100;
+  if (signal.performance !== null && signal.performance !== undefined) {
+    return (signal.performance - 1) * 100;
+  }
+  const actual = signal.current_value;
+  const expected = signal.baseline_value;
+
+  if (!Number.isFinite(actual) || !Number.isFinite(expected) || expected === 0) {
+    return null;
+  }
+
+  return ((actual - expected) / expected) * 100;
 }
 
 export function formatDelta(signal: Signal): string {
   const deltaPercent = getDeltaPercent(signal);
   if (deltaPercent === null) {
-    const rawDelta = signal.current_value - signal.baseline_value;
-    return `${rawDelta >= 0 ? '+' : ''}${rawDelta.toFixed(1)}`;
+    return '—';
   }
   const rounded = Math.round(deltaPercent);
   return `${rounded >= 0 ? '+' : ''}${rounded}%`;

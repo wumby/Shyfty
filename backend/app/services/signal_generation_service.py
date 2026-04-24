@@ -15,7 +15,7 @@ from app.domain.signals import (
     build_metric_snapshots,
     build_narrative_summary,
     classify_signal,
-    movement_pct,
+    deviation_from_expected,
     score_signal,
 )
 from app.models.game import Game
@@ -479,7 +479,7 @@ def _generate_team_signals(
             metric_name: [stat for stat in team_stats if getattr(stat, metric_name, None) is not None]
             for metric_name in metrics
         }
-        candidates_by_game: dict[int, tuple[str, object, float, float, float, float]] = {}
+        candidates_by_game: dict[int, tuple[str, object, float, float, float]] = {}
 
         for metric_name in metrics:
             snapshots = build_metric_snapshots(
@@ -487,30 +487,31 @@ def _generate_team_signals(
                 metric_stats.get(metric_name, []),
             )
             for snapshot in snapshots:
-                deviation_pct = movement_pct(snapshot.current_value, snapshot.baseline_value)
-                if deviation_pct is None or abs(deviation_pct) < 20.0:
+                severity = classify_signal(snapshot, metric_name)
+                deviation = deviation_from_expected(snapshot.current_value, snapshot.baseline_value)
+                if severity is None or deviation is None:
                     continue
                 stat = next((team_stat for team_stat in team_stats if team_stat.id == snapshot.source_stat_id), None)
                 if stat is None:
                     continue
-                score = abs(deviation_pct)
                 current_best = candidates_by_game.get(snapshot.game_id)
-                if current_best is None or score > current_best[5]:
+                if current_best is None or deviation > current_best[4]:
                     candidates_by_game[snapshot.game_id] = (
                         metric_name,
                         snapshot,
                         snapshot.current_value,
                         snapshot.baseline_value,
-                        deviation_pct,
-                        score,
+                        deviation,
                     )
 
         valid_contexts: set[tuple[int, str]] = set()
-        for game_id, (metric_name, snapshot, current_value, baseline_value, deviation_pct, score) in candidates_by_game.items():
+        for game_id, (metric_name, snapshot, current_value, baseline_value, deviation) in candidates_by_game.items():
             stat = next((team_stat for team_stat in team_stats if team_stat.id == snapshot.source_stat_id), None)
             if stat is None:
                 continue
-            signal_type = "SPIKE" if deviation_pct >= 0 else "DROP"
+            signal_type = classify_signal(snapshot, metric_name)
+            if signal_type is None:
+                continue
             generated_at = datetime.utcnow()
             valid_contexts.add((game_id, metric_name))
             explanation = build_explanation(
@@ -523,9 +524,14 @@ def _generate_team_signals(
                 snapshot=snapshot,
             )
             narrative = build_narrative_summary(signal_type, snapshot, metric_name)
-            signal_score = min(round(score + min(abs(snapshot.z_score) * 8.0, 15.0), 1), 100.0)
+            signal_score, score_explanation = score_signal(
+                snapshot,
+                signal_type=signal_type,
+                event_date=snapshot.event_date,
+                latest_event_date=None,
+            )
             score_explanation = (
-                f"Team signal from {metric_name} deviation of {deviation_pct:+.1f}% "
+                f"Team signal from {metric_name} deviation of {deviation:.2f} "
                 f"vs. the rolling baseline over the last {len(snapshot.short_window.values)} games."
             )
             created, updated, deleted = _sync_team_signal_for_context(

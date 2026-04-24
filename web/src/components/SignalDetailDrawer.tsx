@@ -15,10 +15,9 @@ interface Props {
 }
 
 const signalTypeColor: Record<string, string> = {
-  SPIKE: 'text-emerald-300',
-  DROP: 'text-rose-300',
-  SHIFT: 'text-amber-300',
   OUTLIER: 'text-fuchsia-300',
+  SWING: 'text-amber-300',
+  SHIFT: 'text-slate-300',
 };
 
 export function SignalDetailDrawer({ signalId, onClose }: Props) {
@@ -96,8 +95,8 @@ export function SignalDetailDrawer({ signalId, onClose }: Props) {
           {trace && signal && (
             <div className="space-y-6">
               <div>
-                <div className={`text-xs font-semibold uppercase tracking-[0.2em] ${signalTypeColor[signal.signal_type] ?? 'text-slate-400'}`}>
-                  {formatSignalLabel(signal.signal_type)} · {signal.league_name}
+                <div className={`text-xs font-semibold uppercase tracking-[0.2em] ${signalTypeColor[signal.severity ?? signal.signal_type] ?? 'text-slate-400'}`}>
+                  {formatSignalLabel(signal.severity ?? signal.signal_type)} · {signal.league_name}
                 </div>
                 <h3 className="mt-1 text-3xl font-semibold text-ink">{signal.player_name}</h3>
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted">
@@ -218,7 +217,7 @@ export function SignalDetailDrawer({ signalId, onClose }: Props) {
                         key={related.id}
                         className="rounded-2xl border border-border bg-white/[0.02] px-3 py-3"
                       >
-                        <div className="text-[11px] uppercase tracking-[0.16em] text-muted">{formatSignalLabel(related.signal_type)}</div>
+                        <div className="text-[11px] uppercase tracking-[0.16em] text-muted">{formatSignalLabel(related.severity ?? related.signal_type)}</div>
                         <div className="mt-1 text-sm font-semibold text-ink">{related.player_name}</div>
                         <div className="mt-1 text-xs text-muted">{related.explanation}</div>
                         <button

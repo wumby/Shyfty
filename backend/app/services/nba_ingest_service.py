@@ -169,12 +169,13 @@ def fetch_recent_nba_data(
                 time.sleep(sleep_between_games)
             advanced = BoxScoreAdvancedV2(game_id=game_id).get_dict()
         except Exception as exc:
-            logger.warning("NBA advanced boxscore fetch failed for game %s: %s", game_id, exc)
+            # BoxScoreAdvancedV2 is broken in nba_api 1.10.2 (internal parser expects
+            # "resultSet" singular but API now returns "resultSets" plural).
+            # Downgraded to info until migrated to V3.
+            logger.info("NBA advanced boxscore unavailable for game %s: %s", game_id, exc)
 
         if _has_dataset(advanced, "TeamStats"):
             _write_json(output_dir / "games" / f"{game_id}_advanced.json", advanced)
-        else:
-            logger.info("NBA advanced boxscore unavailable for game %s; team advanced stats will be skipped", game_id)
 
         usage: dict[str, Any] = {}
         try:
@@ -182,7 +183,7 @@ def fetch_recent_nba_data(
                 time.sleep(sleep_between_games)
             usage = BoxScoreUsageV2(game_id=game_id).get_dict()
         except Exception as exc:
-            logger.warning("NBA usage boxscore fetch failed for game %s: %s", game_id, exc)
+            logger.info("NBA usage boxscore unavailable for game %s: %s", game_id, exc)
 
         if _has_dataset(usage, "sqlPlayersUsage"):
             _write_json(output_dir / "games" / f"{game_id}_usage.json", usage)

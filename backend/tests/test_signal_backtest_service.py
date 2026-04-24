@@ -7,9 +7,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.db.base import Base
-from app.services.seed_service import seed_database
 from app.services.signal_backtest_service import run_signal_backtest, write_backtest_result
 from app.services.signal_generation_service import generate_signals
+from tests.support_fixtures import load_sample_signal_dataset
 
 
 class SignalBacktestServiceTests(unittest.TestCase):
@@ -24,7 +24,7 @@ class SignalBacktestServiceTests(unittest.TestCase):
         self.session_factory = sessionmaker(bind=self.engine, autoflush=False, autocommit=False, future=True)
         Base.metadata.create_all(bind=self.engine)
         self.session = self.session_factory()
-        seed_database(self.session)
+        load_sample_signal_dataset(self.session)
         generate_signals(self.session)
 
     def tearDown(self) -> None:

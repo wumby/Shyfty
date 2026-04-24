@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -19,6 +20,9 @@ class Settings(BaseSettings):
         "http://127.0.0.1:5175",
         "http://localhost:5175",
     ]
+    espn_timeout_seconds: float = 20.0
+    espn_nfl_bootstrap_weeks: int = 6
+    espn_nfl_incremental_weeks: int = 2
 
 
 settings = Settings()

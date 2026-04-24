@@ -9,14 +9,13 @@ interface FilterBarProps {
 }
 
 const leagues = ['ALL', 'NBA', 'NFL'];
-const types = ['ALL', 'SPIKE', 'DROP', 'SHIFT', 'OUTLIER'];
+const types = ['ALL', 'OUTLIER', 'SWING', 'SHIFT'];
 
 const typeTone: Record<string, string> = {
   ALL: 'text-slate-300',
-  SPIKE: 'text-green-400',
-  DROP: 'text-red-400',
-  SHIFT: 'text-amber-400',
   OUTLIER: 'text-purple-400',
+  SWING: 'text-amber-400',
+  SHIFT: 'text-slate-300',
 };
 
 export function FilterBar({ filters, players, onChange, compact = false }: FilterBarProps) {
@@ -54,7 +53,7 @@ export function FilterBar({ filters, players, onChange, compact = false }: Filte
       </div>
 
       <div>
-        <div className="eyebrow mb-2">Signal Type</div>
+        <div className="eyebrow mb-2">Severity</div>
         <div className="flex flex-wrap gap-2">
           {types.map((signalType) => (
             <button

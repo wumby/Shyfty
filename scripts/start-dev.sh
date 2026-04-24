@@ -11,11 +11,7 @@ BACKEND_PORT=8001
 WEB_PORT=5175
 BACKEND_RELOAD="${BACKEND_RELOAD:-1}"
 IPHONE_API_HOST="${SHYFTY_LAN_IP:-192.168.0.28}"
-DEV_SEED_MODE="${SHYFTY_DEV_SEED_MODE:-auto}"
-DEV_SEED_SEASON="${SHYFTY_DEV_SEED_SEASON:-}"
-DEV_SEED_DAYS_BACK="${SHYFTY_DEV_SEED_DAYS_BACK:-21}"
-DEV_SEED_MAX_GAMES="${SHYFTY_DEV_SEED_MAX_GAMES:-50}"
-DEV_SEED_INCLUDE_NFL="${SHYFTY_DEV_SEED_INCLUDE_NFL:-1}"
+DEV_SYNC_MAX_GAMES="${DEV_SYNC_MAX_GAMES:-50}"
 
 detect_lan_ip() {
   if [[ -n "${SHYFTY_LAN_IP:-}" ]]; then
@@ -32,6 +28,7 @@ detect_lan_ip() {
     fi
   done
 }
+
 
 kill_pidfile() {
   local pidfile="$1"
@@ -80,7 +77,7 @@ kill_pidfile "$ROOT/.run/backend.pid"
 kill_pidfile "$ROOT/.run/web.pid"
 kill_port "$BACKEND_PORT"
 kill_port "$WEB_PORT"
-rm -f "$ROOT/.run/seed.log"
+rm -f "$ROOT/.run/sync.log"
 
 mkdir -p "$ROOT/.run"
 
@@ -111,6 +108,26 @@ fi
 
 echo "Using backend database: $DATABASE_URL"
 
+run_alembic_upgrade_with_retry() {
+  local attempts=5
+  local delay_seconds=2
+  local attempt=1
+
+  while (( attempt <= attempts )); do
+    if alembic upgrade head; then
+      return 0
+    fi
+
+    if [[ "$DATABASE_URL" != sqlite:///* ]] || (( attempt == attempts )); then
+      return 1
+    fi
+
+    echo "SQLite migration hit a lock; retrying in ${delay_seconds}s (${attempt}/${attempts})..."
+    sleep "$delay_seconds"
+    attempt=$((attempt + 1))
+  done
+}
+
 echo "Applying backend migrations..."
 (
   source .venv/bin/activate
@@ -122,120 +139,18 @@ echo "Applying backend migrations..."
       alembic stamp 0001_initial
     fi
   fi
-  alembic upgrade head
+  run_alembic_upgrade_with_retry
 )
 
-current_stat_counts() {
+echo "Starting data sync in background (NBA + NFL)..."
+nohup /bin/bash -lc "
+  set -euo pipefail
+  cd '$BACKEND_DIR'
   source .venv/bin/activate
-  python - <<'PY'
-from sqlalchemy import inspect, text
-from app.db.session import engine
-
-with engine.connect() as conn:
-    inspector = inspect(conn)
-    if "player_game_stats" not in inspector.get_table_names():
-        print("0 0")
-    else:
-        player_count = conn.execute(text("SELECT COUNT(*) FROM player_game_stats")).scalar_one()
-        team_count = 0
-        if "team_game_stats" in inspector.get_table_names():
-            team_count = conn.execute(text("SELECT COUNT(*) FROM team_game_stats")).scalar_one()
-        print(f"{player_count} {team_count}")
-PY
-}
-
-backfill_team_stats_from_latest_snapshot() {
-  (
-    source .venv/bin/activate
-    python - <<'PY'
-import json
-from datetime import date
-from pathlib import Path
-
-from app.db.session import SessionLocal
-from app.services.nba_ingest_service import raw_nba_root
-from app.services.nba_normalization_service import load_nba_snapshot
-from app.services.signal_generation_service import generate_signals
-
-latest_path = raw_nba_root() / "LATEST"
-if not latest_path.exists():
-    raise SystemExit("No latest NBA snapshot found for team-stat backfill.")
-
-snapshot_dir = Path(latest_path.read_text(encoding="utf-8").strip())
-manifest = json.loads((snapshot_dir / "manifest.json").read_text(encoding="utf-8"))
-clear_since = date.fromisoformat(manifest["date_from"])
-
-with SessionLocal() as db:
-    load = load_nba_snapshot(db, snapshot_dir=snapshot_dir, clear_since=clear_since)
-    signal_result = generate_signals(db)
-    print(
-        "Backfilled team stats from latest snapshot: "
-        f"games={load.games_loaded} players={load.players_loaded} "
-        f"player_stats={load.stats_loaded} team_stats={load.team_stats_loaded} "
-        f"signals_created={signal_result.created_signals} "
-        f"signals_updated={signal_result.updated_signals}"
-    )
-PY
-  )
-}
-
-run_seed_if_needed() {
-  local mode="$1"
-  local player_stat_count=0
-  local team_stat_count=0
-  local stat_counts=""
-  local -a seed_args=("--generate-signals")
-
-  case "$mode" in
-    skip)
-      echo "Skipping seed step because SHYFTY_DEV_SEED_MODE=skip."
-      return
-      ;;
-    auto)
-      stat_counts="$(current_stat_counts)"
-      read -r player_stat_count team_stat_count <<< "$stat_counts"
-      if [[ "$player_stat_count" -gt 0 && "$team_stat_count" -gt 0 ]]; then
-        echo "Skipping seed step because existing player/team stats were found ($player_stat_count player rows, $team_stat_count team rows)."
-        return
-      fi
-      if [[ "$player_stat_count" -gt 0 && "$team_stat_count" -eq 0 ]]; then
-        echo "Player stats exist but team stats are missing; backfilling from the latest local NBA snapshot."
-        backfill_team_stats_from_latest_snapshot | tee "$ROOT/.run/seed.log"
-        return
-      fi
-      echo "Database is empty; running real NBA seed before startup."
-      ;;
-    real)
-      echo "Running real NBA seed before startup."
-      ;;
-    demo)
-      echo "Running demo seed before startup."
-      seed_args+=("--demo-only")
-      ;;
-    *)
-      echo "Unsupported SHYFTY_DEV_SEED_MODE=$mode"
-      echo "Use one of: auto, real, demo, skip"
-      exit 1
-      ;;
-  esac
-
-  if [[ "$mode" != "demo" ]]; then
-    if [[ -n "$DEV_SEED_SEASON" ]]; then
-      seed_args+=("--season" "$DEV_SEED_SEASON")
-    fi
-    seed_args+=("--days-back" "$DEV_SEED_DAYS_BACK" "--max-games" "$DEV_SEED_MAX_GAMES")
-    if [[ "$DEV_SEED_INCLUDE_NFL" != "1" ]]; then
-      seed_args+=("--skip-nfl-demo")
-    fi
-  fi
-
-  (
-    source .venv/bin/activate
-    python -m app.cli.seed_db "${seed_args[@]}"
-  ) 2>&1 | tee "$ROOT/.run/seed.log"
-}
-
-run_seed_if_needed "$DEV_SEED_MODE"
+  export DATABASE_URL='$DATABASE_URL'
+  python -m app.cli.run_ingest --mode bootstrap --source nba --source nfl --max-games '$DEV_SYNC_MAX_GAMES'
+" > "$ROOT/.run/sync.log" 2>&1 &
+echo "Sync PID $! running in background. Follow: tail -f $ROOT/.run/sync.log"
 
 nohup /bin/bash -lc "
   set -euo pipefail

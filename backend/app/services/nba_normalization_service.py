@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any, Optional
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app.models.game import Game
@@ -33,6 +33,7 @@ class LoadResult:
     team_stats_loaded: int = 0
     affected_player_ids: list = field(default_factory=list)
     affected_team_ids: list = field(default_factory=list)
+    affected_game_ids: list = field(default_factory=list)
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -440,6 +441,7 @@ def load_nba_snapshot(db: Session, *, snapshot_dir: Optional[Path] = None, clear
         skipped_stat_rows=skipped_stat_rows,
         affected_player_ids=[p.id for p in player_cache.values()],
         affected_team_ids=[team.id for team in team_cache.values()],
+        affected_game_ids=[game.id for game in game_cache.values()],
     )
 
 
@@ -514,7 +516,10 @@ def load_nba_games_incremental(
         if not traditional_rows:
             continue
 
-        # Derive game metadata from boxscore rows (home team identified by matchup "vs.")
+        # Derive game metadata from boxscore rows (home team identified by matchup "vs.").
+        # Playoff boxscores omit MATCHUP and GAME_DATE from PlayerStats; fall back to
+        # game_log_meta supplied by the ingest source when those fields are absent.
+        game_log_meta = payload.get("game_log_meta") or {}
         home_row: Optional[dict[str, Any]] = None
         away_row: Optional[dict[str, Any]] = None
         teams_in_game: dict[str, dict] = {}
@@ -522,25 +527,57 @@ def load_nba_games_incremental(
             team_key = str(row.get("TEAM_ID", ""))
             if team_key and team_key not in teams_in_game:
                 teams_in_game[team_key] = row
-            matchup = row.get("MATCHUP", "")
+            matchup = row.get("MATCHUP") or ""
             if "vs." in matchup and home_row is None:
                 home_row = row
             elif "@" in matchup and away_row is None:
                 away_row = row
 
+        # Fallback: use leaguegamelog metadata when boxscore rows lack MATCHUP/GAME_DATE.
+        if (home_row is None or away_row is None) and game_log_meta:
+            home_tid = str(game_log_meta.get("home_team_id") or "")
+            away_tid = str(game_log_meta.get("away_team_id") or "")
+            for row in traditional_rows:
+                team_key = str(row.get("TEAM_ID", ""))
+                if team_key == home_tid and home_row is None:
+                    home_row = {**row, "GAME_DATE": game_log_meta.get("game_date")}
+                elif team_key == away_tid and away_row is None:
+                    away_row = {**row, "GAME_DATE": game_log_meta.get("game_date")}
+
+        # Build full team name lookup from TeamStats (present in all game types).
+        # Playoff PlayerStats omits TEAM_NAME; TeamStats has it but as just the nickname
+        # ("Knicks"), while regular season has the full name ("New York Knicks").
+        # Combine TEAM_CITY + TEAM_NAME when the city isn't already part of the name.
+        team_name_by_id: dict[str, str] = {}
+        for tr in team_rows:
+            tid = str(tr.get("TEAM_ID", ""))
+            city = tr.get("TEAM_CITY") or ""
+            name = tr.get("TEAM_NAME") or ""
+            if name and city and city not in name:
+                team_name_by_id[tid] = f"{city} {name}"
+            elif name:
+                team_name_by_id[tid] = name
+            elif city:
+                team_name_by_id[tid] = f"{city} {tr.get('TEAM_ABBREVIATION', tid)}".strip()
+
         for team_key, sample_row in teams_in_game.items():
             if team_key not in team_cache:
+                team_name = (
+                    sample_row.get("TEAM_NAME")
+                    or team_name_by_id.get(team_key)
+                    or f"Team {team_key}"
+                )
                 team_cache[team_key] = _upsert_team(
                     db,
                     league_id=league.id,
-                    team_name=sample_row.get("TEAM_NAME", f"Team {team_key}"),
+                    team_name=team_name,
                     source_id=team_key,
                 )
 
         if home_row and away_row:
             home_team_id = team_cache.get(str(home_row["TEAM_ID"]))
             away_team_id = team_cache.get(str(away_row["TEAM_ID"]))
-            game_date_raw = home_row.get("GAME_DATE", "")
+            game_date_raw = home_row.get("GAME_DATE") or ""
             if home_team_id and away_team_id and game_date_raw:
                 game_date = (
                     datetime.strptime(game_date_raw, "%Y-%m-%dT%H:%M:%S").date()
@@ -681,6 +718,27 @@ def load_nba_games_incremental(
             stats_loaded += 1
 
     db.flush()
+
+    # Refresh opponent_name for all team_game_stats that reference teams processed
+    # this session. Fixes rows written before team names were resolved correctly
+    # (e.g. when playoff boxscores caused "Team 1610612752" to be stored).
+    if team_cache:
+        db.execute(
+            update(TeamGameStat)
+            .where(
+                TeamGameStat.source_system == NBA_SOURCE_SYSTEM,
+                TeamGameStat.opponent_team_id.in_([t.id for t in team_cache.values()]),
+            )
+            .values(
+                opponent_name=(
+                    select(Team.name)
+                    .where(Team.id == TeamGameStat.opponent_team_id)
+                    .correlate(TeamGameStat)
+                    .scalar_subquery()
+                )
+            )
+        )
+
     return LoadResult(
         snapshot_dir=None,
         teams_loaded=len(team_cache),
@@ -691,4 +749,5 @@ def load_nba_games_incremental(
         skipped_stat_rows=skipped_stat_rows,
         affected_player_ids=[p.id for p in player_cache.values()],
         affected_team_ids=[team.id for team in team_cache.values()],
+        affected_game_ids=[game.id for game in game_cache.values()],
     )

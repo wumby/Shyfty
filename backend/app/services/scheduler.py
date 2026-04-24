@@ -1,4 +1,4 @@
-"""Background scheduler that runs the NBA ingest pipeline daily at 3 AM UTC."""
+"""Background scheduler that runs the real-data sync pipeline daily at 3 AM UTC."""
 from __future__ import annotations
 
 import asyncio
@@ -130,24 +130,26 @@ def _persist_run_finish(
         logger.warning("Could not persist ingest run finish to DB", exc_info=True)
 
 
-async def run_ingest_once() -> None:
-    """Run a full ingest, updating module state and DB before/after. Safe to call from routes."""
+async def run_ingest_once(mode: str = "incremental", sources: Optional[tuple[str, ...]] = None) -> None:
+    """Run a sync pass, updating module state and DB before/after. Safe to call from routes."""
     if _ingest_state["status"] == "running":
         logger.info("Scheduler: ingest already running, skipping trigger")
         return
     try:
-        from app.services.ingest_pipeline import run_full_ingest
+        from app.services.sync_service import get_default_sync_sources, run_sync
+
+        resolved_sources = sources or get_default_sync_sources()
 
         started_at = datetime.utcnow().isoformat()
         _ingest_state["status"] = "running"
         _ingest_state["started_at"] = started_at
         _ingest_state["finished_at"] = None
         _ingest_state["last_error"] = None
-        logger.info("Scheduler: starting NBA ingest")
+        logger.info("Scheduler: starting %s sync for sources=%s", mode, ",".join(resolved_sources))
 
         run_id = await asyncio.to_thread(_persist_run_start, started_at)
 
-        result = await asyncio.to_thread(run_full_ingest, 21, 50)
+        result = await asyncio.to_thread(run_sync, mode=mode, sources=resolved_sources)
 
         finished_at = datetime.utcnow().isoformat()
         _ingest_state["status"] = "idle"

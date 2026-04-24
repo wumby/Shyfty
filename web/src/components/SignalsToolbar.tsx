@@ -92,7 +92,7 @@ export function SignalsToolbar({
               ) : null}
               {filters.signal_type ? (
                 <span className="pill-button">
-                  Type <span className="text-ink">{formatLabel(filters.signal_type, 'All')}</span>
+                  Severity <span className="text-ink">{formatLabel(filters.signal_type, 'All')}</span>
                 </span>
               ) : null}
             </div>
@@ -167,7 +167,7 @@ export function SignalsToolbar({
               <div>
                 <div className="eyebrow text-[#ffd8bd]">Filters</div>
                 <p className="mt-1 text-sm text-muted">
-                  Narrow the board by league or signal type without losing your place.
+                  Narrow the board by league or severity without losing your place.
                 </p>
               </div>
               <button

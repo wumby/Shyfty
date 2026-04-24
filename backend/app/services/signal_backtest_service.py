@@ -15,6 +15,7 @@ from app.domain.signals import (
     METRICS_BY_LEAGUE,
     build_metric_snapshots,
     classify_signal,
+    deviation_from_expected,
     load_signal_threshold_payload,
     metric_success,
     recommend_thresholds_from_samples,
@@ -105,6 +106,10 @@ def run_signal_backtest(
                 signal_type = classify_signal(contextual_snapshot, metric_name)
                 if signal_type is None:
                     continue
+                deviation = deviation_from_expected(
+                    contextual_snapshot.current_value,
+                    contextual_snapshot.baseline_value,
+                )
 
                 signal_score, _ = score_signal(
                     contextual_snapshot,
@@ -133,6 +138,7 @@ def run_signal_backtest(
                         "metric_name": metric_name,
                         "signal_type": signal_type,
                         "signal_score": round(signal_score, 1),
+                        "deviation": round(deviation or 0.0, 4),
                         "short_z": round(contextual_snapshot.short_window.z_score, 4),
                         "medium_z": round(contextual_snapshot.medium_window.z_score, 4),
                         "season_z": round(contextual_snapshot.season_window.z_score, 4),
@@ -144,6 +150,7 @@ def run_signal_backtest(
                     {
                         "short_z": abs(contextual_snapshot.short_window.z_score),
                         "medium_z": abs(contextual_snapshot.medium_window.z_score),
+                        "deviation": deviation or 0.0,
                         "consistency_std": contextual_snapshot.short_window.rolling_stddev,
                     }
                 )

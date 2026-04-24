@@ -19,10 +19,9 @@ import { useSignalStore } from '../store/useSignalStore';
 import { CommentsPanel } from './CommentsPanel';
 
 const toneMap: Record<Signal['signal_type'], string> = {
-  SPIKE: 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-300',
-  DROP: 'border border-rose-500/20 bg-rose-500/10 text-rose-300',
-  SHIFT: 'border border-amber-500/20 bg-amber-500/10 text-amber-300',
-  OUTLIER: 'border border-fuchsia-500/20 bg-fuchsia-500/10 text-fuchsia-300',
+  OUTLIER: 'border border-fuchsia-300/35 bg-fuchsia-400/15 text-fuchsia-200',
+  SWING: 'border border-amber-400/25 bg-amber-400/10 text-amber-200',
+  SHIFT: 'border border-white/10 bg-white/[0.04] text-muted',
 };
 
 const directionTone: Record<'positive' | 'negative' | 'neutral', {
@@ -142,8 +141,8 @@ export function SignalCard({ signal, onOpenDetail }: { signal: Signal; onOpenDet
       <div className="min-w-0 pl-3">
         {/* Level 1: badges */}
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] ${toneMap[signal.signal_type]}`}>
-            {formatSignalLabel(signal.signal_type)}
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] ${toneMap[signal.severity ?? signal.signal_type]}`}>
+            {formatSignalLabel(signal.severity ?? signal.signal_type)}
           </span>
           {importance !== 'Watch' && (
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] ${importanceBadgeTone[importance]}`}>

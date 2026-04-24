@@ -47,11 +47,31 @@ kill_port() {
   fi
 }
 
+BACKEND_DIR="$ROOT/backend"
+SQLITE_DB="$ROOT/shyfty.db"
+
 echo "Stopping dev services..."
 kill_pidfile "$ROOT/.run/backend.pid"
 kill_pidfile "$ROOT/.run/web.pid"
 kill_port "$BACKEND_PORT"
 kill_port "$WEB_PORT"
-rm -f "$ROOT/.run/seed.log"
+rm -f "$ROOT/.run/sync.log"
 
 echo "Stopped backend on :$BACKEND_PORT and web on :$WEB_PORT."
+
+if [[ -f "$BACKEND_DIR/.venv/bin/activate" ]]; then
+  if [[ -z "${DATABASE_URL:-}" ]]; then
+    if [[ -f "$SQLITE_DB" ]]; then
+      export DATABASE_URL="sqlite:///$SQLITE_DB"
+    else
+      export DATABASE_URL="postgresql+psycopg://postgres:postgres@localhost:5432/shyfty"
+    fi
+  fi
+
+  echo "Resetting sports data..."
+  (
+    cd "$BACKEND_DIR"
+    source .venv/bin/activate
+    python -m app.cli.reset_data --mode sports-data
+  ) || echo "Data reset skipped (DB may already be empty)."
+fi

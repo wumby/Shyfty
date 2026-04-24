@@ -1,15 +1,26 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import { EmptyState } from '../components/EmptyState';
+import { LastGameSignalCard } from '../components/LastGameSignalCard';
 import { LoadingState } from '../components/LoadingState';
-import { PageIntro } from '../components/PageIntro';
 import { SectionHeader } from '../components/SectionHeader';
-import { SignalCard } from '../components/SignalCard';
+import { SignalDetailDrawer } from '../components/SignalDetailDrawer';
 import { useAuthStore } from '../store/useAuthStore';
 import { useSignalStore } from '../store/useSignalStore';
 import { api } from '../services/api';
-import type { TeamDetail } from '../types';
+import type { Signal, TeamDetail } from '../types';
+
+function groupSignalsByPlayerGame(signals: Signal[]): Signal[][] {
+  const grouped = new Map<string, Signal[]>();
+  for (const signal of signals) {
+    const key = `${signal.player_id ?? signal.team_id}:${signal.game_id ?? signal.event_date ?? 'unknown'}`;
+    const existing = grouped.get(key);
+    if (existing) existing.push(signal);
+    else grouped.set(key, [signal]);
+  }
+  return [...grouped.values()];
+}
 
 export function TeamDetailPage() {
   const { id = '' } = useParams();
@@ -21,6 +32,7 @@ export function TeamDetailPage() {
   const [team, setTeam] = useState<TeamDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [detailSignalId, setDetailSignalId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -43,6 +55,11 @@ export function TeamDetailPage() {
     void load();
   }, [id]);
 
+  const groupedSignals = useMemo(
+    () => (team ? groupSignalsByPlayerGame(team.recent_signals) : []),
+    [team],
+  );
+
   if (loading) return <LoadingState />;
   if (error || !team) return <EmptyState title="Team unavailable" copy={error ?? 'No team found.'} />;
 
@@ -59,19 +76,23 @@ export function TeamDetailPage() {
 
   return (
     <div className="space-y-4">
-      <PageIntro
-        eyebrow="Team Profile"
-        title={team.name}
-        description="Track the latest signals tied to this team. Player-by-player browsing stays in the Players tab."
-        breadcrumbs={[
-          { label: 'Teams', to: '/teams' },
-          { label: team.name },
-        ]}
-        aside={
+      <section className="panel-surface px-5 py-5 sm:px-6">
+        <nav className="mb-4 flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">
+          <Link to="/teams" className="transition hover:text-ink">Teams</Link>
+          <span className="text-white/20">/</span>
+          <span className="text-ink">{team.name}</span>
+        </nav>
+
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0">
+            <div className="eyebrow">Team Profile</div>
+            <h1 className="mt-2 text-3xl font-semibold text-ink sm:text-4xl">{team.name}</h1>
+            <p className="mt-2 max-w-3xl text-sm text-muted sm:text-[15px]">Track the latest signals tied to this team.</p>
+          </div>
           <button
             type="button"
             onClick={() => void handleFollow()}
-            className={`rounded-full border px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] transition ${
+            className={`shrink-0 rounded-full border px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] transition ${
               isFollowed
                 ? 'border-accent/40 bg-accentSoft text-accent hover:bg-accent/20'
                 : 'border-border bg-white/[0.04] text-muted hover:border-borderStrong hover:text-ink'
@@ -79,15 +100,9 @@ export function TeamDetailPage() {
           >
             {isFollowed ? '✓ Following' : '+ Follow team'}
           </button>
-        }
-      />
+        </div>
 
-      <section className="panel-surface px-4 py-4">
-        <SectionHeader
-          title="Team Snapshot"
-          description="Use this summary to size up team-level activity before opening the newest signals."
-        />
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <div className="mt-5 grid gap-3 sm:grid-cols-3">
           <div className="rounded-[20px] bg-white/[0.03] px-4 py-4">
             <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">League</div>
             <div className="mt-2 text-2xl font-semibold text-ink">{team.league_name}</div>
@@ -108,17 +123,19 @@ export function TeamDetailPage() {
           title="Latest Signals"
           description="This page now leads with the newest team activity instead of roster browsing."
         />
-        <div className="mt-4">
-          {team.recent_signals.length === 0 ? (
+        <div className="mt-4 space-y-4">
+          {groupedSignals.length === 0 ? (
             <div className="rounded-[20px] bg-white/[0.03] px-4 py-5 text-sm text-muted">
               No recent signals are active for this team yet.
             </div>
           ) : (
-            <div className="space-y-2">
-              {team.recent_signals.map((signal) => (
-                <SignalCard key={signal.id} signal={signal} />
-              ))}
-            </div>
+            groupedSignals.map((group) => (
+              <LastGameSignalCard
+                key={`${group[0]?.player_id ?? group[0]?.team_id ?? 'unknown'}-${group[0]?.game_id ?? group[0]?.event_date ?? 'game'}`}
+                signals={group}
+                onOpenDetail={(signalId) => setDetailSignalId(signalId)}
+              />
+            ))
           )}
         </div>
       </section>
@@ -145,6 +162,10 @@ export function TeamDetailPage() {
           </Link>
         </div>
       </section>
+
+      {detailSignalId != null ? (
+        <SignalDetailDrawer signalId={detailSignalId} onClose={() => setDetailSignalId(null)} />
+      ) : null}
     </div>
   );
 }

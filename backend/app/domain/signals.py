@@ -10,7 +10,7 @@ from typing import Optional
 from app.core.signal_config import get_signal_config, signal_config_path
 METRICS_BY_LEAGUE = {
     "NBA": ["points", "rebounds", "assists", "steals", "blocks", "turnovers", "minutes_played", "usage_rate"],
-    "NFL": ["passing_yards", "rushing_yards", "receiving_yards", "touchdowns", "usage_rate"],
+    "NFL": ["passing_yards", "rushing_yards", "receiving_yards", "touchdowns"],
 }
 
 TEAM_METRICS_BY_LEAGUE = {
@@ -18,6 +18,15 @@ TEAM_METRICS_BY_LEAGUE = {
 }
 
 BASELINE_WINDOW_SIZE = get_signal_config().windows.short_window
+
+SEVERITY_SHIFT_DEVIATION = 0.10
+SEVERITY_SWING_DEVIATION = 0.40
+SEVERITY_OUTLIER_DEVIATION = 0.80
+SEVERITY_RANK = {
+    "SHIFT": 1,
+    "SWING": 2,
+    "OUTLIER": 3,
+}
 
 
 @dataclass(frozen=True)
@@ -82,6 +91,31 @@ def movement_pct(current: float, baseline: float) -> Optional[float]:
     return ((current - baseline) / baseline) * 100
 
 
+def performance_ratio(current: float, baseline: float) -> Optional[float]:
+    if baseline == 0:
+        return None
+    return current / baseline
+
+
+def deviation_from_expected(current: float, baseline: float) -> Optional[float]:
+    performance = performance_ratio(current, baseline)
+    if performance is None:
+        return None
+    return abs(performance - 1.0)
+
+
+def severity_for_deviation(deviation: Optional[float]) -> Optional[str]:
+    if deviation is None:
+        return None
+    if deviation >= SEVERITY_OUTLIER_DEVIATION:
+        return "OUTLIER"
+    if deviation >= SEVERITY_SWING_DEVIATION:
+        return "SWING"
+    if deviation >= SEVERITY_SHIFT_DEVIATION:
+        return "SHIFT"
+    return None
+
+
 def trend_direction(current: float, baseline: float) -> str:
     tolerance = max(abs(baseline) * 0.02, 0.01)
     if math.isclose(current, baseline, abs_tol=tolerance):
@@ -91,14 +125,14 @@ def trend_direction(current: float, baseline: float) -> str:
 
 def metric_label(metric_name: str) -> str:
     labels = {
-        "points": "Scoring",
-        "rebounds": "Rebounding",
-        "assists": "Playmaking",
+        "points": "Points",
+        "rebounds": "Rebounds",
+        "assists": "Assists",
         "steals": "Steals",
         "blocks": "Blocks",
         "turnovers": "Turnovers",
         "minutes_played": "Minutes",
-        "usage_rate": "Usage",
+        "usage_rate": "Usage Rate",
         "passing_yards": "Passing Yards",
         "rushing_yards": "Rushing Yards",
         "receiving_yards": "Receiving Yards",
@@ -138,19 +172,21 @@ def baseline_window_label(window_size: Optional[int] = None) -> str:
     return f"last {size + 1} games"
 
 
-def importance_score(signal_type: str, z_score: float) -> float:
+def importance_score(signal_type: str, z_score: float = 0.0, deviation: Optional[float] = None) -> float:
     type_floor = {
-        "OUTLIER": 85.0,
-        "SPIKE": 68.0,
-        "DROP": 68.0,
+        "OUTLIER": 90.0,
+        "SWING": 72.0,
         "SHIFT": 58.0,
     }.get(signal_type, 50.0)
-    strength_bonus = min(abs(z_score) * 8.0, 15.0)
+    if deviation is not None:
+        strength_bonus = min(deviation * 20.0, 10.0)
+    else:
+        strength_bonus = min(abs(z_score) * 4.0, 10.0)
     return round(min(type_floor + strength_bonus, 100.0), 1)
 
 
-def importance_label(signal_type: str, z_score: float) -> str:
-    score = importance_score(signal_type, z_score)
+def importance_label(signal_type: str, z_score: float = 0.0, deviation: Optional[float] = None) -> str:
+    score = importance_score(signal_type, z_score, deviation)
     if score >= 85.0:
         return "High"
     if score >= 65.0:
@@ -280,23 +316,7 @@ def multi_window_agreement(snapshot: MetricSnapshot) -> float:
 
 
 def _classify_from_snapshot(snapshot: MetricSnapshot, metric_name: str) -> Optional[str]:
-    thresholds = get_signal_config().thresholds_for_metric(metric_name)
-    short_z = snapshot.short_window.z_score
-    usage_movement = None
-    if metric_name == "usage_rate":
-        usage_movement = movement_pct(snapshot.current_value, snapshot.medium_window.rolling_avg)
-        if usage_movement is not None and abs(usage_movement) < thresholds.usage_shift_pct:
-            return None
-
-    if max(abs(short_z), abs(snapshot.medium_window.z_score)) >= thresholds.outlier_z:
-        return "OUTLIER"
-    if short_z >= thresholds.spike_z:
-        return "SPIKE"
-    if short_z <= thresholds.drop_z:
-        return "DROP"
-    if metric_name == "usage_rate" and abs(short_z) >= thresholds.shift_z:
-        return "SHIFT"
-    return None
+    return severity_for_deviation(deviation_from_expected(snapshot.current_value, snapshot.baseline_value))
 
 
 def classify_signal(
@@ -317,14 +337,14 @@ def classify_signal(
         source_stat_id=0,
         event_date=None,
         baseline_stat_ids=[],
-        current_value=current_value or baseline_value or 0.0,
-        baseline_value=baseline_value or 0.0,
+        current_value=current_value if current_value is not None else baseline_value if baseline_value is not None else 0.0,
+        baseline_value=baseline_value if baseline_value is not None else 0.0,
         rolling_stddev=variance,
         z_score=z_score,
-        short_window=WindowSnapshot([], [], baseline_value or 0.0, variance, z_score),
-        medium_window=WindowSnapshot([], [], baseline_value or 0.0, variance, z_score),
-        season_window=WindowSnapshot([], [], baseline_value or 0.0, variance, z_score),
-        ewma=baseline_value or 0.0,
+        short_window=WindowSnapshot([], [], baseline_value if baseline_value is not None else 0.0, variance, z_score),
+        medium_window=WindowSnapshot([], [], baseline_value if baseline_value is not None else 0.0, variance, z_score),
+        season_window=WindowSnapshot([], [], baseline_value if baseline_value is not None else 0.0, variance, z_score),
+        ewma=baseline_value if baseline_value is not None else 0.0,
         recent_delta=(current_value or 0.0) - (baseline_value or 0.0),
         trend_slope=0.0,
         volatility_index=0.0,
@@ -336,10 +356,8 @@ def classify_signal(
 
 
 def _classification_reason_from_snapshot(signal_type: Optional[str], snapshot: MetricSnapshot, metric_name: str) -> str:
-    thresholds = get_signal_config().thresholds_for_metric(metric_name)
-    short_z = snapshot.short_window.z_score
-    medium_z = snapshot.medium_window.z_score
-    season_z = snapshot.season_window.z_score
+    performance = performance_ratio(snapshot.current_value, snapshot.baseline_value)
+    deviation = deviation_from_expected(snapshot.current_value, snapshot.baseline_value)
     context_parts: list[str] = []
     if snapshot.opponent_rank is not None:
         context_parts.append(f"opponent rank={snapshot.opponent_rank}")
@@ -349,26 +367,22 @@ def _classification_reason_from_snapshot(signal_type: Optional[str], snapshot: M
         context_parts.append("high volatility profile")
     suffix = f" Context: {', '.join(context_parts)}." if context_parts else ""
 
+    if performance is None or deviation is None:
+        return "No classification threshold was met because expected value was zero."
     if signal_type == "OUTLIER":
         return (
-            f"Short |z|={abs(short_z):.2f} or medium |z|={abs(medium_z):.2f} crossed the outlier threshold "
-            f"of {thresholds.outlier_z:.2f}; season z={season_z:.2f}.{suffix}"
-        )
-    if signal_type == "SPIKE":
-        return (
-            f"Short z={short_z:.2f} cleared the spike threshold of {thresholds.spike_z:.2f}; "
-            f"medium z={medium_z:.2f}, season z={season_z:.2f}.{suffix}"
-        )
-    if signal_type == "DROP":
-        return (
-            f"Short z={short_z:.2f} cleared the drop threshold of {thresholds.drop_z:.2f}; "
-            f"medium z={medium_z:.2f}, season z={season_z:.2f}.{suffix}"
+            f"Performance={performance:.2f}x expected, deviation={deviation:.2f}; "
+            f"crossed the OUTLIER threshold of {SEVERITY_OUTLIER_DEVIATION:.2f}.{suffix}"
         )
     if signal_type == "SHIFT":
-        usage_shift = snapshot.usage_shift or 0.0
         return (
-            f"{metric_label(metric_name)} triggered a role shift with short |z|={abs(short_z):.2f}, "
-            f"medium z={medium_z:.2f}, usage shift={usage_shift:+.2f}.{suffix}"
+            f"Performance={performance:.2f}x expected, deviation={deviation:.2f}; "
+            f"crossed the SHIFT threshold of {SEVERITY_SHIFT_DEVIATION:.2f}.{suffix}"
+        )
+    if signal_type == "SWING":
+        return (
+            f"Performance={performance:.2f}x expected, deviation={deviation:.2f}; "
+            f"crossed the SWING threshold of {SEVERITY_SWING_DEVIATION:.2f}.{suffix}"
         )
     return "No classification threshold was met."
 
@@ -414,49 +428,20 @@ def build_narrative_summary(
 ) -> str:
     """Punchy, emotionally compelling one-liner for card display."""
     metric = _metric_phrase(metric_name).lower()
-    metric_title = _metric_phrase(metric_name)
-    az = abs(snapshot.z_score)
-    medium_z = snapshot.medium_window.z_score
-    trend = snapshot.trend_slope or 0.0
+    performance = performance_ratio(snapshot.current_value, snapshot.baseline_value)
+    deviation = deviation_from_expected(snapshot.current_value, snapshot.baseline_value)
+    if performance is None or deviation is None:
+        return f"{metric.title()} signal skipped because expected value was zero"
 
-    if signal_type == "SPIKE":
-        if az >= 3.5:
-            return f"Career-level {metric} burst — extreme outlier vs. any window"
-        if az >= 2.5 and medium_z > 1.5:
-            return f"Sharpest {metric} surge in recent games — trend accelerating"
-        if az >= 2.5:
-            return f"Explosive {metric} performance — largest spike in the window"
-        if az >= 1.5:
-            return f"Strong {metric} output — well above recent trend"
-        return f"Above-average {metric} game — holds vs. baseline"
-
-    if signal_type == "DROP":
-        if az >= 3.5:
-            return f"Sharpest {metric} collapse in recent games — role shrinking fast"
-        if az >= 2.5 and medium_z < -1.5:
-            return f"Extended {metric} decline — sustained multi-game pattern"
-        if az >= 2.5:
-            return f"Significant {metric} drop — worst in recent stretch"
-        if az >= 1.5:
-            return f"Below-trend {metric} — flagged for continued pattern"
-        return f"Soft {metric} output — worth watching"
-
-    if signal_type == "SHIFT":
-        if snapshot.z_score > 0:
-            if trend > 0.02:
-                return f"Sustained {metric} role expansion — upward trend confirmed"
-            return f"{metric_title} trending higher from recent baseline"
-        else:
-            if trend < -0.02:
-                return f"{metric_title} role contracting — extended downward pattern"
-            return f"{metric_title} shifted below recent baseline"
+    direction = "above" if performance > 1 else "below"
+    rounded = max(1, round(deviation * 100))
 
     if signal_type == "OUTLIER":
-        if az >= 4.0:
-            return f"Historic {metric} outlier — unprecedented vs. any window"
-        if az >= 3.0:
-            return f"Extreme {metric} outlier — well outside all windows"
-        return f"Unusual {metric} outlier — flagged across multiple windows"
+        return f"Extreme {metric} result — {rounded}% {direction} expected"
+    if signal_type == "SWING":
+        return f"Major {metric} swing — {rounded}% {direction} expected"
+    if signal_type == "SHIFT":
+        return f"{metric.title()} shifted {rounded}% {direction} expected"
 
     return f"Unusual {metric} signal detected"
 
@@ -472,29 +457,14 @@ def build_explanation(
 ) -> str:
     metric_phrase = _metric_phrase(metric_name)
     baseline_window = BASELINE_WINDOW_SIZE + 1
-    if signal_type == "SHIFT":
-        direction_text = "up" if current >= baseline else "down"
-        usage_text = ""
-        if snapshot is not None and snapshot.usage_shift is not None:
-            usage_text = f" with usage moving {snapshot.usage_shift:+.1f} points versus the medium window"
-        return (
-            f"{metric_phrase} role shifted {direction_text} against {subject_name}'s recent baseline "
-            f"over the last {baseline_window} games{usage_text}"
-        )
-    if math.isclose(baseline, 0.0, abs_tol=0.05):
-        direction_text = "above" if current >= baseline else "below"
-        return f"{metric_phrase} is {direction_text} the recent baseline over the last {baseline_window} games"
+    if baseline == 0:
+        return f"{metric_phrase} could not be compared because expected value was zero"
 
-    percent_change = abs(((current - baseline) / baseline) * 100)
-    rounded_change = max(1, int(round(percent_change)))
+    deviation = deviation_from_expected(current, baseline) or 0.0
+    rounded_change = max(1, int(round(deviation * 100)))
     direction_text = "above" if current >= baseline else "below"
 
-    if abs(z_score) >= 2.5:
-        qualifier = "well "
-    elif abs(z_score) >= 1.5:
-        qualifier = ""
-    else:
-        qualifier = "slightly "
+    qualifier = "sharply " if signal_type == "OUTLIER" else "well " if signal_type == "SWING" else ""
 
     return (
         f"{metric_phrase} is {rounded_change}% {qualifier}{direction_text} "
@@ -509,35 +479,22 @@ def score_signal(
     event_date: Optional[date],
     latest_event_date: Optional[date],
 ) -> tuple[float, str]:
-    scoring = get_signal_config().scoring
-    agreement = multi_window_agreement(snapshot)
+    deviation = deviation_from_expected(snapshot.current_value, snapshot.baseline_value) or 0.0
+    performance = performance_ratio(snapshot.current_value, snapshot.baseline_value)
     recency_days = (latest_event_date - event_date).days if latest_event_date and event_date else 0
     recency_factor = max(0.0, 1.0 - max(recency_days, 0) / 7.0)
-    normalized_trend = abs(snapshot.recent_delta) / max(snapshot.medium_window.rolling_stddev, 1.0)
-    volatility_penalty = max(snapshot.volatility_index - 1.0, 0.0) * scoring.volatility_penalty
-    short_strength = 1.0 - math.exp(-abs(snapshot.short_window.z_score))
-    medium_strength = 1.0 - math.exp(-abs(snapshot.medium_window.z_score))
-    season_strength = 1.0 - math.exp(-abs(snapshot.season_window.z_score))
-
-    score = (
-        scoring.base_score
-        + short_strength * scoring.short_z_weight
-        + medium_strength * scoring.medium_z_weight
-        + season_strength * scoring.season_z_weight
-        + agreement * scoring.agreement_bonus
-        + min(normalized_trend, 2.0) * scoring.trend_weight
-        + recency_factor * scoring.recency_bonus
-        - min(volatility_penalty, 24.0)
-    )
-    if signal_type == "SHIFT":
-        score *= 0.9
-
-    bounded = round(max(0.0, min(score, scoring.max_score)), 1)
+    severity_base = {
+        "OUTLIER": 90.0,
+        "SWING": 72.0,
+        "SHIFT": 55.0,
+    }.get(signal_type, 0.0)
+    score = severity_base + min(deviation * 20.0, 10.0) + recency_factor * 4.0
+    bounded = round(max(0.0, min(score, 100.0)), 1)
     explanation = (
-        f"Score {bounded:.1f} from short/medium/season z ({snapshot.short_window.z_score:+.2f}, "
-        f"{snapshot.medium_window.z_score:+.2f}, {snapshot.season_window.z_score:+.2f}), "
-        f"agreement={agreement:.2f}, trend={snapshot.trend_slope:+.2f}, "
-        f"volatility penalty={min(volatility_penalty, 24.0):.1f}."
+        f"Score {bounded:.1f} from severity={signal_type}, performance="
+        f"{performance:.2f}x expected, deviation={deviation:.2f}, recency_factor={recency_factor:.2f}."
+        if performance is not None
+        else f"Score {bounded:.1f}; expected value was zero."
     )
     return bounded, explanation
 
@@ -554,16 +511,15 @@ def recommend_thresholds_from_samples(samples_by_metric: dict[str, list[dict[str
     for metric_name, samples in samples_by_metric.items():
         if len(samples) < 5:
             continue
-        short_scores = sorted(sample["short_z"] for sample in samples)
-        medium_scores = sorted(sample["medium_z"] for sample in samples)
+        deviations = sorted(abs(sample.get("deviation", 0.0)) for sample in samples)
         stddevs = sorted(sample["consistency_std"] for sample in samples)
         low_index = max(0, int(len(samples) * 0.35) - 1)
         mid_index = max(0, int(len(samples) * 0.65) - 1)
         high_index = min(len(samples) - 1, int(len(samples) * 0.85))
         recommendations["metrics"][metric_name] = {
-            "spike_z": round(short_scores[mid_index], 2),
-            "outlier_z": round(short_scores[high_index], 2),
-            "shift_z": round(medium_scores[mid_index], 2),
+            "shift_deviation": round(deviations[low_index], 2),
+            "swing_deviation": round(deviations[mid_index], 2),
+            "outlier_deviation": round(deviations[high_index], 2),
             "consistency_std": round(stddevs[low_index], 2),
         }
     return recommendations
@@ -573,8 +529,4 @@ def metric_success(signal_type: str, *, baseline_value: float, future_values: li
     if not future_values:
         return False
     future_avg = mean(future_values)
-    if signal_type in {"SPIKE", "OUTLIER", "SHIFT"}:
-        return future_avg >= baseline_value
-    if signal_type == "DROP":
-        return future_avg <= baseline_value
-    return False
+    return not math.isclose(future_avg, baseline_value, abs_tol=0.05)

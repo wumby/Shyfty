@@ -3,15 +3,14 @@ import { Link } from 'react-router-dom';
 
 import { EmptyState } from '../components/EmptyState';
 import { LoadingState } from '../components/LoadingState';
-import { PageIntro } from '../components/PageIntro';
 import { SectionHeader } from '../components/SectionHeader';
 import { useSignalStore } from '../store/useSignalStore';
 
-const LEAGUES = ['All', 'NBA', 'NFL'];
+const LEAGUES = ['All', 'NBA', 'NFL'] as const;
 
 export function TeamsPage() {
   const { teams, loading, fetchTeams } = useSignalStore();
-  const [leagueFilter, setLeagueFilter] = useState('All');
+  const [leagueFilter, setLeagueFilter] = useState<(typeof LEAGUES)[number]>('All');
   const [query, setQuery] = useState('');
 
   useEffect(() => {
@@ -29,44 +28,40 @@ export function TeamsPage() {
 
   if (loading) return <LoadingState />;
   if (!teams.length) {
-    return <EmptyState title="No teams" copy="Seed the backend to populate the league directory." />;
+    return <EmptyState title="No teams yet" copy="No live team data has been synced yet. Run a bootstrap or incremental sync to populate the directory." />;
   }
 
   return (
     <div className="space-y-4">
-      <PageIntro
-        eyebrow="Team Directory"
-        title="Teams"
-        description="Browse teams by current signal activity. Pick a league, scan the live board, then open a team to inspect its latest signals."
-        aside={<div className="rounded-full bg-white/[0.04] px-4 py-2 text-xs uppercase tracking-[0.22em] text-[#ffd8bd]">{filtered.length} shown</div>}
-      />
+      <section className="panel-surface relative z-10 px-5 py-5 sm:px-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0">
+            <div className="eyebrow">Team Directory</div>
+            <h1 className="mt-2 text-3xl font-semibold text-ink sm:text-4xl">Teams</h1>
+            <p className="mt-2 max-w-3xl text-sm text-muted sm:text-[15px]">Search by team name or narrow to one league.</p>
+          </div>
+          <div className="shrink-0">
+            <div className="rounded-full bg-white/[0.04] px-4 py-2 text-xs uppercase tracking-[0.22em] text-[#ffd8bd]">{filtered.length} shown</div>
+          </div>
+        </div>
 
-      <section className="panel-surface px-4 py-4">
-        <SectionHeader
-          title="Browse Teams"
-          description="Search by team name or narrow the directory to one league."
-        />
-
-        <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="mt-5 grid gap-3 sm:grid-cols-[minmax(0,1fr),180px]">
           <input
             type="text"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search teams"
-            className="field-shell w-full max-w-[360px] px-4 py-3 text-sm placeholder:text-muted/70"
+            className="field-shell px-4 py-2 text-sm placeholder:text-muted/70"
           />
-          <div className="flex flex-wrap gap-2">
+          <select
+            value={leagueFilter}
+            onChange={(event) => setLeagueFilter(event.target.value as (typeof LEAGUES)[number])}
+            className="field-shell px-3 py-2 text-sm"
+          >
             {LEAGUES.map((league) => (
-              <button
-                key={league}
-                type="button"
-                onClick={() => setLeagueFilter(league)}
-                className={`pill-button ${leagueFilter === league ? 'pill-button-active' : ''}`}
-              >
-                {league}
-              </button>
+              <option key={league} value={league}>{league === 'All' ? 'All Sports' : league}</option>
             ))}
-          </div>
+          </select>
         </div>
       </section>
 
@@ -100,19 +95,25 @@ export function TeamsPage() {
                           <Link
                             key={team.id}
                             to={`/teams/${team.id}`}
-                            className="block rounded-[24px] bg-white/[0.02] px-4 py-4 transition hover:bg-white/[0.05]"
+                            className="group grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 rounded-[18px] border border-white/[0.06] bg-white/[0.02] px-3 py-3 transition hover:border-white/[0.1] hover:bg-white/[0.055]"
                           >
-                            <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <div className="text-xl font-semibold text-ink">{team.name}</div>
-                                <div className="mt-1 text-sm text-muted">{team.league_name}</div>
-                              </div>
-                              <div className="h-2.5 w-2.5 rounded-full bg-accent shadow-[0_0_14px_rgba(249,115,22,0.45)]" />
-                            </div>
-                            <div className="mt-4 flex items-center justify-between text-sm">
-                              <span className="text-muted">{activityCount} active signals</span>
-                              <span className="font-semibold text-[#ffd8bd]">Open team</span>
-                            </div>
+                            <span className="min-w-0">
+                              <span className="block truncate text-[17px] font-bold leading-tight text-ink">{team.name}</span>
+                              <span className="mt-0.5 flex items-center gap-2 text-[12px] text-muted">
+                                <span>{team.league_name}</span>
+                                {activityCount ? (
+                                  <>
+                                    <span className="text-white/15">•</span>
+                                    <span>{activityCount} signal{activityCount !== 1 ? 's' : ''}</span>
+                                  </>
+                                ) : null}
+                              </span>
+                            </span>
+                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.03] text-muted transition group-hover:border-accent/40 group-hover:bg-accent/10 group-hover:text-[#ffd8bd]">
+                              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                                <path d="M4.5 2.5L8 6L4.5 9.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            </span>
                           </Link>
                         );
                       })}

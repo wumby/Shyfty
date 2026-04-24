@@ -23,20 +23,28 @@ class SignalDomainTests(unittest.TestCase):
         self.assertEqual(round(snapshots[-1].baseline_value, 2), 30.25)
         self.assertEqual(round(snapshots[-1].z_score, 2), 7.16)
 
-    def test_classify_signal_preserves_current_rules(self) -> None:
-        self.assertEqual(classify_signal(2.6, 0.5, "points", 44.0, 30.25), "OUTLIER")
-        self.assertEqual(classify_signal(1.7, 1.2, "points", 28.0, 26.0), "SPIKE")
-        self.assertEqual(classify_signal(-1.7, 1.2, "points", 29.0, 31.0), "DROP")
+    def test_classify_signal_uses_direction_agnostic_severity(self) -> None:
+        self.assertEqual(classify_signal(2.6, 0.5, "points", 44.0, 20.0), "OUTLIER")
+        self.assertEqual(classify_signal(1.7, 1.2, "points", 29.0, 20.0), "SWING")
+        self.assertEqual(classify_signal(-1.7, 1.2, "points", 12.0, 20.0), "SWING")
         self.assertEqual(classify_signal(1.1, 1.2, "usage_rate", 38.2, 34.2), "SHIFT")
         self.assertIsNone(classify_signal(0.2, 0.5, "rebounds", 13.0, 13.0))
-        self.assertIsNone(classify_signal(1.0, 0.5, "touchdowns", 3.0, 2.5))
+        self.assertIsNone(classify_signal(1.0, 0.5, "touchdowns", 3.0, 0.0))
         self.assertIsNone(classify_signal(-2.4, 0.01, "usage_rate", 0.28, 0.30))
 
     def test_classification_reason_and_importance_label_match_thresholds(self) -> None:
-        self.assertIn("outlier threshold", classification_reason("OUTLIER", 2.6, 0.4, "points"))
-        self.assertEqual(classification_reason(None, 0.2, 0.5, "rebounds"), "No classification threshold was met.")
+        snapshots = build_metric_snapshots(
+            "points",
+            [
+                PlayerGameStat(game_id=1, points=20),
+                PlayerGameStat(game_id=2, points=20),
+                PlayerGameStat(game_id=3, points=44),
+            ],
+        )
+        self.assertIn("OUTLIER threshold", classification_reason("OUTLIER", snapshots[-1], "points"))
+        self.assertIn("expected value was zero", classification_reason(None, 0.2, 0.5, "rebounds"))
         self.assertEqual(importance_label("OUTLIER", 2.6), "High")
-        self.assertEqual(importance_label("SPIKE", 1.7), "Medium")
+        self.assertEqual(importance_label("SWING", 1.7), "Medium")
 
 
 if __name__ == "__main__":

@@ -1,29 +1,30 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
+import { FeedToolbar } from '../components/FeedToolbar';
+import { FilterDrawer } from '../components/FilterDrawer';
 import { LastGameSignalCard } from '../components/LastGameSignalCard';
 import { LoadingState } from '../components/LoadingState';
-import { PageIntro } from '../components/PageIntro';
-import { SectionHeader } from '../components/SectionHeader';
 import { SignalDetailDrawer } from '../components/SignalDetailDrawer';
 import { useSignalStore } from '../store/useSignalStore';
-import type { Signal } from '../types';
+import type { Signal, SignalFilters, SortMode } from '../types';
 
 const LEAGUES = ['All', 'NBA', 'NFL'];
+const SORTS: SortMode[] = ['newest', 'most_important', 'biggest_deviation'];
 
 const SIGNAL_TYPE_FILTERS = [
   { label: 'All', value: 'All' },
   { label: 'Outliers', value: 'OUTLIER' },
-  { label: 'Breakouts', value: 'SPIKE' },
-  { label: 'Dips', value: 'DROP' },
-  { label: 'Swings', value: 'SHIFT' },
+  { label: 'Swings', value: 'SWING' },
+  { label: 'Shifts', value: 'SHIFT' },
 ] as const;
 
 type SignalTypeFilterValue = (typeof SIGNAL_TYPE_FILTERS)[number]['value'];
 
 function getSignalPriority(signal: Signal): number {
   if (typeof signal.importance === 'number') return signal.importance;
-  return Math.abs(signal.z_score);
+  const severityRank = signal.severity === 'OUTLIER' ? 3 : signal.severity === 'SWING' ? 2 : 1;
+  return severityRank * 100 + (signal.deviation ?? Math.abs(signal.z_score));
 }
 
 function groupSignalsByPlayerGame(signals: Signal[]): Signal[][] {
@@ -77,8 +78,9 @@ function FreshnessBar() {
 }
 
 export function SignalFeedPage() {
-  const { filters, signals, loadingInitial, loadingMore, hasMore, setFilters, fetchSignals, loadMore } = useSignalStore();
+  const { filters, signals, loadingInitial, loadingMore, hasMore, ingestStatus, setFilters, fetchSignals, loadMore } = useSignalStore();
   const [detailSignalId, setDetailSignalId] = useState<number | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
 
   const leagueFromUrl = searchParams.get('league') ?? 'All';
@@ -87,109 +89,111 @@ export function SignalFeedPage() {
   const activeSignalType = (SIGNAL_TYPE_FILTERS.some((f) => f.value === signalTypeFromUrl)
     ? signalTypeFromUrl
     : 'All') as SignalTypeFilterValue;
+  const sortFromUrl = searchParams.get('sort') as SortMode | null;
+  const activeSort = sortFromUrl && SORTS.includes(sortFromUrl) ? sortFromUrl : 'newest';
   const groupedSignals = groupSignalsByPlayerGame(signals);
 
-  useEffect(() => {
-    setFilters({
+  const activeFilters = useMemo<SignalFilters>(
+    () => ({
       league: activeLeague === 'All' ? undefined : activeLeague,
       signal_type: activeSignalType === 'All' ? undefined : activeSignalType,
-      sort: 'newest',
+      sort: activeSort,
       feed: 'all',
-    });
-  }, [activeLeague, activeSignalType, setFilters]);
+    }),
+    [activeLeague, activeSignalType, activeSort],
+  );
+
+  useEffect(() => {
+    setFilters(activeFilters);
+  }, [activeFilters, setFilters]);
 
   useEffect(() => {
     void fetchSignals();
   }, [fetchSignals, filters]);
 
-  function updateParams(next: { league?: string; signal_type?: string }) {
+  function updateParams(next: SignalFilters) {
     const params = new URLSearchParams(searchParams);
-    if (!next.league || next.league === 'All') {
+    if (!next.league) {
       params.delete('league');
     } else {
       params.set('league', next.league);
     }
 
-    if (!next.signal_type || next.signal_type === 'All') {
+    if (!next.signal_type) {
       params.delete('signal_type');
     } else {
       params.set('signal_type', next.signal_type);
     }
 
+    if (!next.sort || next.sort === 'newest') {
+      params.delete('sort');
+    } else {
+      params.set('sort', next.sort);
+    }
+
     setSearchParams(params, { replace: true });
+  }
+
+  function removeFilter(key: 'league' | 'signal_type' | 'sort') {
+    updateParams({
+      ...activeFilters,
+      [key]: key === 'sort' ? 'newest' : undefined,
+    });
   }
 
   return (
     <>
-      <div className="flex min-w-0 flex-col gap-4">
-        <PageIntro
-          eyebrow="Last-Game Feed"
-          title="Feed"
-          description="Easy-to-read player signals from the most recent game played. Scan the player, the stat that stood out, and the game context."
-          aside={<FreshnessBar />}
+      <div className="flex max-w-[1540px] min-w-0 flex-col gap-6 transition-[padding] duration-300 lg:flex-row lg:items-start">
+        <FilterDrawer
+          open={filtersOpen}
+          filters={activeFilters}
+          onChange={updateParams}
+          onClose={() => setFiltersOpen(false)}
         />
 
-        <section className="panel-surface px-4 py-4">
-          <SectionHeader
-            title="Last-Game Signals"
-            description="Start with the latest signals below. Each card shows who stood out, what happened in the last game, and who they played."
-          />
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            {LEAGUES.map((league) => (
-              <button
-                key={league}
-                type="button"
-                onClick={() => updateParams({ league, signal_type: activeSignalType })}
-                className={`pill-button ${activeLeague === league ? 'pill-button-active' : ''}`}
-              >
-                {league}
-              </button>
-            ))}
+        <div className="min-w-0 flex-1">
+          <div className="sticky top-16 z-40">
+            <FeedToolbar
+              filters={activeFilters}
+              filtersOpen={filtersOpen}
+              onOpenFilters={() => setFiltersOpen(true)}
+              onRemoveFilter={removeFilter}
+              aside={<FreshnessBar />}
+            />
+            <div className="h-5 bg-gradient-to-b from-bg to-transparent backdrop-blur-md" />
           </div>
 
-          <div className="mt-3 flex flex-wrap gap-2">
-            {SIGNAL_TYPE_FILTERS.map((filter) => (
-              <button
-                key={filter.value}
-                type="button"
-                onClick={() => updateParams({ league: activeLeague, signal_type: filter.value })}
-                className={`pill-button ${activeSignalType === filter.value ? 'pill-button-active' : ''}`}
-              >
-                {filter.label}
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <section className="space-y-3">
-          {loadingInitial ? (
-            <LoadingState />
-          ) : signals.length === 0 ? (
-            <div className="panel-surface px-4 py-8 text-center text-sm text-muted">
-              No last-game signals are available for this view yet.
-            </div>
-          ) : (
-            <>
-              {groupedSignals.map((signalGroup) => (
-                <LastGameSignalCard
-                  key={`${signalGroup[0]?.player_id ?? 'player'}-${signalGroup[0]?.game_id ?? 'game'}`}
-                  signals={signalGroup}
-                  onOpenDetail={(signalId) => setDetailSignalId(signalId)}
-                />
-              ))}
-              {hasMore ? (
-                <button
-                  type="button"
-                  onClick={() => void loadMore()}
-                  className="mx-auto block rounded-full border border-border bg-white/[0.03] px-5 py-2.5 text-sm font-semibold text-muted transition hover:border-borderStrong hover:text-ink"
-                >
-                  {loadingMore ? 'Loading…' : 'Load more'}
-                </button>
-              ) : null}
-            </>
-          )}
-        </section>
+          <section className="space-y-4">
+            {loadingInitial ? (
+              <LoadingState />
+            ) : signals.length === 0 ? (
+              <div className="rounded-[22px] border border-white/[0.07] bg-white/[0.025] px-4 py-10 text-center text-sm text-muted">
+                {ingestStatus?.last_updated
+                  ? 'No last-game signals are available for this view yet.'
+                  : 'No real data has been synced yet. Run a bootstrap or incremental sync to build the live signal board.'}
+              </div>
+            ) : (
+              <>
+                {groupedSignals.map((signalGroup) => (
+                  <LastGameSignalCard
+                    key={`${signalGroup[0]?.player_id ?? signalGroup[0]?.team_id ?? 'unknown'}-${signalGroup[0]?.game_id ?? 'game'}`}
+                    signals={signalGroup}
+                    onOpenDetail={(signalId) => setDetailSignalId(signalId)}
+                  />
+                ))}
+                {hasMore ? (
+                  <button
+                    type="button"
+                    onClick={() => void loadMore()}
+                    className="mx-auto block rounded-full border border-border bg-white/[0.03] px-5 py-2.5 text-sm font-semibold text-muted transition hover:border-borderStrong hover:text-ink"
+                  >
+                    {loadingMore ? 'Loading…' : 'Load more'}
+                  </button>
+                ) : null}
+              </>
+            )}
+          </section>
+        </div>
       </div>
 
       {detailSignalId != null ? (

@@ -18,12 +18,10 @@ class SignalWindows:
 
 @dataclass(frozen=True)
 class SignalThresholds:
-    outlier_z: float = 2.5
-    spike_z: float = 1.5
-    drop_z: float = -1.5
-    shift_z: float = 1.0
+    shift_deviation: float = 0.10
+    swing_deviation: float = 0.40
+    outlier_deviation: float = 0.80
     consistency_std: float = 0.75
-    usage_shift_pct: float = 8.0
     high_volatility_index: float = 1.35
 
 

@@ -17,9 +17,9 @@ from app.models.rolling_metric_baseline_sample import RollingMetricBaselineSampl
 from app.models.signal import Signal
 from app.models.team import Team
 from app.models.team_game_stat import TeamGameStat
-from app.services.seed_service import seed_database
 from app.services.signal_generation_service import SignalGenerationError, generate_signals
 from app.services.signal_service import list_signals
+from tests.support_fixtures import load_sample_signal_dataset
 
 
 class SignalGenerationServiceTests(unittest.TestCase):
@@ -42,7 +42,7 @@ class SignalGenerationServiceTests(unittest.TestCase):
         self.temp_dir.cleanup()
 
     def test_generate_signals_backfills_historical_contexts_and_is_idempotent(self) -> None:
-        seed_database(self.session)
+        load_sample_signal_dataset(self.session)
 
         first_result = generate_signals(self.session)
         first_signal_count = self.session.execute(select(func.count()).select_from(Signal)).scalar_one()
@@ -76,7 +76,7 @@ class SignalGenerationServiceTests(unittest.TestCase):
 
         self.assertGreater(first_result.created_signals, 0)
         self.assertGreater(first_result.created_rolling_metrics, 0)
-        self.assertEqual(luka_point_signal_games, [3, 4, 5])
+        self.assertEqual(luka_point_signal_games, [4, 5])
         self.assertEqual(luka_point_rolling_games, [3, 4, 5])
         self.assertEqual(first_signal_count, second_signal_count)
         self.assertEqual(first_signal_count, distinct_signal_keys)
@@ -88,7 +88,7 @@ class SignalGenerationServiceTests(unittest.TestCase):
         self.assertGreater(second_result.updated_rolling_metrics, 0)
 
     def test_generate_signals_rolls_back_on_failure(self) -> None:
-        seed_database(self.session)
+        load_sample_signal_dataset(self.session)
 
         with mock.patch("app.services.signal_generation_service._upsert_rolling_metric", side_effect=RuntimeError("forced failure")):
             with self.assertRaises(SignalGenerationError):
@@ -101,7 +101,7 @@ class SignalGenerationServiceTests(unittest.TestCase):
         self.assertEqual(rolling_count, 0)
 
     def test_generated_signal_enrichment_matches_computed_values(self) -> None:
-        seed_database(self.session)
+        load_sample_signal_dataset(self.session)
         generate_signals(self.session)
 
         page = list_signals(
@@ -129,11 +129,12 @@ class SignalGenerationServiceTests(unittest.TestCase):
         self.assertTrue(signal.classification_reason)
 
     def test_generate_signals_persists_provenance_links(self) -> None:
-        seed_database(self.session)
+        load_sample_signal_dataset(self.session)
         generate_signals(self.session)
 
         rolling_metric = self.session.execute(
             select(RollingMetric)
+            .join(Signal, Signal.rolling_metric_id == RollingMetric.id)
             .where(RollingMetric.metric_name == "points")
             .order_by(RollingMetric.id)
         ).scalars().first()
@@ -202,7 +203,7 @@ class SignalGenerationServiceTests(unittest.TestCase):
         ).scalar_one()
         self.assertIsNone(signal.player_id)
         self.assertEqual(signal.metric_name, "points")
-        self.assertEqual(signal.signal_type, "SPIKE")
+        self.assertEqual(signal.signal_type, "SHIFT")
         self.assertIsNotNone(signal.source_team_stat_id)
 
 

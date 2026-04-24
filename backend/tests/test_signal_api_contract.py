@@ -7,10 +7,10 @@ from sqlalchemy.orm import sessionmaker
 
 from app.db.base import Base
 from app.services.player_service import get_player_metric_series, get_player_signals
-from app.services.seed_service import seed_database
 from app.services.signal_inspection_service import inspect_signal
 from app.services.signal_generation_service import generate_signals
 from app.services.signal_service import list_signals
+from tests.support_fixtures import load_sample_signal_dataset
 
 
 class SignalAPIContractTests(unittest.TestCase):
@@ -25,7 +25,7 @@ class SignalAPIContractTests(unittest.TestCase):
         self.session_factory = sessionmaker(bind=self.engine, autoflush=False, autocommit=False, future=True)
         Base.metadata.create_all(bind=self.engine)
         self.session = self.session_factory()
-        seed_database(self.session)
+        load_sample_signal_dataset(self.session)
         generate_signals(self.session)
 
     def tearDown(self) -> None:
@@ -50,6 +50,10 @@ class SignalAPIContractTests(unittest.TestCase):
         self.assertEqual(page.next_cursor, page.items[-1].id)
 
         signal = page.items[0]
+        self.assertIn(signal.severity, {"OUTLIER", "SWING", "SHIFT"})
+        self.assertEqual(signal.severity, signal.signal_type)
+        self.assertIsNotNone(signal.performance)
+        self.assertIsNotNone(signal.deviation)
         self.assertIsInstance(signal.importance, float)
         self.assertGreaterEqual(signal.signal_score, 0.0)
         self.assertLessEqual(signal.signal_score, 100.0)

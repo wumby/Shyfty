@@ -70,9 +70,12 @@ class SignalRead(BaseModel):
     team_name: str
     league_name: str
     signal_type: str
+    severity: str
     metric_name: str
     current_value: float
     baseline_value: float
+    performance: Optional[float] = None
+    deviation: Optional[float] = None
     z_score: float
     signal_score: float
     score_explanation: Optional[str] = None

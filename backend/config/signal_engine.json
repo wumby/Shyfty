@@ -8,23 +8,13 @@
   },
   "thresholds": {
     "global": {
-      "outlier_z": 2.5,
-      "spike_z": 1.5,
-      "drop_z": -1.5,
-      "shift_z": 1.0,
+      "shift_deviation": 0.1,
+      "swing_deviation": 0.4,
+      "outlier_deviation": 0.8,
       "consistency_std": 0.75,
-      "usage_shift_pct": 8.0,
       "high_volatility_index": 1.35
     },
-    "metrics": {
-      "usage_rate": {
-        "outlier_z": 4.0,
-        "spike_z": 2.25,
-        "drop_z": -2.25,
-        "shift_z": 1.5,
-        "usage_shift_pct": 15.0
-      }
-    }
+    "metrics": {}
   },
   "scoring": {
     "base_score": 24.0,
