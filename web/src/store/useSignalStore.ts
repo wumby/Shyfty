@@ -61,6 +61,8 @@ function applyReactionChange(signal: Signal, reactionType: ReactionType) {
   };
 }
 
+let fetchSeq = 0;
+
 export const useSignalStore = create<SignalStore>((set, get) => ({
   filters: { sort: 'newest', feed: 'all' },
   signals: [],
@@ -76,12 +78,14 @@ export const useSignalStore = create<SignalStore>((set, get) => ({
   feedContext: null,
   profile: null,
 
-  setFilters: (filters) => set({ filters }),
+  setFilters: (filters) => set({ filters, signals: [], hasMore: false, nextCursor: null }),
 
   fetchSignals: async () => {
+    const seq = ++fetchSeq;
     set({ loadingInitial: true, loading: true, error: null, signals: [], hasMore: false, nextCursor: null });
     try {
       const page = await api.getSignals(get().filters);
+      if (seq !== fetchSeq) return;
       set({
         signals: page.items,
         hasMore: page.has_more,
@@ -91,6 +95,7 @@ export const useSignalStore = create<SignalStore>((set, get) => ({
         loading: false,
       });
     } catch (error) {
+      if (seq !== fetchSeq) return;
       set({ error: error instanceof Error ? error.message : 'Unknown error', loadingInitial: false, loading: false });
     }
   },
@@ -225,10 +230,21 @@ export const useSignalStore = create<SignalStore>((set, get) => ({
   toggleFollowPlayer: async (playerId, currentlyFollowed) => {
     const profile = get().profile;
     if (!profile) return;
+    const previousSignals = get().signals;
     const nextPlayers = currentlyFollowed
       ? profile.follows.players.filter((id) => id !== playerId)
       : [...profile.follows.players, playerId];
-    set({ profile: { ...profile, follows: { ...profile.follows, players: nextPlayers } } });
+    const nextProfile = { ...profile, follows: { ...profile.follows, players: nextPlayers } };
+    const nextSignals =
+      get().filters.feed === 'following' && currentlyFollowed
+        ? previousSignals.filter((signal) => signal.player_id !== playerId || nextProfile.follows.teams.includes(signal.team_id))
+        : previousSignals;
+    set({
+      profile: nextProfile,
+      signals: nextProfile.follows.players.length === 0 && nextProfile.follows.teams.length === 0 ? [] : nextSignals,
+      hasMore: nextProfile.follows.players.length === 0 && nextProfile.follows.teams.length === 0 ? false : get().hasMore,
+      nextCursor: nextProfile.follows.players.length === 0 && nextProfile.follows.teams.length === 0 ? null : get().nextCursor,
+    });
     try {
       if (currentlyFollowed) {
         await api.unfollowPlayer(playerId);
@@ -236,17 +252,28 @@ export const useSignalStore = create<SignalStore>((set, get) => ({
         await api.followPlayer(playerId);
       }
     } catch {
-      set({ profile });
+      set({ profile, signals: previousSignals });
     }
   },
 
   toggleFollowTeam: async (teamId, currentlyFollowed) => {
     const profile = get().profile;
     if (!profile) return;
+    const previousSignals = get().signals;
     const nextTeams = currentlyFollowed
       ? profile.follows.teams.filter((id) => id !== teamId)
       : [...profile.follows.teams, teamId];
-    set({ profile: { ...profile, follows: { ...profile.follows, teams: nextTeams } } });
+    const nextProfile = { ...profile, follows: { ...profile.follows, teams: nextTeams } };
+    const nextSignals =
+      get().filters.feed === 'following' && currentlyFollowed
+        ? previousSignals.filter((signal) => signal.team_id !== teamId || nextProfile.follows.players.includes(signal.player_id ?? -1))
+        : previousSignals;
+    set({
+      profile: nextProfile,
+      signals: nextProfile.follows.players.length === 0 && nextProfile.follows.teams.length === 0 ? [] : nextSignals,
+      hasMore: nextProfile.follows.players.length === 0 && nextProfile.follows.teams.length === 0 ? false : get().hasMore,
+      nextCursor: nextProfile.follows.players.length === 0 && nextProfile.follows.teams.length === 0 ? null : get().nextCursor,
+    });
     try {
       if (currentlyFollowed) {
         await api.unfollowTeam(teamId);
@@ -254,7 +281,7 @@ export const useSignalStore = create<SignalStore>((set, get) => ({
         await api.followTeam(teamId);
       }
     } catch {
-      set({ profile });
+      set({ profile, signals: previousSignals });
     }
   },
 

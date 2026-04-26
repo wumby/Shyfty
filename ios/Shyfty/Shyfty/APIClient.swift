@@ -32,12 +32,13 @@ final class APIClient {
 
     // MARK: - Signals
 
-    func fetchSignals(league: String? = nil, signalType: String? = nil, player: String? = nil) async throws -> [Signal] {
+    func fetchSignals(league: String? = nil, signalType: String? = nil, player: String? = nil, feed: String? = nil) async throws -> [Signal] {
         var components = URLComponents(url: baseURL.appendingPathComponent("signals"), resolvingAgainstBaseURL: false)!
         components.queryItems = [
             league.map { URLQueryItem(name: "league", value: $0) },
             signalType.map { URLQueryItem(name: "signal_type", value: $0) },
             player.map { URLQueryItem(name: "player", value: $0) },
+            feed.map { URLQueryItem(name: "feed", value: $0) },
             URLQueryItem(name: "limit", value: "50")
         ].compactMap { $0 }
         let paginated: PaginatedSignals = try await get(components.url!)
@@ -78,6 +79,17 @@ final class APIClient {
 
     func fetchPlayerMetrics(id: Int) async throws -> [MetricSeriesPoint] {
         return try await get(baseURL.appendingPathComponent("players/\(id)/metrics"))
+    }
+
+    func followTeam(id: Int) async throws {
+        let _: EmptyResponse = try await post(baseURL.appendingPathComponent("teams/\(id)/follow"), body: EmptyBody())
+    }
+
+    func unfollowTeam(id: Int) async throws {
+        var request = URLRequest(url: baseURL.appendingPathComponent("teams/\(id)/follow"))
+        request.httpMethod = "DELETE"
+        let (_, response) = try await session.data(for: request)
+        _ = try validateResponse(response, data: Data())
     }
 
     func fetchTeam(id: Int) async throws -> TeamDetail {
@@ -242,7 +254,7 @@ final class APIClient {
             let baseURL = URL(string: configuredBaseURL),
             !configuredBaseURL.isEmpty
         else {
-            preconditionFailure("Missing ShyftyAPIBaseURL in Info.plist for physical-device builds. Run scripts/start-dev.sh to refresh the local debug host config.")
+            preconditionFailure("Missing ShyftyAPIBaseURL in Info.plist for physical-device builds. Run scripts/reset-dev.sh to refresh the local debug host config.")
         }
         return baseURL
 #endif

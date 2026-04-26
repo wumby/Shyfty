@@ -29,6 +29,7 @@
 		A10000000000000000000023 /* CompactSignalCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000023 /* CompactSignalCardView.swift */; };
 		A10000000000000000000024 /* SignalFilterSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000024 /* SignalFilterSheetView.swift */; };
 		A10000000000000000000025 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000025 /* ProfileView.swift */; };
+		A10000000000000000000026 /* SignalDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000026 /* SignalDetailView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -57,6 +58,7 @@
 		A20000000000000000000023 /* CompactSignalCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactSignalCardView.swift; sourceTree = "<group>"; };
 		A20000000000000000000024 /* SignalFilterSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignalFilterSheetView.swift; sourceTree = "<group>"; };
 		A20000000000000000000025 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
+		A20000000000000000000026 /* SignalDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignalDetailView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -121,6 +123,7 @@
 				A20000000000000000000010 /* FilterChipsView.swift */,
 				A20000000000000000000024 /* SignalFilterSheetView.swift */,
 				A20000000000000000000025 /* ProfileView.swift */,
+				A20000000000000000000026 /* SignalDetailView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -215,6 +218,7 @@
 				A10000000000000000000018 /* ShyftyTheme.swift in Sources */,
 				A10000000000000000000001 /* ShyftyApp.swift in Sources */,
 				A10000000000000000000022 /* SignalsView.swift in Sources */,
+				A10000000000000000000026 /* SignalDetailView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

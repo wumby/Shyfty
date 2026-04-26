@@ -144,9 +144,9 @@ def _reuse_or_fetch(
     """Return a recent on-disk snapshot if it's fresh enough, otherwise call the NBA API.
 
     Skips the 3-5 minute sleep-gated API round-trip when an equivalent snapshot was
-    already written within _SNAPSHOT_CACHE_HOURS. Because stop-dev.sh only wipes the
-    DB (not the raw snapshots), this short-circuits the fetch on every subsequent
-    start-dev cycle within the same day.
+    already written within _SNAPSHOT_CACHE_HOURS. Because reset-dev.sh keeps raw
+    snapshots, this short-circuits the fetch on every subsequent reset-dev cycle
+    within the same day.
     """
     root = raw_nba_root()
     cutoff = datetime.now(timezone.utc) - timedelta(hours=_SNAPSHOT_CACHE_HOURS)

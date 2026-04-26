@@ -4,7 +4,9 @@ import SwiftUI
 struct PlayerDetailView: View {
     let playerID: Int
 
+    @EnvironmentObject private var auth: AuthViewModel
     @State private var player: Player?
+    @State private var isFollowed = false
     @State private var signals: [Signal] = []
     @State private var metrics: [MetricSeriesPoint] = []
     @State private var errorMessage: String?
@@ -17,14 +19,37 @@ struct PlayerDetailView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     if let player {
                         VStack(alignment: .leading, spacing: 10) {
-                            Text(player.leagueName.uppercased())
-                                .shyftyEyebrow()
-                                .foregroundStyle(Color(red: 1.0, green: 0.85, blue: 0.74))
-                            Text(player.name)
-                                .shyftyHeadline(36)
-                            Text("\(player.teamName) · \(player.position)")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundStyle(ShyftyTheme.muted)
+                            HStack(alignment: .top) {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text(player.leagueName.uppercased())
+                                        .shyftyEyebrow()
+                                        .foregroundStyle(Color(red: 1.0, green: 0.85, blue: 0.74))
+                                    Text(player.name)
+                                        .shyftyHeadline(36)
+                                    Text("\(player.teamName) · \(player.position)")
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundStyle(ShyftyTheme.muted)
+                                }
+                                Spacer()
+                                if auth.currentUser != nil {
+                                    Button {
+                                        Task { await toggleFollowPlayer() }
+                                    } label: {
+                                        Text(isFollowed ? "✓ Following" : "+ Follow")
+                                            .font(.system(size: 10, weight: .semibold))
+                                            .kerning(0.8)
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 8)
+                                            .foregroundStyle(isFollowed ? ShyftyTheme.accent : Color(red: 1.0, green: 0.85, blue: 0.74))
+                                            .background(isFollowed ? ShyftyTheme.accentSoft : ShyftyTheme.accentSoft)
+                                            .overlay(
+                                                Capsule()
+                                                    .strokeBorder(ShyftyTheme.accent.opacity(isFollowed ? 0.35 : 0.25), lineWidth: 1)
+                                            )
+                                            .clipShape(Capsule())
+                                    }
+                                }
+                            }
                         }
                         .padding(22)
                         .shyftyPanel()
@@ -107,11 +132,28 @@ struct PlayerDetailView: View {
             async let signalRequest = APIClient.shared.fetchPlayerSignals(id: playerID)
             async let metricRequest = APIClient.shared.fetchPlayerMetrics(id: playerID)
 
-            player = try await playerRequest
+            let loadedPlayer = try await playerRequest
+            player = loadedPlayer
+            isFollowed = loadedPlayer.isFollowed
             signals = try await signalRequest
             metrics = try await metricRequest
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    @MainActor
+    private func toggleFollowPlayer() async {
+        let wasFollowed = isFollowed
+        isFollowed.toggle()
+        do {
+            if wasFollowed {
+                try await APIClient.shared.unfollowPlayer(id: playerID)
+            } else {
+                try await APIClient.shared.followPlayer(id: playerID)
+            }
+        } catch {
+            isFollowed = wasFollowed
         }
     }
 }

@@ -54,8 +54,14 @@ struct CompactSignalCardView: View {
 
 struct SignalListRowView: View {
     let signal: Signal
+    var isFollowed: Bool? = nil
+    var onFollowToggle: (() -> Void)? = nil
 
     private var tint: Color { SignalFormatting.tint(for: signal.signalType) }
+
+    private var displayName: String {
+        signal.subjectType == "team" ? signal.teamName : signal.playerName
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
@@ -65,10 +71,26 @@ struct SignalListRowView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(signal.playerName)
+                    Text(displayName)
                         .font(.system(size: 20, weight: .semibold, design: .serif))
                         .foregroundStyle(ShyftyTheme.ink)
-                    Spacer(minLength: 12)
+                    Spacer(minLength: 8)
+                    if let isFollowed, let onToggle = onFollowToggle {
+                        Button(action: onToggle) {
+                            Text(isFollowed ? "✓" : "+")
+                                .font(.system(size: 10, weight: .semibold))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .foregroundStyle(isFollowed ? ShyftyTheme.accent : ShyftyTheme.muted)
+                                .background(isFollowed ? ShyftyTheme.accentSoft : Color.white.opacity(0.04))
+                                .overlay(
+                                    Capsule()
+                                        .strokeBorder(isFollowed ? ShyftyTheme.accent.opacity(0.3) : ShyftyTheme.border, lineWidth: 1)
+                                )
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
                     Text(SignalFormatting.deltaText(current: signal.currentValue, baseline: signal.baselineValue, movementPct: signal.movementPct))
                         .font(.system(size: 22, weight: .semibold))
                         .foregroundStyle(tint)

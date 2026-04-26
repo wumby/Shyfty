@@ -116,10 +116,14 @@ struct HomeView: View {
                 .shyftyEyebrow()
                 .padding(.horizontal, 6)
 
-            NavigationLink(value: signal.playerID) {
+            if let playerID = signal.playerID {
+                NavigationLink(value: playerID) {
+                    CompactSignalCardView(signal: signal, emphasis: .featured)
+                }
+                .buttonStyle(.plain)
+            } else {
                 CompactSignalCardView(signal: signal, emphasis: .featured)
             }
-            .buttonStyle(.plain)
         }
     }
 
@@ -186,10 +190,14 @@ struct HomeView: View {
 
             VStack(spacing: 10) {
                 ForEach(viewModel.topSignals) { signal in
-                    NavigationLink(value: signal.playerID) {
+                    if let playerID = signal.playerID {
+                        NavigationLink(value: playerID) {
+                            CompactSignalCardView(signal: signal, emphasis: .compact)
+                        }
+                        .buttonStyle(.plain)
+                    } else {
                         CompactSignalCardView(signal: signal, emphasis: .compact)
                     }
-                    .buttonStyle(.plain)
                 }
             }
         }

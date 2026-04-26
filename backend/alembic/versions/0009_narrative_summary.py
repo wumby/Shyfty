@@ -1,10 +1,14 @@
-"""add narrative_summary to signals"""
+"""add narrative_summary to signals
+
+Revision ID: 0009_narrative_summary
+Revises: 0008b_signal_engine_upgrade
+"""
 
 from alembic import op
 import sqlalchemy as sa
 
 revision = "0009_narrative_summary"
-down_revision = "0007_signal_engine_upgrade"
+down_revision = "0008b_signal_engine_upgrade"
 branch_labels = None
 depends_on = None
 

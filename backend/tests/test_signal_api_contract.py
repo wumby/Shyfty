@@ -6,10 +6,13 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.db.base import Base
+from app.models.user import User
+from app.models.user_favorite import UserFavorite
+from app.models.user_follow import UserFollow
 from app.services.player_service import get_player_metric_series, get_player_signals
 from app.services.signal_inspection_service import inspect_signal
 from app.services.signal_generation_service import generate_signals
-from app.services.signal_service import list_signals
+from app.services.signal_service import FEED_MODE_FOLLOWING, list_signals
 from tests.support_fixtures import load_sample_signal_dataset
 
 
@@ -119,6 +122,70 @@ class SignalAPIContractTests(unittest.TestCase):
         self.assertEqual(second_page.next_cursor, second_page.items[-1].id)
         self.assertTrue(all(signal.id < first_page.next_cursor for signal in second_page.items))
         self.assertTrue(set(signal.id for signal in first_page.items).isdisjoint(signal.id for signal in second_page.items))
+
+    def test_following_feed_ignores_engagement_when_user_has_no_follows(self) -> None:
+        user = User(email="viewer@example.com", password_hash="hash")
+        self.session.add(user)
+        self.session.flush()
+
+        signal = list_signals(
+            db=self.session,
+            league=None,
+            team=None,
+            player=None,
+            signal_type=None,
+            limit=1,
+        ).items[0]
+        self.session.add(UserFavorite(user_id=user.id, signal_id=signal.id))
+        self.session.commit()
+
+        page = list_signals(
+            db=self.session,
+            league=None,
+            team=None,
+            player=None,
+            signal_type=None,
+            limit=5,
+            current_user_id=user.id,
+            feed_mode=FEED_MODE_FOLLOWING,
+        )
+
+        self.assertEqual(page.items, [])
+        self.assertFalse(page.has_more)
+
+    def test_following_feed_only_uses_explicit_follows(self) -> None:
+        user = User(email="follower@example.com", password_hash="hash")
+        self.session.add(user)
+        self.session.flush()
+
+        all_page = list_signals(
+            db=self.session,
+            league=None,
+            team=None,
+            player=None,
+            signal_type=None,
+            limit=10,
+        )
+        target = next(signal for signal in all_page.items if signal.player_id is not None)
+        other = next(signal for signal in all_page.items if signal.player_id != target.player_id)
+        self.session.add(UserFavorite(user_id=user.id, signal_id=other.id))
+        self.session.add(UserFollow(user_id=user.id, entity_type="player", entity_id=target.player_id))
+        self.session.commit()
+
+        page = list_signals(
+            db=self.session,
+            league=None,
+            team=None,
+            player=None,
+            signal_type=None,
+            limit=10,
+            current_user_id=user.id,
+            feed_mode=FEED_MODE_FOLLOWING,
+        )
+
+        self.assertTrue(page.items)
+        self.assertTrue(all(signal.player_id == target.player_id for signal in page.items))
+        self.assertNotIn(other.id, {signal.id for signal in page.items})
 
     def test_signal_trace_exposes_source_stat_and_baseline_window(self) -> None:
         page = list_signals(

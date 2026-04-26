@@ -68,7 +68,8 @@ struct Signal: Identifiable, Decodable, Hashable {
     }
 
     let id: Int
-    let playerID: Int
+    let subjectType: String?
+    let playerID: Int?
     let teamID: Int
     let playerName: String
     let teamName: String
@@ -97,6 +98,7 @@ struct Signal: Identifiable, Decodable, Hashable {
 
     enum CodingKeys: String, CodingKey {
         case id
+        case subjectType = "subject_type"
         case playerID = "player_id"
         case teamID = "team_id"
         case playerName = "player_name"

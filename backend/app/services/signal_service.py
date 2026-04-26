@@ -456,13 +456,15 @@ def _build_signal_items(rows, db: Session, current_user_id: Optional[int]) -> li
 
 def _personalized_reason(feed_mode: str, current_user_id: Optional[int], items: list[SignalRead]) -> Optional[str]:
     if feed_mode == FEED_MODE_FOLLOWING and current_user_id is None:
-        return "Sign in to build a following feed from your saved players, teams, and recent engagement."
+        return "Sign in to build a following feed."
     if feed_mode == FEED_MODE_FOR_YOU and current_user_id is None:
         return "Sign in to get a feed ranked from your saved signals, follows, and board activity."
+    if feed_mode == FEED_MODE_FOLLOWING and not items:
+        return "This view will fill in as you follow players or teams."
     if not items:
         return "This view will fill in as you follow players or teams and react to signals."
     if feed_mode == FEED_MODE_FOLLOWING:
-        return "Ranked from players, teams, and signal patterns you already care about."
+        return "Signals from players and teams you follow."
     if feed_mode == FEED_MODE_FOR_YOU:
         return "Ranked from your follows, saved signals, comments, and reaction history."
     return None
@@ -506,60 +508,70 @@ def list_signals(
             and_(UserFavorite.signal_id == Signal.id, UserFavorite.user_id == current_user_id),
         )
 
-    if feed_mode in {FEED_MODE_FOLLOWING, FEED_MODE_FOR_YOU} and current_user_id is not None:
-        engagement = _get_engagement_context(db, current_user_id)
-        followed_players = engagement["followed_players"]
-        followed_teams = engagement["followed_teams"]
-        metric_names = engagement["metric_names"]
-        if feed_mode == FEED_MODE_FOLLOWING:
-            if not followed_players and not followed_teams and not metric_names:
-                return PaginatedSignals(
-                    items=[],
-                    has_more=False,
-                    next_cursor=None,
-                    feed_context=FeedContextRead(
-                        feed_mode=feed_mode,
-                        sort_mode=sort_mode,
-                        personalization_reason=_personalized_reason(feed_mode, current_user_id, []),
-                    ),
-                )
-            follow_clauses = []
-            if followed_players:
-                follow_clauses.append(Signal.player_id.in_(followed_players))
-            if followed_teams:
-                follow_clauses.append(Signal.team_id.in_(followed_teams))
-            if metric_names:
-                follow_clauses.append(Signal.metric_name.in_(metric_names))
-            query = query.where(or_(*follow_clauses))
-        else:
-            query = query.limit(max(limit * 5, 120))
-            rows = db.execute(_apply_sort(query, SORT_MODE_NEWEST)).all()
-            items = _build_signal_items(rows, db, current_user_id)
-            preferred = _get_engagement_context(db, current_user_id)
-
-            def score(item: SignalRead) -> float:
-                score_value = item.importance
-                if item.player_id in preferred["followed_players"]:
-                    score_value += 8
-                if item.team_id in preferred["followed_teams"]:
-                    score_value += 6
-                if item.metric_name in preferred["metric_names"]:
-                    score_value += 4
-                score_value += item.comment_count * 0.7
-                score_value += sum(item.reaction_summary.model_dump().values()) * 0.35
-                return score_value
-
-            items = sorted(items, key=score, reverse=True)[:limit]
+    if feed_mode == FEED_MODE_FOLLOWING:
+        if current_user_id is None:
             return PaginatedSignals(
-                items=items,
+                items=[],
                 has_more=False,
                 next_cursor=None,
                 feed_context=FeedContextRead(
                     feed_mode=feed_mode,
                     sort_mode=sort_mode,
-                    personalization_reason=_personalized_reason(feed_mode, current_user_id, items),
+                    personalization_reason="Sign in to build a following feed.",
                 ),
             )
+        follow_rows = db.execute(
+            select(UserFollow.entity_type, UserFollow.entity_id).where(UserFollow.user_id == current_user_id)
+        ).all()
+        followed_players = {entity_id for entity_type, entity_id in follow_rows if entity_type == "player"}
+        followed_teams = {entity_id for entity_type, entity_id in follow_rows if entity_type == "team"}
+        if not followed_players and not followed_teams:
+            return PaginatedSignals(
+                items=[],
+                has_more=False,
+                next_cursor=None,
+                feed_context=FeedContextRead(
+                    feed_mode=feed_mode,
+                    sort_mode=sort_mode,
+                    personalization_reason=_personalized_reason(feed_mode, current_user_id, []),
+                ),
+            )
+        follow_clauses = []
+        if followed_players:
+            follow_clauses.append(Signal.player_id.in_(followed_players))
+        if followed_teams:
+            follow_clauses.append(Signal.team_id.in_(followed_teams))
+        query = query.where(or_(*follow_clauses))
+
+    elif feed_mode == FEED_MODE_FOR_YOU and current_user_id is not None:
+        query = query.limit(max(limit * 5, 120))
+        rows = db.execute(_apply_sort(query, SORT_MODE_NEWEST)).all()
+        items = _build_signal_items(rows, db, current_user_id)
+        preferred = _get_engagement_context(db, current_user_id)
+
+        def score(item: SignalRead) -> float:
+            score_value = item.importance
+            if item.player_id in preferred["followed_players"]:
+                score_value += 8
+            if item.team_id in preferred["followed_teams"]:
+                score_value += 6
+            if item.metric_name in preferred["metric_names"]:
+                score_value += 4
+            score_value += item.comment_count * 0.7
+            score_value += sum(item.reaction_summary.model_dump().values()) * 0.35
+            return score_value
+
+        items = sorted(items, key=score, reverse=True)[:limit]
+        return PaginatedSignals(
+            items=items,
+            has_more=False,
+            next_cursor=None,
+            feed_context=FeedContextRead(
+                feed_mode=feed_mode,
+                sort_mode=sort_mode,
+                personalization_reason=_personalized_reason(feed_mode, current_user_id, items),
+            ),
+        )
 
     paginated = sort_mode == SORT_MODE_NEWEST and feed_mode == FEED_MODE_ALL and not favorited_only
     query_limit = (limit + 1) if paginated else (max(limit * 5, 120) if sort_mode == SORT_MODE_DISCUSSED else limit)

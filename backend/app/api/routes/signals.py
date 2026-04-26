@@ -12,6 +12,7 @@ from app.services.favorite_service import get_favorited_signal_ids
 from app.services.signal_inspection_service import inspect_signal
 from app.services.signal_service import (
     FEED_MODE_ALL,
+    FEED_MODE_FOLLOWING,
     SORT_MODE_NEWEST,
     list_related_signals,
     list_signals,
@@ -64,6 +65,28 @@ def get_signals(
         feed_mode=feed,
         date_from=date_from,
         date_to=date_to,
+    )
+
+
+@router.get("/signals/following", response_model=PaginatedSignals)
+def get_following_signals(
+    league: Optional[str] = None,
+    signal_type: Optional[str] = Query(default=None, alias="signal_type"),
+    sort: str = Query(default=SORT_MODE_NEWEST),
+    limit: int = 24,
+    before_id: Optional[int] = Query(default=None, alias="before_id"),
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user),
+) -> PaginatedSignals:
+    return list_signals(
+        db=db,
+        league=league,
+        signal_type=signal_type,
+        limit=limit,
+        before_id=before_id,
+        current_user_id=current_user.id if current_user is not None else None,
+        sort_mode=sort,
+        feed_mode=FEED_MODE_FOLLOWING,
     )
 
 

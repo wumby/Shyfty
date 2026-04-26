@@ -161,10 +161,14 @@ struct FeedView: View {
 
                 LazyVStack(spacing: 12) {
                     ForEach(viewModel.signals) { signal in
-                        NavigationLink(value: signal.playerID) {
+                        if let playerID = signal.playerID {
+                            NavigationLink(value: playerID) {
+                                SignalCardView(signal: signal)
+                            }
+                            .buttonStyle(.plain)
+                        } else {
                             SignalCardView(signal: signal)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
             }

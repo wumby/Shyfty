@@ -9,7 +9,9 @@ SQLITE_DB="$ROOT/shyfty.db"
 
 BACKEND_PORT=8001
 WEB_PORT=5175
+BACKEND_HOST="${BACKEND_HOST:-0.0.0.0}"
 BACKEND_RELOAD="${BACKEND_RELOAD:-1}"
+DEV_FOREGROUND="${DEV_FOREGROUND:-0}"
 IPHONE_API_HOST="${SHYFTY_LAN_IP:-192.168.0.28}"
 DEV_SYNC_MAX_GAMES="${DEV_SYNC_MAX_GAMES:-50}"
 
@@ -59,22 +61,83 @@ kill_pidfile() {
 kill_port() {
   local port="$1"
   local pids
-  pids="$(lsof -ti tcp:"$port" || true)"
+  pids="$(lsof -tiTCP:"$port" -sTCP:LISTEN || true)"
   if [[ -n "$pids" ]]; then
-    echo "Killing processes on port $port: $pids"
+    echo "Killing listening processes on port $port: $pids"
     kill $pids >/dev/null 2>&1 || true
     sleep 1
-    pids="$(lsof -ti tcp:"$port" || true)"
+    pids="$(lsof -tiTCP:"$port" -sTCP:LISTEN || true)"
     if [[ -n "$pids" ]]; then
-      echo "Force killing processes on port $port: $pids"
+      echo "Force killing listening processes on port $port: $pids"
       kill -9 $pids >/dev/null 2>&1 || true
     fi
+  fi
+}
+
+ensure_pid_running() {
+  local pid="$1"
+  local name="$2"
+  local logfile="$3"
+  if ! kill -0 "$pid" >/dev/null 2>&1; then
+    echo "$name exited during startup. Recent log:"
+    tail -80 "$logfile" 2>/dev/null || true
+    exit 1
+  fi
+}
+
+wait_for_listen() {
+  local port="$1"
+  local name="$2"
+  local logfile="$3"
+  local attempts=30
+  local attempt=1
+
+  while (( attempt <= attempts )); do
+    if lsof -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 0.5
+    attempt=$((attempt + 1))
+  done
+
+  echo "$name did not start listening on port $port. Recent log:"
+  tail -80 "$logfile" 2>/dev/null || true
+  exit 1
+}
+
+wait_for_http() {
+  local url="$1"
+  local name="$2"
+  local logfile="$3"
+  local attempts=30
+  local attempt=1
+
+  while (( attempt <= attempts )); do
+    if curl -fsS "$url" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 0.5
+    attempt=$((attempt + 1))
+  done
+
+  echo "$name did not become healthy at $url. Recent log:"
+  tail -80 "$logfile" 2>/dev/null || true
+  exit 1
+}
+
+cleanup_started_processes() {
+  if [[ -n "${WEB_PID:-}" ]] && kill -0 "$WEB_PID" >/dev/null 2>&1; then
+    kill "$WEB_PID" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "${BACKEND_PID:-}" ]] && kill -0 "$BACKEND_PID" >/dev/null 2>&1; then
+    kill "$BACKEND_PID" >/dev/null 2>&1 || true
   fi
 }
 
 echo "Cleaning up old dev processes..."
 kill_pidfile "$ROOT/.run/backend.pid"
 kill_pidfile "$ROOT/.run/web.pid"
+kill_pidfile "$ROOT/.run/sync.pid"
 kill_port "$BACKEND_PORT"
 kill_port "$WEB_PORT"
 rm -f "$ROOT/.run/sync.log"
@@ -150,7 +213,9 @@ nohup /bin/bash -lc "
   export DATABASE_URL='$DATABASE_URL'
   python -m app.cli.run_ingest --mode bootstrap --source nba --source nfl --max-games '$DEV_SYNC_MAX_GAMES'
 " > "$ROOT/.run/sync.log" 2>&1 &
-echo "Sync PID $! running in background. Follow: tail -f $ROOT/.run/sync.log"
+SYNC_PID=$!
+echo "$SYNC_PID" > "$ROOT/.run/sync.pid"
+echo "Sync PID $SYNC_PID running in background. Follow: tail -f $ROOT/.run/sync.log"
 
 nohup /bin/bash -lc "
   set -euo pipefail
@@ -159,15 +224,17 @@ nohup /bin/bash -lc "
   export DATABASE_URL='$DATABASE_URL'
   export WATCHFILES_FORCE_POLLING='${WATCHFILES_FORCE_POLLING:-true}'
   if [[ '$BACKEND_RELOAD' == '1' ]]; then
-    exec uvicorn app.main:app --reload --host 0.0.0.0 --port '$BACKEND_PORT'
+    exec uvicorn app.main:app --reload --host '$BACKEND_HOST' --port '$BACKEND_PORT'
   else
-    exec uvicorn app.main:app --host 0.0.0.0 --port '$BACKEND_PORT'
+    exec uvicorn app.main:app --host '$BACKEND_HOST' --port '$BACKEND_PORT'
   fi
 " > "$ROOT/.run/backend.log" 2>&1 &
 BACKEND_PID=$!
 echo "$BACKEND_PID" > "$ROOT/.run/backend.pid"
 
-sleep 2
+ensure_pid_running "$BACKEND_PID" "Backend" "$ROOT/.run/backend.log"
+wait_for_listen "$BACKEND_PORT" "Backend" "$ROOT/.run/backend.log"
+wait_for_http "$LOCAL_API_URL/health" "Backend" "$ROOT/.run/backend.log"
 
 echo "Starting React dev server on :$WEB_PORT ..."
 cd "$WEB_DIR"
@@ -179,7 +246,8 @@ nohup /bin/bash -lc "
 WEB_PID=$!
 echo "$WEB_PID" > "$ROOT/.run/web.pid"
 
-sleep 2
+ensure_pid_running "$WEB_PID" "Web server" "$ROOT/.run/web.log"
+wait_for_listen "$WEB_PORT" "Web server" "$ROOT/.run/web.log"
 
 if [[ "${OPEN_IOS_PROJECT:-1}" == "1" ]]; then
   if command -v open >/dev/null 2>&1; then
@@ -208,3 +276,10 @@ echo
 echo "Logs:"
 echo "  tail -f $ROOT/.run/backend.log"
 echo "  tail -f $ROOT/.run/web.log"
+
+if [[ "$DEV_FOREGROUND" == "1" ]]; then
+  echo
+  echo "DEV_FOREGROUND=1; keeping backend and web attached. Press Ctrl+C to stop."
+  trap cleanup_started_processes INT TERM EXIT
+  wait "$BACKEND_PID" "$WEB_PID"
+fi

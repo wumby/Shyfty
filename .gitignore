@@ -13,6 +13,9 @@ postgres_data
 *.pid
 *.db
 shyfty.db
+*.tsbuildinfo
+web/vite.config.js
+web/vite.config.d.ts
 DerivedData/
 xcuserdata/
 *.xcuserstate

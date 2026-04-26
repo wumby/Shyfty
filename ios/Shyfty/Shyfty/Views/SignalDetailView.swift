@@ -148,13 +148,15 @@ struct SignalDetailView: View {
                         .shyftyHeadline(32)
 
                     HStack(spacing: 8) {
-                        NavigationLink(value: signal.playerID) {
-                            Text("Player context")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(ShyftyTheme.ink)
+                        if let playerID = signal.playerID {
+                            NavigationLink(value: playerID) {
+                                Text("Player context")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(ShyftyTheme.ink)
+                            }
+                            Text("•")
+                                .foregroundStyle(ShyftyTheme.muted)
                         }
-                        Text("•")
-                            .foregroundStyle(ShyftyTheme.muted)
                         Text(signal.teamName)
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(ShyftyTheme.ink)
@@ -187,9 +189,9 @@ struct SignalDetailView: View {
                 .shyftyPanel()
 
                 HStack(spacing: 12) {
-                    metricCell(label: "This Game", value: "\(signal.currentValue, specifier: "%.1f")", color: tint)
-                    metricCell(label: "Baseline", value: "\(signal.baselineValue, specifier: "%.1f")", color: ShyftyTheme.muted)
-                    metricCell(label: "Z-Score", value: "\(signal.zScore >= 0 ? "+" : "")\(signal.zScore, specifier: "%.2f")", color: ShyftyTheme.ink)
+                    metricCell(label: "This Game", value: String(format: "%.1f", signal.currentValue), color: tint)
+                    metricCell(label: "Baseline", value: String(format: "%.1f", signal.baselineValue), color: ShyftyTheme.muted)
+                    metricCell(label: "Z-Score", value: "\(signal.zScore >= 0 ? "+" : "")\(String(format: "%.2f", signal.zScore))", color: ShyftyTheme.ink)
                 }
 
                 VStack(alignment: .leading, spacing: 10) {

@@ -73,11 +73,11 @@ If an older local database still contains legacy seeded rows, especially fake NF
 
 Optional combined startup:
 
-- `bash scripts/start-dev.sh`
-- `SHYFTY_DEV_BOOTSTRAP_ON_START=1 bash scripts/start-dev.sh`
-- `SHYFTY_DEV_BOOTSTRAP_ON_START=1 SHYFTY_DEV_BOOTSTRAP_DAYS_BACK=30 bash scripts/start-dev.sh`
+- `bash scripts/reset-dev.sh`
+- `DEV_SYNC_MAX_GAMES=25 bash scripts/reset-dev.sh`
+- `BACKEND_HOST=127.0.0.1 DEV_FOREGROUND=1 BACKEND_RELOAD=0 OPEN_IOS_PROJECT=0 bash scripts/reset-dev.sh`
 
-`scripts/start-dev.sh` no longer seeds demo/sample rows. If bootstrap is enabled, it runs the real sync CLI before starting services and automatically includes `nfl` when `SPORTSDATAIO_NFL_API_KEY` is set.
+`scripts/reset-dev.sh` stops old backend/web/sync processes, applies migrations, starts a real NBA + NFL bootstrap sync, and starts the backend and web dev servers. It no longer seeds demo/sample rows. Use `DEV_SYNC_MAX_GAMES` to tune sync size, `BACKEND_HOST` to choose the bind host, and `DEV_FOREGROUND=1` when a caller needs the script to keep child processes attached.
 
 ## Product Scope
 

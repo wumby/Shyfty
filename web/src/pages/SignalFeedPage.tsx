@@ -3,9 +3,11 @@ import { useSearchParams } from 'react-router-dom';
 
 import { FeedToolbar } from '../components/FeedToolbar';
 import { FilterDrawer } from '../components/FilterDrawer';
+import { FollowingEmptyState } from '../components/FollowingEmptyState';
 import { LastGameSignalCard } from '../components/LastGameSignalCard';
 import { LoadingState } from '../components/LoadingState';
 import { SignalDetailDrawer } from '../components/SignalDetailDrawer';
+import { useAuthStore } from '../store/useAuthStore';
 import { useSignalStore } from '../store/useSignalStore';
 import type { Signal, SignalFilters, SortMode } from '../types';
 
@@ -20,6 +22,7 @@ const SIGNAL_TYPE_FILTERS = [
 ] as const;
 
 type SignalTypeFilterValue = (typeof SIGNAL_TYPE_FILTERS)[number]['value'];
+type FeedTab = 'forYou' | 'following';
 
 function getSignalPriority(signal: Signal): number {
   if (typeof signal.importance === 'number') return signal.importance;
@@ -78,10 +81,14 @@ function FreshnessBar() {
 }
 
 export function SignalFeedPage() {
-  const { filters, signals, loadingInitial, loadingMore, hasMore, ingestStatus, setFilters, fetchSignals, loadMore } = useSignalStore();
+  const { filters, signals, loadingInitial, loadingMore, hasMore, ingestStatus, setFilters, fetchSignals, loadMore, fetchProfile, profile } = useSignalStore();
+  const currentUser = useAuthStore((state) => state.currentUser);
   const [detailSignalId, setDetailSignalId] = useState<number | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
+
+  const tabFromUrl = searchParams.get('tab') ?? 'forYou';
+  const activeTab: FeedTab = tabFromUrl === 'following' ? 'following' : 'forYou';
 
   const leagueFromUrl = searchParams.get('league') ?? 'All';
   const activeLeague = LEAGUES.includes(leagueFromUrl) ? leagueFromUrl : 'All';
@@ -91,16 +98,29 @@ export function SignalFeedPage() {
     : 'All') as SignalTypeFilterValue;
   const sortFromUrl = searchParams.get('sort') as SortMode | null;
   const activeSort = sortFromUrl && SORTS.includes(sortFromUrl) ? sortFromUrl : 'newest';
-  const groupedSignals = groupSignalsByPlayerGame(signals);
+  const followingHasFollows =
+    (profile?.follows.players.length ?? 0) > 0 ||
+    (profile?.follows.teams.length ?? 0) > 0;
+  const visibleSignals = useMemo(() => {
+    if (activeTab !== 'following') return signals;
+    if (!profile) return [];
+
+    return signals.filter(
+      (signal) =>
+        (signal.player_id != null && profile.follows.players.includes(signal.player_id)) ||
+        profile.follows.teams.includes(signal.team_id),
+    );
+  }, [activeTab, profile, signals]);
+  const groupedSignals = groupSignalsByPlayerGame(visibleSignals);
 
   const activeFilters = useMemo<SignalFilters>(
     () => ({
       league: activeLeague === 'All' ? undefined : activeLeague,
       signal_type: activeSignalType === 'All' ? undefined : activeSignalType,
       sort: activeSort,
-      feed: 'all',
+      feed: activeTab === 'following' ? 'following' : 'all',
     }),
-    [activeLeague, activeSignalType, activeSort],
+    [activeLeague, activeSignalType, activeSort, activeTab],
   );
 
   useEffect(() => {
@@ -110,6 +130,22 @@ export function SignalFeedPage() {
   useEffect(() => {
     void fetchSignals();
   }, [fetchSignals, filters]);
+
+  useEffect(() => {
+    void fetchProfile();
+  }, [currentUser, fetchProfile]);
+
+  function handleTabChange(tab: FeedTab) {
+    const params = new URLSearchParams(searchParams);
+    if (tab === 'following') {
+      params.set('tab', 'following');
+    } else {
+      params.delete('tab');
+    }
+    setSearchParams(params, { replace: true });
+    setFiltersOpen(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 
   function updateParams(next: SignalFilters) {
     const params = new URLSearchParams(searchParams);
@@ -144,12 +180,14 @@ export function SignalFeedPage() {
   return (
     <>
       <div className="flex max-w-[1540px] min-w-0 flex-col gap-6 transition-[padding] duration-300 lg:flex-row lg:items-start">
-        <FilterDrawer
-          open={filtersOpen}
-          filters={activeFilters}
-          onChange={updateParams}
-          onClose={() => setFiltersOpen(false)}
-        />
+        {activeTab === 'forYou' ? (
+          <FilterDrawer
+            open={filtersOpen}
+            filters={activeFilters}
+            onChange={updateParams}
+            onClose={() => setFiltersOpen(false)}
+          />
+        ) : null}
 
         <div className="min-w-0 flex-1">
           <div className="sticky top-16 z-40">
@@ -159,6 +197,8 @@ export function SignalFeedPage() {
               onOpenFilters={() => setFiltersOpen(true)}
               onRemoveFilter={removeFilter}
               aside={<FreshnessBar />}
+              activeTab={activeTab}
+              onTabChange={handleTabChange}
             />
             <div className="h-5 bg-gradient-to-b from-bg to-transparent backdrop-blur-md" />
           </div>
@@ -166,12 +206,18 @@ export function SignalFeedPage() {
           <section className="space-y-4">
             {loadingInitial ? (
               <LoadingState />
-            ) : signals.length === 0 ? (
-              <div className="rounded-[22px] border border-white/[0.07] bg-white/[0.025] px-4 py-10 text-center text-sm text-muted">
-                {ingestStatus?.last_updated
-                  ? 'No last-game signals are available for this view yet.'
-                  : 'No real data has been synced yet. Run a bootstrap or incremental sync to build the live signal board.'}
-              </div>
+            ) : activeTab === 'following' && profile !== null && !followingHasFollows ? (
+              <FollowingEmptyState />
+            ) : visibleSignals.length === 0 ? (
+              activeTab === 'following' ? (
+                <FollowingEmptyState />
+              ) : (
+                <div className="rounded-[22px] border border-white/[0.07] bg-white/[0.025] px-4 py-10 text-center text-sm text-muted">
+                  {ingestStatus?.last_updated
+                    ? 'No last-game signals are available for this view yet.'
+                    : 'No real data has been synced yet. Run a bootstrap or incremental sync to build the live signal board.'}
+                </div>
+              )
             ) : (
               <>
                 {groupedSignals.map((signalGroup) => (
@@ -181,7 +227,7 @@ export function SignalFeedPage() {
                     onOpenDetail={(signalId) => setDetailSignalId(signalId)}
                   />
                 ))}
-                {hasMore ? (
+                {hasMore && activeTab === 'forYou' ? (
                   <button
                     type="button"
                     onClick={() => void loadMore()}

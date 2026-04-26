@@ -134,6 +134,18 @@ export function formatEventDate(value: string): string {
   return new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+export function formatGameContext(signal: Signal): string {
+  const parts = [
+    signal.event_date ? formatEventDate(signal.event_date) : null,
+    signal.opponent ? `vs ${signal.opponent}` : null,
+    signal.home_away,
+    signal.game_result,
+    signal.final_score,
+  ].filter(Boolean);
+
+  return parts.join(' · ');
+}
+
 export function formatRelativeTime(value: string): string {
   const then = new Date(value).getTime();
   const now = Date.now();

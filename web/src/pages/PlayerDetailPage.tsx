@@ -10,7 +10,7 @@ import { api } from '../services/api';
 import { useAuthStore } from '../store/useAuthStore';
 import { useSignalStore } from '../store/useSignalStore';
 import type { PlayerDetail, Signal } from '../types';
-import { formatSignalLabel } from '../lib/signalFormat';
+import { formatGameContext, formatSignalLabel } from '../lib/signalFormat';
 
 function groupSignalsByGame(signals: Signal[]): Signal[][] {
   const grouped = new Map<string | number, Signal[]>();

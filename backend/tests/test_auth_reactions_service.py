@@ -14,9 +14,10 @@ from app.services.auth_service import (
     get_user_by_session_token,
     revoke_session,
 )
+from app.services.profile_service import get_profile, remove_follow, set_follow
 from app.services.reaction_service import remove_signal_reaction, set_signal_reaction
 from app.services.signal_generation_service import generate_signals
-from app.services.signal_service import list_signals
+from app.services.signal_service import FEED_MODE_FOLLOWING, list_signals
 from tests.support_fixtures import load_sample_signal_dataset
 
 
@@ -122,3 +123,69 @@ class AuthReactionServiceTests(unittest.TestCase):
 
         revoke_session(self.session, session_token)
         self.assertIsNone(get_user_by_session_token(self.session, session_token))
+
+    def test_follow_round_trip_updates_profile_and_following_feed(self) -> None:
+        user = create_user(self.session, email="follower@example.com", password="password123")
+        signal = next(
+            item
+            for item in list_signals(
+                db=self.session,
+                league=None,
+                team=None,
+                player=None,
+                signal_type=None,
+                limit=10,
+                current_user_id=user.id,
+            ).items
+            if item.player_id is not None
+        )
+        assert signal.player_id is not None
+
+        empty_profile = get_profile(self.session, user.id)
+        self.assertEqual(empty_profile.follows.players, [])
+        self.assertEqual(empty_profile.follows.teams, [])
+        empty_following = list_signals(
+            db=self.session,
+            league=None,
+            team=None,
+            player=None,
+            signal_type=None,
+            limit=10,
+            current_user_id=user.id,
+            feed_mode=FEED_MODE_FOLLOWING,
+        )
+        self.assertEqual(empty_following.items, [])
+
+        set_follow(self.session, user.id, "player", signal.player_id)
+        set_follow(self.session, user.id, "player", signal.player_id)
+        followed_profile = get_profile(self.session, user.id)
+        self.assertEqual(followed_profile.follows.players, [signal.player_id])
+        self.assertEqual(followed_profile.follows.teams, [])
+
+        following = list_signals(
+            db=self.session,
+            league=None,
+            team=None,
+            player=None,
+            signal_type=None,
+            limit=10,
+            current_user_id=user.id,
+            feed_mode=FEED_MODE_FOLLOWING,
+        )
+        self.assertTrue(following.items)
+        self.assertTrue(all(item.player_id == signal.player_id for item in following.items))
+
+        remove_follow(self.session, user.id, "player", signal.player_id)
+        cleared_profile = get_profile(self.session, user.id)
+        self.assertEqual(cleared_profile.follows.players, [])
+        cleared_following = list_signals(
+            db=self.session,
+            league=None,
+            team=None,
+            player=None,
+            signal_type=None,
+            limit=10,
+            current_user_id=user.id,
+            feed_mode=FEED_MODE_FOLLOWING,
+        )
+        self.assertEqual(cleared_following.items, [])
