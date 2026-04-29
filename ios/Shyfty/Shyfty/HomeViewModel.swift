@@ -35,7 +35,7 @@ final class HomeViewModel: ObservableObject {
             async let signalRequest = APIClient.shared.fetchSignals()
             async let trendingRequest = APIClient.shared.fetchTrendingSignals()
 
-            signals = try await signalRequest
+            signals = try await signalRequest.items
             trendingSignals = try await trendingRequest
         } catch {
             errorMessage = error.localizedDescription

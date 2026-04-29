@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from datetime import date, datetime
-from typing import Optional
+from typing import Optional, Union
 
 from pydantic import BaseModel
 
@@ -60,6 +62,17 @@ class WindowContextRead(BaseModel):
     z_score: float
 
 
+class SignalDebugTraceRead(BaseModel):
+    baseline: float
+    actual: float
+    delta: float
+    z_score: float
+    sample_size: int
+    thresholds: dict[str, Union[float, int, None]]
+    conditions: dict[str, bool]
+    passed: bool
+
+
 class SignalRead(BaseModel):
     id: int
     subject_type: str = "player"
@@ -94,9 +107,11 @@ class SignalRead(BaseModel):
     game_result: Optional[str] = None
     final_score: Optional[str] = None
     classification_reason: str
+    debug_trace: SignalDebugTraceRead
     summary_template: str
     summary_template_inputs: SignalSummaryTemplateInputs
     narrative_summary: Optional[str] = None
+    streak: int = 1
     reaction_summary: ReactionSummaryRead
     user_reaction: Optional[ReactionType]
     comment_count: int = 0

@@ -80,6 +80,7 @@ def run_signal_backtest(
             metric_name: [stat for stat in stats if getattr(stat, metric_name, None) is not None]
             for metric_name in METRICS_BY_LEAGUE[player.league.name]
         }
+        league_metrics = METRICS_BY_LEAGUE[player.league.name]
         usage_snapshots = {
             snapshot.game_id: snapshot
             for snapshot in build_metric_snapshots(
@@ -87,12 +88,21 @@ def run_signal_backtest(
                 metric_stats.get("usage_rate", []),
                 game_dates_by_game_id=game_dates,
             )
-        } if "usage_rate" in METRICS_BY_LEAGUE[player.league.name] else {}
+        } if "usage_rate" in league_metrics else {}
+        minutes_snapshots_by_game_id = {
+            snapshot.game_id: snapshot
+            for snapshot in build_metric_snapshots(
+                "minutes_played",
+                metric_stats.get("minutes_played", []),
+                game_dates_by_game_id=game_dates,
+            )
+        } if "minutes_played" in league_metrics else {}
 
         for metric_name, metric_rows in metric_stats.items():
             stat_index_by_id = {stat.id: index for index, stat in enumerate(metric_rows)}
             for snapshot in build_metric_snapshots(metric_name, metric_rows, game_dates_by_game_id=game_dates):
                 usage_snapshot = usage_snapshots.get(snapshot.game_id)
+                minutes_snapshot = minutes_snapshots_by_game_id.get(snapshot.game_id)
                 contextual_snapshot = snapshot.with_context(
                     opponent_average_allowed=context.opponent_average_allowed.get((snapshot.source_stat_id, metric_name)),
                     opponent_rank=context.opponent_rank.get((snapshot.source_stat_id, metric_name)),
@@ -102,6 +112,8 @@ def run_signal_backtest(
                         if metric_name == "usage_rate"
                         else (usage_snapshot.current_value - usage_snapshot.medium_window.rolling_avg) if usage_snapshot else None
                     ),
+                    minutes_current=minutes_snapshot.current_value if minutes_snapshot else None,
+                    minutes_baseline=minutes_snapshot.baseline_value if minutes_snapshot else None,
                 )
                 signal_type = classify_signal(contextual_snapshot, metric_name)
                 if signal_type is None:
@@ -114,6 +126,7 @@ def run_signal_backtest(
                 signal_score, _ = score_signal(
                     contextual_snapshot,
                     signal_type=signal_type,
+                    metric_name=metric_name,
                     event_date=contextual_snapshot.event_date,
                     latest_event_date=latest_event_date,
                 )

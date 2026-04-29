@@ -22,7 +22,7 @@ const severities = [
 
 const sorts: Array<{ label: string; value: SortMode }> = [
   { label: 'Newest', value: 'newest' },
-  { label: 'Severity', value: 'most_important' },
+  { label: 'Signal score', value: 'most_important' },
   { label: 'Biggest deviation', value: 'biggest_deviation' },
 ];
 

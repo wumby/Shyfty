@@ -92,6 +92,7 @@ struct Signal: Identifiable, Decodable, Hashable {
     let userReaction: String?
     let commentCount: Int
     let isFavorited: Bool
+    let streak: Int
     let classificationReason: String?
     let createdAt: String
     let freshness: FreshnessContext?
@@ -122,6 +123,7 @@ struct Signal: Identifiable, Decodable, Hashable {
         case userReaction = "user_reaction"
         case commentCount = "comment_count"
         case isFavorited = "is_favorited"
+        case streak
         case classificationReason = "classification_reason"
         case createdAt = "created_at"
         case freshness
@@ -388,4 +390,13 @@ struct IngestStatus: Decodable {
         case lastError = "last_error"
         case recentRuns = "recent_runs"
     }
+}
+
+// MARK: - Feed Grouping
+
+struct GroupedSignal: Identifiable {
+    let id: String
+    let signals: [Signal]  // sorted by importance descending
+
+    var primarySignal: Signal { signals[0] }
 }

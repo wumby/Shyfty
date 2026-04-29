@@ -12,22 +12,77 @@ final class FeedViewModel: ObservableObject {
     @Published var selectedType: String = "ALL"
     @Published var feedMode: FeedMode = .all
     @Published var isLoading = false
+    @Published var isLoadingMore = false
+    @Published var hasMore = false
+    @Published var nextCursor: Int? = nil
     @Published var errorMessage: String?
     @Published var profile: UserProfile?
+
+    var freshness: FreshnessContext? {
+        signals.first?.freshness
+    }
+
+    var groupedSignals: [GroupedSignal] {
+        var seen: [String: Int] = [:]
+        var keys: [String] = []
+        var groups: [[Signal]] = []
+
+        for signal in signals {
+            let key: String
+            if let pid = signal.playerID {
+                key = "p\(pid)_\(signal.eventDate)"
+            } else {
+                key = "t\(signal.teamID)_\(signal.eventDate)"
+            }
+            if let idx = seen[key] {
+                groups[idx].append(signal)
+            } else {
+                seen[key] = groups.count
+                keys.append(key)
+                groups.append([signal])
+            }
+        }
+
+        return zip(keys, groups).map { key, sigs in
+            GroupedSignal(id: key, signals: sigs.sorted { $0.importance > $1.importance })
+        }
+    }
 
     func loadSignals() async {
         isLoading = true
         errorMessage = nil
+        hasMore = false
+        nextCursor = nil
         do {
-            signals = try await APIClient.shared.fetchSignals(
+            let page = try await APIClient.shared.fetchSignals(
                 league: selectedLeague == "ALL" ? nil : selectedLeague,
                 signalType: selectedType == "ALL" ? nil : selectedType,
                 feed: feedMode == .following ? "following" : nil
             )
+            signals = page.items
+            hasMore = page.hasMore
+            nextCursor = page.nextCursor
         } catch {
             errorMessage = error.localizedDescription
         }
         isLoading = false
+    }
+
+    func loadMore() async {
+        guard hasMore, !isLoadingMore, let cursor = nextCursor else { return }
+        isLoadingMore = true
+        do {
+            let page = try await APIClient.shared.fetchSignals(
+                league: selectedLeague == "ALL" ? nil : selectedLeague,
+                signalType: selectedType == "ALL" ? nil : selectedType,
+                feed: feedMode == .following ? "following" : nil,
+                cursor: cursor
+            )
+            signals += page.items
+            hasMore = page.hasMore
+            nextCursor = page.nextCursor
+        } catch { }
+        isLoadingMore = false
     }
 
     func loadProfile() async {

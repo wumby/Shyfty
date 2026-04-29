@@ -49,8 +49,8 @@ class SignalAPIContractTests(unittest.TestCase):
 
         self.assertTrue(page.items)
         self.assertEqual(len(page.items), 5)
-        self.assertTrue(page.has_more)
-        self.assertEqual(page.next_cursor, page.items[-1].id)
+        self.assertFalse(page.has_more)
+        self.assertIsNone(page.next_cursor)
 
         signal = page.items[0]
         self.assertIn(signal.severity, {"OUTLIER", "SWING", "SHIFT"})
@@ -59,7 +59,7 @@ class SignalAPIContractTests(unittest.TestCase):
         self.assertIsNotNone(signal.deviation)
         self.assertIsInstance(signal.importance, float)
         self.assertGreaterEqual(signal.signal_score, 0.0)
-        self.assertLessEqual(signal.signal_score, 100.0)
+        self.assertLessEqual(signal.signal_score, 10.0)
         self.assertEqual(signal.baseline_window, "last 5 games")
         self.assertTrue(signal.metric_label)
         self.assertIn(signal.trend_direction, {"up", "down", "flat"})
@@ -73,6 +73,7 @@ class SignalAPIContractTests(unittest.TestCase):
         self.assertGreater(signal.game_id, 0)
         self.assertGreaterEqual(signal.rolling_stddev, 0.0)
         self.assertTrue(signal.classification_reason)
+        self.assertTrue(signal.debug_trace.passed)
 
     def test_player_signals_return_same_enriched_shape(self) -> None:
         signals = get_player_signals(self.session, player_id=1)
@@ -80,7 +81,7 @@ class SignalAPIContractTests(unittest.TestCase):
         self.assertTrue(signals)
         signal = signals[0]
         self.assertGreaterEqual(signal.importance, 0.0)
-        self.assertLessEqual(signal.importance, 100.0)
+        self.assertLessEqual(signal.importance, 10.0)
         self.assertGreaterEqual(signal.signal_score, 0.0)
         self.assertIn(signal.trend_direction, {"up", "down", "flat"})
         self.assertEqual(signal.summary_template_inputs.movement_pct, signal.movement_pct)
@@ -117,9 +118,9 @@ class SignalAPIContractTests(unittest.TestCase):
             before_id=first_page.next_cursor,
         )
 
-        self.assertEqual(len(second_page.items), 3)
-        self.assertTrue(second_page.has_more)
-        self.assertEqual(second_page.next_cursor, second_page.items[-1].id)
+        self.assertEqual(len(second_page.items), 1)
+        self.assertFalse(second_page.has_more)
+        self.assertIsNone(second_page.next_cursor)
         self.assertTrue(all(signal.id < first_page.next_cursor for signal in second_page.items))
         self.assertTrue(set(signal.id for signal in first_page.items).isdisjoint(signal.id for signal in second_page.items))
 
@@ -187,6 +188,37 @@ class SignalAPIContractTests(unittest.TestCase):
         self.assertTrue(all(signal.player_id == target.player_id for signal in page.items))
         self.assertNotIn(other.id, {signal.id for signal in page.items})
 
+    def test_team_follow_does_not_include_team_player_signals(self) -> None:
+        user = User(email="team-follower@example.com", password_hash="hash")
+        self.session.add(user)
+        self.session.flush()
+
+        all_page = list_signals(
+            db=self.session,
+            league=None,
+            team=None,
+            player=None,
+            signal_type=None,
+            limit=10,
+        )
+        player_signal = next(signal for signal in all_page.items if signal.subject_type == "player")
+        self.session.add(UserFollow(user_id=user.id, entity_type="team", entity_id=player_signal.team_id))
+        self.session.commit()
+
+        page = list_signals(
+            db=self.session,
+            league=None,
+            team=None,
+            player=None,
+            signal_type=None,
+            limit=10,
+            current_user_id=user.id,
+            feed_mode=FEED_MODE_FOLLOWING,
+        )
+
+        self.assertTrue(all(signal.subject_type == "team" for signal in page.items))
+        self.assertNotIn(player_signal.id, {signal.id for signal in page.items})
+
     def test_signal_trace_exposes_source_stat_and_baseline_window(self) -> None:
         page = list_signals(
             db=self.session,
@@ -211,7 +243,7 @@ class SignalAPIContractTests(unittest.TestCase):
         self.assertEqual(trace.source_stat.game_id, signal.game_id)
         self.assertGreater(trace.source_stat.stat_id, 0)
         self.assertEqual(trace.source_stat.current_value, signal.current_value)
-        self.assertLessEqual(len(trace.baseline_samples), signal.baseline_window_size - 1)
+        self.assertLessEqual(len(trace.baseline_samples), signal.baseline_window_size)
         self.assertTrue(trace.baseline_samples)
         self.assertGreater(trace.baseline_samples[0].stat_id, 0)
         self.assertGreaterEqual(trace.rolling_metric.short_window.sample_size, 1)

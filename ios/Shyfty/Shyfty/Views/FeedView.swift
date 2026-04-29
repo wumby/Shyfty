@@ -5,8 +5,15 @@ struct FeedView: View {
     @EnvironmentObject private var auth: AuthViewModel
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
+    @State private var showFilterSheet = false
+    @State private var showSearchSheet = false
+
     private let leagues = ["ALL", "NBA", "NFL"]
     private let signalTypes = ["ALL", "SPIKE", "DROP", "SHIFT", "OUTLIER"]
+
+    private var hasActiveFilters: Bool {
+        viewModel.selectedLeague != "ALL" || viewModel.selectedType != "ALL"
+    }
 
     var body: some View {
         NavigationStack {
@@ -21,10 +28,13 @@ struct FeedView: View {
                             HStack(alignment: .top, spacing: 14) {
                                 filtersPanel
                                     .frame(width: 240)
-                                feedBody
+                                VStack(spacing: 14) {
+                                    feedModeSegment
+                                    feedBody
+                                }
                             }
                         } else {
-                            filtersPanel
+                            feedModeSegment
                             feedBody
                         }
                     }
@@ -35,6 +45,9 @@ struct FeedView: View {
             .navigationDestination(for: Int.self) { playerID in
                 PlayerDetailView(playerID: playerID)
             }
+            .navigationDestination(for: Signal.self) { signal in
+                SignalDetailView(signalId: signal.id, prefetchedSignal: signal)
+            }
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -44,6 +57,22 @@ struct FeedView: View {
                         .foregroundStyle(ShyftyTheme.ink)
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button {
+                        showSearchSheet = true
+                    } label: {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundStyle(ShyftyTheme.muted)
+                    }
+
+                    if horizontalSizeClass != .regular {
+                        Button {
+                            showFilterSheet = true
+                        } label: {
+                            Image(systemName: "slider.horizontal.3")
+                                .foregroundStyle(hasActiveFilters ? ShyftyTheme.accent : ShyftyTheme.muted)
+                        }
+                    }
+
                     NavigationLink {
                         FavoritesView()
                     } label: {
@@ -70,6 +99,7 @@ struct FeedView: View {
             .toolbarBackground(.hidden, for: .navigationBar)
             .task {
                 await viewModel.loadSignals()
+                await viewModel.loadProfile()
             }
             .onChange(of: viewModel.selectedLeague) { _, _ in
                 Task { await viewModel.loadSignals() }
@@ -77,12 +107,34 @@ struct FeedView: View {
             .onChange(of: viewModel.selectedType) { _, _ in
                 Task { await viewModel.loadSignals() }
             }
+            .onChange(of: viewModel.feedMode) { _, _ in
+                Task { await viewModel.loadSignals() }
+            }
             .sheet(isPresented: $auth.showAuthSheet) {
                 AuthView()
                     .environmentObject(auth)
             }
+            .sheet(isPresented: $showFilterSheet) {
+                SignalFilterSheetView(viewModel: viewModel)
+                    .presentationDetents([.medium, .large])
+            }
+            .sheet(isPresented: $showSearchSheet) {
+                SearchSheetView()
+                    .environmentObject(auth)
+            }
         }
         .preferredColorScheme(.dark)
+    }
+
+    private var feedModeSegment: some View {
+        HStack(spacing: 8) {
+            Button("For You") { viewModel.feedMode = .all }
+                .buttonStyle(ShyftyPillButtonStyle(active: viewModel.feedMode == .all))
+            Button("Following") { viewModel.feedMode = .following }
+                .buttonStyle(ShyftyPillButtonStyle(active: viewModel.feedMode == .following))
+            Spacer()
+        }
+        .padding(.horizontal, 4)
     }
 
     private var headerView: some View {
@@ -114,8 +166,38 @@ struct FeedView: View {
         .shyftyPanel()
     }
 
+    @ViewBuilder
+    private var freshnessBanner: some View {
+        if let f = viewModel.freshness, f.state != "live" {
+            let isError = f.state == "error"
+            HStack(spacing: 8) {
+                Image(systemName: isError ? "exclamationmark.circle" : "clock")
+                    .font(.system(size: 12, weight: .medium))
+                Text(f.label)
+                    .font(.system(size: 12, weight: .medium))
+                Spacer()
+                if let msg = f.delayedDataMessage {
+                    Text(msg)
+                        .font(.system(size: 11))
+                        .lineLimit(1)
+                }
+            }
+            .foregroundStyle(isError ? ShyftyTheme.danger : ShyftyTheme.warning)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background((isError ? ShyftyTheme.danger : ShyftyTheme.warning).opacity(0.10))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder((isError ? ShyftyTheme.danger : ShyftyTheme.warning).opacity(0.25), lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+    }
+
     private var feedBody: some View {
         VStack(alignment: .leading, spacing: 14) {
+            freshnessBanner
+
             if viewModel.isLoading {
                 VStack(spacing: 14) {
                     ProgressView()
@@ -138,6 +220,17 @@ struct FeedView: View {
                             .strokeBorder(ShyftyTheme.danger.opacity(0.22), lineWidth: 1)
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            } else if viewModel.feedMode == .following && viewModel.signals.isEmpty {
+                VStack(spacing: 10) {
+                    Text("Nothing here yet")
+                        .shyftyHeadline(24)
+                    Text("Follow players or teams to see their signals here.")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(ShyftyTheme.muted)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity, minHeight: 220)
+                .shyftyPanel(strong: true)
             } else if viewModel.signals.isEmpty {
                 VStack(spacing: 10) {
                     Text("No signals in this view")
@@ -149,8 +242,9 @@ struct FeedView: View {
                 .frame(maxWidth: .infinity, minHeight: 220)
                 .shyftyPanel(strong: true)
             } else {
+                let grouped = viewModel.groupedSignals
                 HStack {
-                    Text("\(viewModel.signals.count) signals")
+                    Text("\(grouped.count) \(grouped.count == 1 ? "player" : "players")")
                         .font(.system(size: 11, weight: .semibold))
                         .tracking(1.8)
                         .foregroundStyle(ShyftyTheme.muted)
@@ -160,15 +254,24 @@ struct FeedView: View {
                 .padding(.horizontal, 6)
 
                 LazyVStack(spacing: 12) {
-                    ForEach(viewModel.signals) { signal in
-                        if let playerID = signal.playerID {
-                            NavigationLink(value: playerID) {
-                                SignalCardView(signal: signal)
-                            }
-                            .buttonStyle(.plain)
-                        } else {
-                            SignalCardView(signal: signal)
-                        }
+                    ForEach(grouped) { group in
+                        GroupedSignalCardView(
+                            signals: group.signals,
+                            isFollowed: viewModel.isFollowed(signal: group.primarySignal),
+                            onFollowToggle: { Task { await viewModel.toggleFollow(for: group.primarySignal) } }
+                        )
+                    }
+
+                    if viewModel.hasMore {
+                        Color.clear
+                            .frame(height: 1)
+                            .onAppear { Task { await viewModel.loadMore() } }
+                    }
+                    if viewModel.isLoadingMore {
+                        ProgressView()
+                            .tint(ShyftyTheme.accent)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
                     }
                 }
             }

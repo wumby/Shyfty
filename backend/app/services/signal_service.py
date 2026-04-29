@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from datetime import date, datetime, timezone
 from typing import Optional
 
@@ -16,10 +17,10 @@ from app.domain.signals import (
     MetricSnapshot,
     WindowSnapshot,
     deviation_from_expected,
+    meaningful_movement_pct,
     metric_label,
-    movement_pct,
     performance_ratio,
-    severity_for_deviation,
+    signal_gate_trace,
     trend_direction,
 )
 from app.models.game import Game
@@ -35,7 +36,7 @@ from app.models.team_game_stat import TeamGameStat
 from app.models.user_favorite import UserFavorite
 from app.models.user_follow import UserFollow
 from app.schemas.reaction import ReactionSummaryRead
-from app.schemas.signal import FeedContextRead, FreshnessContextRead, PaginatedSignals, SignalRead, SignalSummaryTemplateInputs
+from app.schemas.signal import FeedContextRead, FreshnessContextRead, PaginatedSignals, SignalDebugTraceRead, SignalRead, SignalSummaryTemplateInputs
 from app.services.favorite_service import get_favorited_signal_ids
 from app.services.reaction_service import get_reaction_summaries, get_user_reactions
 from app.services.scheduler import get_ingest_state
@@ -52,28 +53,19 @@ EXCLUDED_SIGNAL_TYPES = {"CONSISTENCY"}
 
 
 def _deviation_expr():
-    return func.abs((Signal.current_value / Signal.baseline_value) - 1)
+    return func.abs(Signal.current_value - Signal.baseline_value)
 
 
 def _severity_order_expr():
-    deviation = _deviation_expr()
     return case(
-        (deviation >= 0.80, 3),
-        (deviation >= 0.40, 2),
-        (deviation >= 0.10, 1),
+        (Signal.signal_type == "OUTLIER", 3),
+        (Signal.signal_type == "SWING", 2),
+        (Signal.signal_type == "SHIFT", 1),
         else_=0,
     )
 
 
 def _severity_filter_expr(signal_type: str):
-    deviation = _deviation_expr()
-    normalized = signal_type.upper()
-    if normalized == "OUTLIER":
-        return deviation >= 0.80
-    if normalized == "SWING":
-        return and_(deviation >= 0.40, deviation < 0.80)
-    if normalized == "SHIFT":
-        return and_(deviation >= 0.10, deviation < 0.40)
     return Signal.signal_type.ilike(signal_type)
 
 
@@ -122,7 +114,7 @@ def _build_freshness(event_date, created_at: datetime) -> FreshnessContextRead:
         label = "Board freshness is weak"
         delayed = "Signal timing is now materially delayed. Verify the latest box score context before trusting sharp changes."
 
-    coverage = f"Built from the last {BASELINE_WINDOW_SIZE + 1} games"
+    coverage = f"Built from the last {BASELINE_WINDOW_SIZE} games"
     if event_age_hours is not None:
         coverage += f"; this game landed about {event_age_hours}h ago."
     else:
@@ -200,15 +192,17 @@ def build_signal_read(
     home_away: Optional[str] = None,
     game_result: Optional[str] = None,
     final_score: Optional[str] = None,
+    streak: int = 1,
 ) -> SignalRead:
     baseline_window = baseline_window_label()
-    movement = movement_pct(signal.current_value, signal.baseline_value)
+    movement = meaningful_movement_pct(signal.metric_name, signal.current_value, signal.baseline_value)
     performance = performance_ratio(signal.current_value, signal.baseline_value)
     deviation = deviation_from_expected(signal.current_value, signal.baseline_value)
-    severity = severity_for_deviation(deviation) or signal.signal_type
+    severity = signal.signal_type
     direction = trend_direction(signal.current_value, signal.baseline_value)
     readable_metric_label = metric_label(signal.metric_name)
     snapshot = effective_metric_to_snapshot(signal, rolling_metric)
+    debug_trace = signal_gate_trace(snapshot, signal.metric_name)
     signal_score = round(signal.signal_score or importance_score(severity, signal.z_score, deviation), 1)
     rolling_stddev = (
         rolling_metric.short_rolling_stddev
@@ -238,7 +232,7 @@ def build_signal_read(
         importance=signal_score,
         importance_label=importance_label_for_score(signal_score),
         baseline_window=baseline_window,
-        baseline_window_size=((rolling_metric.short_window_size if rolling_metric and rolling_metric.short_window_size else BASELINE_WINDOW_SIZE) + 1),
+        baseline_window_size=(rolling_metric.short_window_size if rolling_metric and rolling_metric.short_window_size else BASELINE_WINDOW_SIZE),
         event_date=event_date,
         movement_pct=movement,
         metric_label=readable_metric_label,
@@ -249,6 +243,7 @@ def build_signal_read(
         game_result=game_result,
         final_score=final_score,
         classification_reason=classification_reason(severity, snapshot, signal.metric_name),
+        debug_trace=SignalDebugTraceRead(**debug_trace),
         summary_template="metric_vs_recent_baseline",
         summary_template_inputs=SignalSummaryTemplateInputs(
             current_value=signal.current_value,
@@ -261,6 +256,7 @@ def build_signal_read(
             trend_slope=rolling_metric.trend_slope if rolling_metric else None,
             usage_shift=rolling_metric.usage_shift if rolling_metric else None,
         ),
+        streak=streak,
         reaction_summary=reaction_summary or ReactionSummaryRead(),
         user_reaction=user_reaction,
         comment_count=comment_count,
@@ -379,6 +375,7 @@ def _get_engagement_context(db: Session, user_id: int) -> dict[str, object]:
 def _apply_sort(query, sort_mode: str):
     deviation_expr = _deviation_expr()
     ranked_order = (
+        func.coalesce(Signal.signal_score, 0).desc(),
         _severity_order_expr().desc(),
         deviation_expr.desc(),
         Game.game_date.desc(),
@@ -391,11 +388,68 @@ def _apply_sort(query, sort_mode: str):
     return query.order_by(Game.game_date.desc(), Signal.id.desc())
 
 
+def _compute_streaks(
+    db: Session,
+    signal_info: list[tuple[int, Optional[int], str, str, date]],
+) -> dict[int, int]:
+    """
+    signal_info: [(signal_id, player_id, metric_name, signal_type, event_date), ...]
+    Returns {signal_id: streak_count}.
+    Streak = consecutive prior games (by date, going back) where the same player
+    had the same signal_type for the same metric, with no gap of a different type.
+    """
+    player_metric_pairs = {
+        (pid, metric)
+        for _, pid, metric, _, _ in signal_info
+        if pid is not None
+    }
+    if not player_metric_pairs:
+        return {sig_id: 1 for sig_id, *_ in signal_info}
+
+    history_rows = db.execute(
+        select(Signal.player_id, Signal.metric_name, Signal.signal_type, Game.game_date)
+        .join(Game, Signal.game_id == Game.id)
+        .where(~Signal.signal_type.in_(EXCLUDED_SIGNAL_TYPES))
+        .where(or_(*[
+            and_(Signal.player_id == pid, Signal.metric_name == metric)
+            for pid, metric in player_metric_pairs
+        ]))
+        .order_by(Game.game_date.desc(), Signal.id.desc())
+    ).all()
+
+    history: dict[tuple, list[tuple[str, date]]] = defaultdict(list)
+    for player_id, metric_name, sig_type, game_date in history_rows:
+        history[(player_id, metric_name)].append((sig_type, game_date))
+
+    result: dict[int, int] = {}
+    for sig_id, player_id, metric_name, signal_type, event_date in signal_info:
+        if player_id is None:
+            result[sig_id] = 1
+            continue
+        relevant = [(st, gd) for st, gd in history[(player_id, metric_name)] if gd <= event_date]
+        count = 0
+        for st, _ in relevant:
+            if st == signal_type:
+                count += 1
+            else:
+                break
+        result[sig_id] = max(count, 1)
+
+    return result
+
+
 def _build_signal_items(rows, db: Session, current_user_id: Optional[int]) -> list[SignalRead]:
     signal_ids = [signal.id for signal, *_ in rows]
     reaction_summaries = get_reaction_summaries(db, signal_ids)
     user_reactions = get_user_reactions(db, user_id=current_user_id, signal_ids=signal_ids)
     favorited_ids = get_favorited_signal_ids(db, user_id=current_user_id, signal_ids=signal_ids)
+
+    signal_info = [
+        (signal.id, signal.player_id, signal.metric_name, signal.signal_type, event_date)
+        for signal, _player_name, _team_name, _league_name, event_date, *_ in rows
+    ]
+    streaks = _compute_streaks(db, signal_info)
+
     items: list[SignalRead] = []
     for (
         signal,
@@ -449,6 +503,7 @@ def _build_signal_items(rows, db: Session, current_user_id: Optional[int]) -> li
                 home_away=home_away,
                 game_result=game_result,
                 final_score=final_score,
+                streak=streaks.get(signal.id, 1),
             )
         )
     return items
@@ -538,9 +593,9 @@ def list_signals(
             )
         follow_clauses = []
         if followed_players:
-            follow_clauses.append(Signal.player_id.in_(followed_players))
+            follow_clauses.append(and_(Signal.subject_type == "player", Signal.player_id.in_(followed_players)))
         if followed_teams:
-            follow_clauses.append(Signal.team_id.in_(followed_teams))
+            follow_clauses.append(and_(Signal.subject_type == "team", Signal.team_id.in_(followed_teams)))
         query = query.where(or_(*follow_clauses))
 
     elif feed_mode == FEED_MODE_FOR_YOU and current_user_id is not None:

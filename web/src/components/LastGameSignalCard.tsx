@@ -11,6 +11,7 @@ interface LastGameSignalCardProps {
 }
 
 function getSignalPriority(signal: Signal): number {
+  if (typeof signal.signal_score === 'number') return signal.signal_score;
   if (typeof signal.importance === 'number') return signal.importance;
   return Math.abs(signal.z_score);
 }
@@ -36,6 +37,16 @@ function formatStatValue(signal: Signal, value: number): string {
     return `${rounded}%`;
   }
   return Number.isInteger(value) ? value.toString() : value.toFixed(1);
+}
+
+function formatSignedValue(value: number): string {
+  const formatted = Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1);
+  return `${value >= 0 ? '+' : ''}${formatted}`;
+}
+
+function formatScore(signal: Signal): string {
+  const score = typeof signal.signal_score === 'number' ? signal.signal_score : signal.importance;
+  return typeof score === 'number' ? score.toFixed(1) : '0.0';
 }
 
 function getOpponentLabel(signal: Signal): string | null {
@@ -116,45 +127,39 @@ export function LastGameSignalCard({ signals, onOpenDetail }: LastGameSignalCard
     <article
       className={`panel-surface select-none px-5 py-5 transition-all duration-200 hover:bg-white/[0.035] sm:px-6 sm:py-6 ${borderTone}`}
     >
-      <div className="group grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 rounded-[18px] px-3 py-3 transition hover:bg-white/[0.055]">
-        <button
-          type="button"
-          onClick={(e) => void handleFollowClick(e)}
-          className={`self-start rounded-full border px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.16em] transition ${
-            isTracked
-              ? 'border-accent/30 bg-accentSoft text-accent'
-              : 'border-border/60 text-muted/50 hover:border-border hover:text-muted'
-          }`}
-        >
-          {followLabel}
-        </button>
-        <Link to={subjectPath} className="min-w-0">
-          <span className="block truncate text-[20px] font-bold leading-tight text-ink sm:text-[22px]">
-            {primarySignal.subject_type === 'team' ? primarySignal.team_name : primarySignal.player_name}
-          </span>
-          {matchupLabel || result || score || eventDate ? (
-            <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-muted">
-              {matchupLabel ? <span>{matchupLabel}</span> : null}
-              {matchupLabel && (result || score || eventDate) ? <span className="text-white/15">•</span> : null}
-              {result || score ? (
-                <span className="font-semibold tabular-nums">
-                  {result ? <span className={`${resultTone} mr-2`}>{result}</span> : null}
-                  {score ? <span className="text-ink/90">{score}</span> : null}
-                </span>
-              ) : null}
-              {(result || score) && eventDate ? <span className="text-white/15">•</span> : null}
-              {eventDate ? <span>{eventDate}</span> : null}
+      <div className="px-3 pb-2 pt-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+          <Link to={subjectPath} className="shrink-0 max-w-full">
+            <span className="block truncate text-[20px] font-bold leading-tight text-ink sm:text-[22px]">
+              {primarySignal.subject_type === 'team' ? primarySignal.team_name : primarySignal.player_name}
             </span>
-          ) : null}
-        </Link>
-        <Link
-          to={subjectPath}
-          className="flex h-7 w-7 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.03] text-muted transition group-hover:border-accent/40 group-hover:bg-accent/10 group-hover:text-[#ffd8bd]"
-        >
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-            <path d="M4.5 2.5L8 6L4.5 9.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </Link>
+          </Link>
+          <button
+            type="button"
+            onClick={(e) => void handleFollowClick(e)}
+            className={`shrink-0 rounded-full border px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.16em] transition ${
+              isTracked
+                ? 'border-accent/30 bg-accentSoft text-accent'
+                : 'border-border/60 text-muted/50 hover:border-border hover:text-muted'
+            }`}
+          >
+            {followLabel}
+          </button>
+        </div>
+        {matchupLabel || result || score || eventDate ? (
+          <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-muted">
+            {matchupLabel ? <span>{matchupLabel}</span> : null}
+            {matchupLabel && (result || score || eventDate) ? <span className="text-white/15">•</span> : null}
+            {result || score ? (
+              <span className="font-semibold tabular-nums">
+                {result ? <span className={`${resultTone} mr-2`}>{result}</span> : null}
+                {score ? <span className="text-ink/90">{score}</span> : null}
+              </span>
+            ) : null}
+            {(result || score) && eventDate ? <span className="text-white/15">•</span> : null}
+            {eventDate ? <span>{eventDate}</span> : null}
+          </span>
+        ) : null}
       </div>
       <div className="border-t border-white/[0.06] pt-2">
         {sorted.map((signal) => {
@@ -163,40 +168,51 @@ export function LastGameSignalCard({ signals, onOpenDetail }: LastGameSignalCard
           const deltaTone = dir === 'positive' ? 'text-green-400' : dir === 'negative' ? 'text-red-400' : 'text-white/40';
           const railTone = dir === 'positive' ? 'bg-success' : dir === 'negative' ? 'bg-danger' : 'bg-white/20';
           const formattedDelta = formatDelta(signal);
-          const showArrow = formattedDelta !== '—' && dir !== 'neutral';
+          const showArrow = dir !== 'neutral';
           const arrowChar = dir === 'positive' ? '↑' : dir === 'negative' ? '↓' : null;
+          const percentLabel = typeof signal.movement_pct === 'number' ? `${signal.movement_pct >= 0 ? '+' : ''}${Math.round(signal.movement_pct)}%` : null;
           return (
             <button
               key={signal.id}
               type="button"
               onClick={() => onOpenDetail?.(signal.id)}
-              className="group relative grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 rounded-[18px] border-b border-white/[0.06] px-3 py-4 text-left transition last:border-b-0 hover:bg-white/[0.055] focus:outline-none focus-visible:bg-white/[0.07] focus-visible:ring-1 focus-visible:ring-borderStrong sm:py-5"
+              className="group relative grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 rounded-[14px] border-b border-white/[0.06] px-3 py-2.5 text-left transition last:border-b-0 hover:bg-white/[0.055] focus:outline-none focus-visible:bg-white/[0.07] focus-visible:ring-1 focus-visible:ring-borderStrong"
             >
-              <span className={`absolute inset-y-3 left-0 w-[3px] rounded-full opacity-70 ${railTone}`} />
+              <span className={`absolute inset-y-2 left-0 w-[3px] rounded-full opacity-70 ${railTone}`} />
               <span className="min-w-0 pl-1">
-                <span className="flex min-w-0 flex-wrap items-center gap-2">
-                  <span className="truncate text-[17px] font-semibold leading-tight text-ink sm:text-[18px]">
+                <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+                  <span className="truncate text-[13px] font-semibold leading-tight text-ink sm:text-[14px]">
                     {getMetricLabel(signal)}
                   </span>
-                  <span className={`rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.16em] ${getSeverityTone(severity)}`}>
+                  <span className={`rounded-full border px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.12em] ${getSeverityTone(severity)}`}>
                     {severity}
                   </span>
+                  {signal.streak >= 2 && (
+                    <span className="rounded-full border border-orange-400/30 bg-orange-400/10 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.12em] text-orange-300">
+                      {signal.streak}G
+                    </span>
+                  )}
                 </span>
-                <span className="mt-2 block whitespace-nowrap text-[21px] leading-none tabular-nums sm:text-[23px]">
+                <span className="mt-1 block whitespace-nowrap text-[16px] leading-none tabular-nums sm:text-[17px]">
                   <span className="font-bold text-ink">{formatStatValue(signal, signal.current_value)}</span>
-                  <span className="mx-2 text-muted/70">/</span>
+                  <span className="mx-1.5 text-muted/70">vs</span>
                   <span className="font-semibold text-muted">{formatStatValue(signal, signal.baseline_value)}</span>
                 </span>
-              </span>
-              <span className="flex items-center justify-end gap-3">
-                <span className={`flex items-baseline justify-end gap-1.5 whitespace-nowrap text-right tabular-nums opacity-95 ${deltaTone}`}>
-                  <span className="text-[23px] font-bold leading-none tracking-tight sm:text-[25px]">
-                    {formattedDelta}
-                  </span>
-                  {showArrow && arrowChar && <span className="text-sm leading-none sm:text-base" aria-hidden="true">{arrowChar}</span>}
+                <span className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
+                  <span>Delta <span className={`tabular-nums ${deltaTone}`}>{formattedDelta}</span></span>
+                  <span>Z <span className="tabular-nums text-[#ffd8bd]">{formatSignedValue(signal.z_score)}</span></span>
+                  <span>Score <span className="tabular-nums text-ink">{formatScore(signal)}</span></span>
                 </span>
-                <span className="flex h-7 w-7 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.03] text-muted transition group-hover:border-accent/40 group-hover:bg-accent/10 group-hover:text-[#ffd8bd]">
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+              </span>
+              <span className="flex items-center justify-end gap-2">
+                <span className={`flex items-baseline justify-end gap-1 whitespace-nowrap text-right tabular-nums opacity-95 ${deltaTone}`}>
+                  <span className="text-[17px] font-bold leading-none tracking-tight sm:text-[19px]">
+                    {percentLabel ?? formattedDelta}
+                  </span>
+                  {showArrow && arrowChar && <span className="text-xs leading-none" aria-hidden="true">{arrowChar}</span>}
+                </span>
+                <span className="flex h-6 w-6 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.03] text-muted transition group-hover:border-accent/40 group-hover:bg-accent/10 group-hover:text-[#ffd8bd]">
+                  <svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden="true">
                     <path d="M4.5 2.5L8 6L4.5 9.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 </span>

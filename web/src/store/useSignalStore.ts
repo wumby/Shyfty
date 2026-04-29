@@ -235,15 +235,21 @@ export const useSignalStore = create<SignalStore>((set, get) => ({
       ? profile.follows.players.filter((id) => id !== playerId)
       : [...profile.follows.players, playerId];
     const nextProfile = { ...profile, follows: { ...profile.follows, players: nextPlayers } };
+    const isFollowingFeed = get().filters.feed === 'following';
+    const hasAnyFollows = nextProfile.follows.players.length > 0 || nextProfile.follows.teams.length > 0;
     const nextSignals =
-      get().filters.feed === 'following' && currentlyFollowed
-        ? previousSignals.filter((signal) => signal.player_id !== playerId || nextProfile.follows.teams.includes(signal.team_id))
+      isFollowingFeed && currentlyFollowed
+        ? previousSignals.filter(
+            (signal) =>
+              signal.player_id !== playerId ||
+              (signal.subject_type === 'team' && nextProfile.follows.teams.includes(signal.team_id)),
+          )
         : previousSignals;
     set({
       profile: nextProfile,
-      signals: nextProfile.follows.players.length === 0 && nextProfile.follows.teams.length === 0 ? [] : nextSignals,
-      hasMore: nextProfile.follows.players.length === 0 && nextProfile.follows.teams.length === 0 ? false : get().hasMore,
-      nextCursor: nextProfile.follows.players.length === 0 && nextProfile.follows.teams.length === 0 ? null : get().nextCursor,
+      signals: isFollowingFeed && !hasAnyFollows ? [] : nextSignals,
+      hasMore: isFollowingFeed && !hasAnyFollows ? false : get().hasMore,
+      nextCursor: isFollowingFeed && !hasAnyFollows ? null : get().nextCursor,
     });
     try {
       if (currentlyFollowed) {
@@ -264,15 +270,21 @@ export const useSignalStore = create<SignalStore>((set, get) => ({
       ? profile.follows.teams.filter((id) => id !== teamId)
       : [...profile.follows.teams, teamId];
     const nextProfile = { ...profile, follows: { ...profile.follows, teams: nextTeams } };
+    const isFollowingFeed = get().filters.feed === 'following';
+    const hasAnyFollows = nextProfile.follows.players.length > 0 || nextProfile.follows.teams.length > 0;
     const nextSignals =
-      get().filters.feed === 'following' && currentlyFollowed
-        ? previousSignals.filter((signal) => signal.team_id !== teamId || nextProfile.follows.players.includes(signal.player_id ?? -1))
+      isFollowingFeed && currentlyFollowed
+        ? previousSignals.filter(
+            (signal) =>
+              signal.team_id !== teamId ||
+              (signal.subject_type === 'player' && nextProfile.follows.players.includes(signal.player_id ?? -1)),
+          )
         : previousSignals;
     set({
       profile: nextProfile,
-      signals: nextProfile.follows.players.length === 0 && nextProfile.follows.teams.length === 0 ? [] : nextSignals,
-      hasMore: nextProfile.follows.players.length === 0 && nextProfile.follows.teams.length === 0 ? false : get().hasMore,
-      nextCursor: nextProfile.follows.players.length === 0 && nextProfile.follows.teams.length === 0 ? null : get().nextCursor,
+      signals: isFollowingFeed && !hasAnyFollows ? [] : nextSignals,
+      hasMore: isFollowingFeed && !hasAnyFollows ? false : get().hasMore,
+      nextCursor: isFollowingFeed && !hasAnyFollows ? null : get().nextCursor,
     });
     try {
       if (currentlyFollowed) {

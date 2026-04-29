@@ -5,7 +5,7 @@ import { AuthPanel } from './AuthPanel';
 import { SearchModal } from './SearchModal';
 
 const navItems = [
-  { to: '/', label: 'Feed' },
+  { to: '/', label: 'Home' },
   { to: '/players', label: 'Players' },
   { to: '/teams', label: 'Teams' },
   { to: '/profile', label: 'Profile' },

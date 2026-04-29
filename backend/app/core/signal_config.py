@@ -9,7 +9,7 @@ from typing import Any
 
 @dataclass(frozen=True)
 class SignalWindows:
-    short_window: int = 4
+    short_window: int = 5
     medium_window: int = 10
     delta_window: int = 3
     trend_window: int = 5
@@ -39,11 +39,18 @@ class SignalScoring:
 
 
 @dataclass(frozen=True)
+class MinutesEligibilityConfig:
+    min_absolute: float = 5.0
+    min_fraction_of_baseline: float = 0.25
+
+
+@dataclass(frozen=True)
 class SignalConfig:
     windows: SignalWindows = SignalWindows()
     thresholds: SignalThresholds = SignalThresholds()
     scoring: SignalScoring = SignalScoring()
     metric_thresholds: dict[str, SignalThresholds] | None = None
+    minutes_eligibility: MinutesEligibilityConfig = MinutesEligibilityConfig()
 
     def thresholds_for_metric(self, metric_name: str) -> SignalThresholds:
         if not self.metric_thresholds:
@@ -72,6 +79,7 @@ def get_signal_config() -> SignalConfig:
     windows = _merge_dataclass(SignalWindows(), payload.get("windows", {}))
     thresholds = _merge_dataclass(SignalThresholds(), payload.get("thresholds", {}).get("global", {}))
     scoring = _merge_dataclass(SignalScoring(), payload.get("scoring", {}))
+    minutes_eligibility = _merge_dataclass(MinutesEligibilityConfig(), payload.get("minutes_eligibility", {}))
 
     metric_thresholds: dict[str, SignalThresholds] = {}
     for metric_name, raw_thresholds in payload.get("thresholds", {}).get("metrics", {}).items():
@@ -82,6 +90,7 @@ def get_signal_config() -> SignalConfig:
         thresholds=thresholds,
         scoring=scoring,
         metric_thresholds=metric_thresholds,
+        minutes_eligibility=minutes_eligibility,
     )
 
 

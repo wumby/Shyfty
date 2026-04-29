@@ -2,7 +2,23 @@ import Foundation
 import SwiftUI
 
 enum SignalFormatting {
-    private static let isoDateTimeFormatter = ISO8601DateFormatter()
+    private static let isoDateTimeFormatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+    private static let isoDateTimeNoFractionFormatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+    private static let isoDateTimeNoZFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(secondsFromGMT: 0)
+        f.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSSSS"
+        return f
+    }()
     private static let isoDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.calendar = Calendar(identifier: .iso8601)
@@ -99,10 +115,9 @@ enum SignalFormatting {
     }
 
     private static func parseDate(_ value: String) -> Date? {
-        if let date = isoDateTimeFormatter.date(from: value) {
-            return date
-        }
-
+        if let date = isoDateTimeFormatter.date(from: value) { return date }
+        if let date = isoDateTimeNoFractionFormatter.date(from: value) { return date }
+        if let date = isoDateTimeNoZFormatter.date(from: value) { return date }
         return isoDateFormatter.date(from: value)
     }
 

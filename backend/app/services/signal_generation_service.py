@@ -15,7 +15,6 @@ from app.domain.signals import (
     build_metric_snapshots,
     build_narrative_summary,
     classify_signal,
-    deviation_from_expected,
     score_signal,
 )
 from app.models.game import Game
@@ -26,6 +25,8 @@ from app.models.rolling_metric_baseline_sample import RollingMetricBaselineSampl
 from app.models.signal import Signal
 from app.models.team import Team
 from app.models.team_game_stat import TeamGameStat
+
+MAX_SIGNALS_PER_PLAYER_GAME = 3
 
 
 @dataclass(frozen=True)
@@ -44,6 +45,24 @@ class SignalGenerationContext:
     game_pace_proxy: dict[int, float]
     opponent_average_allowed: dict[tuple[int, str], float]
     opponent_rank: dict[tuple[int, str], int]
+
+
+@dataclass(frozen=True)
+class PlayerSignalCandidate:
+    player: Player
+    game_id: int
+    rolling_metric_id: int
+    source_stat_id: int
+    metric_name: str
+    signal_type: str
+    current_value: float
+    baseline_value: float
+    z_score: float
+    signal_score: float
+    score_explanation: str
+    explanation: str
+    narrative_summary: Optional[str]
+    generated_at: datetime
 
 
 class SignalGenerationError(RuntimeError):
@@ -363,6 +382,49 @@ def _sync_signal_for_context(
     return created, updated, deleted
 
 
+def _sync_player_signal_candidates(
+    db: Session,
+    candidates: list[PlayerSignalCandidate],
+) -> tuple[int, int, int]:
+    by_game: dict[int, list[PlayerSignalCandidate]] = {}
+    for candidate in candidates:
+        by_game.setdefault(candidate.game_id, []).append(candidate)
+
+    created = 0
+    updated = 0
+    deleted = 0
+    for game_candidates in by_game.values():
+        ranked = sorted(game_candidates, key=lambda candidate: candidate.signal_score, reverse=True)
+        kept_keys = {(candidate.game_id, candidate.metric_name) for candidate in ranked[:MAX_SIGNALS_PER_PLAYER_GAME]}
+        for candidate in ranked:
+            signal_type = (
+                candidate.signal_type
+                if (candidate.game_id, candidate.metric_name) in kept_keys
+                else None
+            )
+            candidate_created, candidate_updated, candidate_deleted = _sync_signal_for_context(
+                db,
+                player=candidate.player,
+                game_id=candidate.game_id,
+                rolling_metric_id=candidate.rolling_metric_id,
+                source_stat_id=candidate.source_stat_id,
+                metric_name=candidate.metric_name,
+                signal_type=signal_type,
+                current_value=candidate.current_value,
+                baseline_value=candidate.baseline_value,
+                z_score=candidate.z_score,
+                signal_score=candidate.signal_score if signal_type is not None else 0.0,
+                score_explanation=candidate.score_explanation if signal_type is not None else "",
+                explanation=candidate.explanation,
+                narrative_summary=candidate.narrative_summary if signal_type is not None else None,
+                generated_at=candidate.generated_at,
+            )
+            created += candidate_created
+            updated += candidate_updated
+            deleted += candidate_deleted
+    return created, updated, deleted
+
+
 def _sync_team_signal_for_context(
     db: Session,
     *,
@@ -488,24 +550,24 @@ def _generate_team_signals(
             )
             for snapshot in snapshots:
                 severity = classify_signal(snapshot, metric_name)
-                deviation = deviation_from_expected(snapshot.current_value, snapshot.baseline_value)
-                if severity is None or deviation is None:
+                if severity is None:
                     continue
                 stat = next((team_stat for team_stat in team_stats if team_stat.id == snapshot.source_stat_id), None)
                 if stat is None:
                     continue
+                candidate_strength = abs(snapshot.z_score) + abs(snapshot.current_value - snapshot.baseline_value)
                 current_best = candidates_by_game.get(snapshot.game_id)
-                if current_best is None or deviation > current_best[4]:
+                if current_best is None or candidate_strength > current_best[4]:
                     candidates_by_game[snapshot.game_id] = (
                         metric_name,
                         snapshot,
                         snapshot.current_value,
                         snapshot.baseline_value,
-                        deviation,
+                        candidate_strength,
                     )
 
         valid_contexts: set[tuple[int, str]] = set()
-        for game_id, (metric_name, snapshot, current_value, baseline_value, deviation) in candidates_by_game.items():
+        for game_id, (metric_name, snapshot, current_value, baseline_value, _candidate_strength) in candidates_by_game.items():
             stat = next((team_stat for team_stat in team_stats if team_stat.id == snapshot.source_stat_id), None)
             if stat is None:
                 continue
@@ -527,12 +589,9 @@ def _generate_team_signals(
             signal_score, score_explanation = score_signal(
                 snapshot,
                 signal_type=signal_type,
+                metric_name=metric_name,
                 event_date=snapshot.event_date,
                 latest_event_date=None,
-            )
-            score_explanation = (
-                f"Team signal from {metric_name} deviation of {deviation:.2f} "
-                f"vs. the rolling baseline over the last {len(snapshot.short_window.values)} games."
             )
             created, updated, deleted = _sync_team_signal_for_context(
                 db,
@@ -636,6 +695,19 @@ def generate_signals_for_players(
                 if "usage_rate" in metrics
                 else {}
             )
+            minutes_snapshots_by_game_id = (
+                {
+                    snapshot.game_id: snapshot
+                    for snapshot in build_metric_snapshots(
+                        "minutes_played",
+                        metric_stats.get("minutes_played", []),
+                        game_dates_by_game_id=context.game_dates,
+                    )
+                }
+                if "minutes_played" in metrics
+                else {}
+            )
+            signal_candidates: list[PlayerSignalCandidate] = []
 
             for metric_name in metrics:
                 snapshots = build_metric_snapshots(
@@ -647,6 +719,7 @@ def generate_signals_for_players(
                     generated_at = datetime.utcnow()
                     valid_contexts.add((snapshot.game_id, metric_name))
                     usage_snapshot = usage_snapshots.get(snapshot.game_id)
+                    minutes_snapshot = minutes_snapshots_by_game_id.get(snapshot.game_id)
                     contextual_snapshot = snapshot.with_context(
                         opponent_average_allowed=context.opponent_average_allowed.get((snapshot.source_stat_id, metric_name)),
                         opponent_rank=context.opponent_rank.get((snapshot.source_stat_id, metric_name)),
@@ -656,6 +729,8 @@ def generate_signals_for_players(
                             if metric_name == "usage_rate"
                             else (usage_snapshot.current_value - usage_snapshot.medium_window.rolling_avg if usage_snapshot else None)
                         ),
+                        minutes_current=minutes_snapshot.current_value if minutes_snapshot else None,
+                        minutes_baseline=minutes_snapshot.baseline_value if minutes_snapshot else None,
                     )
 
                     rolling_metric, rolling_created = _upsert_rolling_metric(
@@ -681,6 +756,7 @@ def generate_signals_for_players(
                         signal_score, score_explanation = score_signal(
                             contextual_snapshot,
                             signal_type=signal_type,
+                            metric_name=metric_name,
                             event_date=contextual_snapshot.event_date,
                             latest_event_date=latest_event_date,
                         )
@@ -701,23 +777,44 @@ def generate_signals_for_players(
                         else None
                     )
 
-                    created, updated, deleted = _sync_signal_for_context(
-                        db,
-                        player=player,
-                        game_id=contextual_snapshot.game_id,
-                        rolling_metric_id=rolling_metric.id,
-                        source_stat_id=contextual_snapshot.source_stat_id,
-                        metric_name=metric_name,
-                        signal_type=signal_type,
-                        current_value=contextual_snapshot.current_value,
-                        baseline_value=contextual_snapshot.baseline_value,
-                        z_score=contextual_snapshot.z_score,
-                        signal_score=signal_score,
-                        score_explanation=score_explanation,
-                        explanation=explanation,
-                        narrative_summary=narrative,
-                        generated_at=generated_at,
-                    )
+                    if signal_type is None:
+                        created, updated, deleted = _sync_signal_for_context(
+                            db,
+                            player=player,
+                            game_id=contextual_snapshot.game_id,
+                            rolling_metric_id=rolling_metric.id,
+                            source_stat_id=contextual_snapshot.source_stat_id,
+                            metric_name=metric_name,
+                            signal_type=None,
+                            current_value=contextual_snapshot.current_value,
+                            baseline_value=contextual_snapshot.baseline_value,
+                            z_score=contextual_snapshot.z_score,
+                            signal_score=0.0,
+                            score_explanation="",
+                            explanation=explanation,
+                            narrative_summary=None,
+                            generated_at=generated_at,
+                        )
+                    else:
+                        signal_candidates.append(
+                            PlayerSignalCandidate(
+                                player=player,
+                                game_id=contextual_snapshot.game_id,
+                                rolling_metric_id=rolling_metric.id,
+                                source_stat_id=contextual_snapshot.source_stat_id,
+                                metric_name=metric_name,
+                                signal_type=signal_type,
+                                current_value=contextual_snapshot.current_value,
+                                baseline_value=contextual_snapshot.baseline_value,
+                                z_score=contextual_snapshot.z_score,
+                                signal_score=signal_score,
+                                score_explanation=score_explanation,
+                                explanation=explanation,
+                                narrative_summary=narrative,
+                                generated_at=generated_at,
+                            )
+                        )
+                        created = updated = deleted = 0
 
                     result = SignalGenerationResult(
                         created_signals=result.created_signals + created,
@@ -728,6 +825,15 @@ def generate_signals_for_players(
                         deleted_rolling_metrics=result.deleted_rolling_metrics,
                     )
 
+            created, updated, deleted = _sync_player_signal_candidates(db, signal_candidates)
+            result = SignalGenerationResult(
+                created_signals=result.created_signals + created,
+                updated_signals=result.updated_signals + updated,
+                deleted_signals=result.deleted_signals + deleted,
+                created_rolling_metrics=result.created_rolling_metrics,
+                updated_rolling_metrics=result.updated_rolling_metrics,
+                deleted_rolling_metrics=result.deleted_rolling_metrics,
+            )
             deleted_rolling_metrics = _delete_stale_rolling_metrics(db, player_id=player.id, valid_contexts=valid_contexts)
             deleted_signals = _delete_stale_signals(db, player_id=player.id, valid_contexts=valid_contexts)
             result = SignalGenerationResult(
@@ -783,6 +889,15 @@ def generate_signals(db: Session) -> SignalGenerationResult:
                     game_dates_by_game_id=context.game_dates,
                 )
             } if "usage_rate" in metrics else {}
+            minutes_snapshots_by_game_id = {
+                snapshot.game_id: snapshot
+                for snapshot in build_metric_snapshots(
+                    "minutes_played",
+                    metric_stats.get("minutes_played", []),
+                    game_dates_by_game_id=context.game_dates,
+                )
+            } if "minutes_played" in metrics else {}
+            signal_candidates: list[PlayerSignalCandidate] = []
 
             for metric_name in metrics:
                 snapshots = build_metric_snapshots(
@@ -794,6 +909,7 @@ def generate_signals(db: Session) -> SignalGenerationResult:
                     generated_at = datetime.utcnow()
                     valid_contexts.add((snapshot.game_id, metric_name))
                     usage_snapshot = usage_snapshots.get(snapshot.game_id)
+                    minutes_snapshot = minutes_snapshots_by_game_id.get(snapshot.game_id)
                     contextual_snapshot = snapshot.with_context(
                         opponent_average_allowed=context.opponent_average_allowed.get((snapshot.source_stat_id, metric_name)),
                         opponent_rank=context.opponent_rank.get((snapshot.source_stat_id, metric_name)),
@@ -803,6 +919,8 @@ def generate_signals(db: Session) -> SignalGenerationResult:
                             if metric_name == "usage_rate"
                             else (usage_snapshot.current_value - usage_snapshot.medium_window.rolling_avg) if usage_snapshot else None
                         ),
+                        minutes_current=minutes_snapshot.current_value if minutes_snapshot else None,
+                        minutes_baseline=minutes_snapshot.baseline_value if minutes_snapshot else None,
                     )
 
                     rolling_metric, rolling_created = _upsert_rolling_metric(
@@ -828,6 +946,7 @@ def generate_signals(db: Session) -> SignalGenerationResult:
                         signal_score, score_explanation = score_signal(
                             contextual_snapshot,
                             signal_type=signal_type,
+                            metric_name=metric_name,
                             event_date=contextual_snapshot.event_date,
                             latest_event_date=latest_event_date,
                         )
@@ -848,23 +967,44 @@ def generate_signals(db: Session) -> SignalGenerationResult:
                         else None
                     )
 
-                    created, updated, deleted = _sync_signal_for_context(
-                        db,
-                        player=player,
-                        game_id=contextual_snapshot.game_id,
-                        rolling_metric_id=rolling_metric.id,
-                        source_stat_id=contextual_snapshot.source_stat_id,
-                        metric_name=metric_name,
-                        signal_type=signal_type,
-                        current_value=contextual_snapshot.current_value,
-                        baseline_value=contextual_snapshot.baseline_value,
-                        z_score=contextual_snapshot.z_score,
-                        signal_score=signal_score,
-                        score_explanation=score_explanation,
-                        explanation=explanation,
-                        narrative_summary=narrative,
-                        generated_at=generated_at,
-                    )
+                    if signal_type is None:
+                        created, updated, deleted = _sync_signal_for_context(
+                            db,
+                            player=player,
+                            game_id=contextual_snapshot.game_id,
+                            rolling_metric_id=rolling_metric.id,
+                            source_stat_id=contextual_snapshot.source_stat_id,
+                            metric_name=metric_name,
+                            signal_type=None,
+                            current_value=contextual_snapshot.current_value,
+                            baseline_value=contextual_snapshot.baseline_value,
+                            z_score=contextual_snapshot.z_score,
+                            signal_score=0.0,
+                            score_explanation="",
+                            explanation=explanation,
+                            narrative_summary=None,
+                            generated_at=generated_at,
+                        )
+                    else:
+                        signal_candidates.append(
+                            PlayerSignalCandidate(
+                                player=player,
+                                game_id=contextual_snapshot.game_id,
+                                rolling_metric_id=rolling_metric.id,
+                                source_stat_id=contextual_snapshot.source_stat_id,
+                                metric_name=metric_name,
+                                signal_type=signal_type,
+                                current_value=contextual_snapshot.current_value,
+                                baseline_value=contextual_snapshot.baseline_value,
+                                z_score=contextual_snapshot.z_score,
+                                signal_score=signal_score,
+                                score_explanation=score_explanation,
+                                explanation=explanation,
+                                narrative_summary=narrative,
+                                generated_at=generated_at,
+                            )
+                        )
+                        created = updated = deleted = 0
 
                     result = SignalGenerationResult(
                         created_signals=result.created_signals + created,
@@ -875,6 +1015,15 @@ def generate_signals(db: Session) -> SignalGenerationResult:
                         deleted_rolling_metrics=result.deleted_rolling_metrics,
                     )
 
+            created, updated, deleted = _sync_player_signal_candidates(db, signal_candidates)
+            result = SignalGenerationResult(
+                created_signals=result.created_signals + created,
+                updated_signals=result.updated_signals + updated,
+                deleted_signals=result.deleted_signals + deleted,
+                created_rolling_metrics=result.created_rolling_metrics,
+                updated_rolling_metrics=result.updated_rolling_metrics,
+                deleted_rolling_metrics=result.deleted_rolling_metrics,
+            )
             deleted_rolling_metrics = _delete_stale_rolling_metrics(db, player_id=player.id, valid_contexts=valid_contexts)
             deleted_signals = _delete_stale_signals(db, player_id=player.id, valid_contexts=valid_contexts)
             result = SignalGenerationResult(

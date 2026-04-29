@@ -25,6 +25,17 @@ export interface FreshnessContext {
   event_age_hours: number | null;
 }
 
+export interface SignalDebugTrace {
+  baseline: number;
+  actual: number;
+  delta: number;
+  z_score: number;
+  sample_size: number;
+  thresholds: Record<string, number | null>;
+  conditions: Record<string, boolean>;
+  passed: boolean;
+}
+
 export interface Signal {
   id: number;
   subject_type?: 'player' | 'team';
@@ -42,6 +53,8 @@ export interface Signal {
   performance: number | null;
   deviation: number | null;
   z_score: number;
+  signal_score: number;
+  score_explanation?: string | null;
   explanation: string;
   importance?: number;
   baseline_window?: string;
@@ -62,7 +75,9 @@ export interface Signal {
     trend_direction: 'up' | 'down' | 'flat';
   };
   classification_reason?: string;
+  debug_trace?: SignalDebugTrace;
   narrative_summary?: string;
+  streak: number;
   reaction_summary: ReactionSummary;
   user_reaction: ReactionType | null;
   comment_count: number;

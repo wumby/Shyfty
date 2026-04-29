@@ -13,7 +13,7 @@ const severityLabels: Record<string, string> = {
 
 const sortLabels: Record<string, string> = {
   newest: 'Newest',
-  most_important: 'Severity',
+  most_important: 'Signal score',
   biggest_deviation: 'Biggest deviation',
 };
 

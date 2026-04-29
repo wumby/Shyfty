@@ -103,6 +103,17 @@ struct GroupedSignalCardView: View {
                         .background(tint.opacity(0.12))
                         .overlay(Capsule().strokeBorder(tint.opacity(0.24), lineWidth: 1))
                         .clipShape(Capsule())
+                    if signal.streak >= 2 {
+                        Text("\(signal.streak)G")
+                            .font(.system(size: 9, weight: .bold))
+                            .kerning(1.2)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 4)
+                            .foregroundStyle(Color.orange.opacity(0.9))
+                            .background(Color.orange.opacity(0.12))
+                            .overlay(Capsule().strokeBorder(Color.orange.opacity(0.3), lineWidth: 1))
+                            .clipShape(Capsule())
+                    }
                 }
 
                 HStack(spacing: 6) {

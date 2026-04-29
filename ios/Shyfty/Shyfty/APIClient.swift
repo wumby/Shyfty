@@ -32,17 +32,17 @@ final class APIClient {
 
     // MARK: - Signals
 
-    func fetchSignals(league: String? = nil, signalType: String? = nil, player: String? = nil, feed: String? = nil) async throws -> [Signal] {
+    func fetchSignals(league: String? = nil, signalType: String? = nil, player: String? = nil, feed: String? = nil, cursor: Int? = nil) async throws -> PaginatedSignals {
         var components = URLComponents(url: baseURL.appendingPathComponent("signals"), resolvingAgainstBaseURL: false)!
         components.queryItems = [
             league.map { URLQueryItem(name: "league", value: $0) },
             signalType.map { URLQueryItem(name: "signal_type", value: $0) },
             player.map { URLQueryItem(name: "player", value: $0) },
             feed.map { URLQueryItem(name: "feed", value: $0) },
-            URLQueryItem(name: "limit", value: "50")
+            cursor.map { URLQueryItem(name: "cursor", value: String($0)) },
+            URLQueryItem(name: "limit", value: "30"),
         ].compactMap { $0 }
-        let paginated: PaginatedSignals = try await get(components.url!)
-        return paginated.items
+        return try await get(components.url!)
     }
 
     func fetchTrendingSignals() async throws -> [Signal] {
@@ -57,6 +57,10 @@ final class APIClient {
     }
 
     // MARK: - Players
+
+    func fetchPlayers() async throws -> [Player] {
+        return try await get(baseURL.appendingPathComponent("players"))
+    }
 
     func fetchPlayer(id: Int) async throws -> Player {
         return try await get(baseURL.appendingPathComponent("players/\(id)"))

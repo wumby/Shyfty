@@ -38,16 +38,17 @@ export function getMetricLabel(signal: Signal): string {
 }
 
 export function getImportanceScore(signal: Signal): number {
+  if (typeof signal.signal_score === 'number') return signal.signal_score;
   if (typeof signal.importance === 'number') return signal.importance;
 
-  const strength = signal.deviation ?? Math.abs(signal.z_score);
+  const strength = Math.abs(signal.z_score);
   const typeFloor: Record<Signal['signal_type'], number> = {
-    OUTLIER: 85,
-    SWING: 72,
-    SHIFT: 58,
+    OUTLIER: 8,
+    SWING: 6,
+    SHIFT: 4,
   };
 
-  return Math.min(typeFloor[signal.signal_type] + Math.min(strength * 20, 12), 100);
+  return Math.min(typeFloor[signal.signal_type] + Math.min(strength, 4), 10);
 }
 
 export function formatSignalLabel(signalType: Signal['signal_type']): string {
@@ -61,73 +62,46 @@ export function formatSignalLabel(signalType: Signal['signal_type']): string {
 
 export function getImportance(signal: Signal): 'High' | 'Medium' | 'Watch' {
   const score = getImportanceScore(signal);
-  if (score >= 85) return 'High';
-  if (score >= 65) return 'Medium';
+  if (score >= 8) return 'High';
+  if (score >= 6) return 'Medium';
   return 'Watch';
 }
 
 export function getDeltaPercent(signal: Signal): number | null {
-  if (signal.performance !== null && signal.performance !== undefined) {
-    return (signal.performance - 1) * 100;
-  }
-  const actual = signal.current_value;
-  const expected = signal.baseline_value;
-
-  if (!Number.isFinite(actual) || !Number.isFinite(expected) || expected === 0) {
-    return null;
-  }
-
-  return ((actual - expected) / expected) * 100;
+  return typeof signal.movement_pct === 'number' && Number.isFinite(signal.movement_pct)
+    ? signal.movement_pct
+    : null;
 }
 
 export function formatDelta(signal: Signal): string {
-  const deltaPercent = getDeltaPercent(signal);
-  if (deltaPercent === null) {
-    return '—';
-  }
-  const rounded = Math.round(deltaPercent);
-  return `${rounded >= 0 ? '+' : ''}${rounded}%`;
+  const rawDelta = signal.current_value - signal.baseline_value;
+  const formatted = Number.isInteger(rawDelta) ? rawDelta.toFixed(0) : rawDelta.toFixed(1);
+  return `${rawDelta >= 0 ? '+' : ''}${formatted}`;
 }
 
 export function getSignalDirection(signal: Signal): 'positive' | 'negative' | 'neutral' {
-  const deltaPercent = getDeltaPercent(signal);
-
-  if (deltaPercent === null) {
-    const rawDelta = signal.current_value - signal.baseline_value;
-    if (Math.abs(rawDelta) < 0.05) return 'neutral';
-    return rawDelta > 0 ? 'positive' : 'negative';
-  }
-
-  if (Math.abs(deltaPercent) < 1) return 'neutral';
-  return deltaPercent > 0 ? 'positive' : 'negative';
+  const rawDelta = signal.current_value - signal.baseline_value;
+  if (Math.abs(rawDelta) < 0.05) return 'neutral';
+  return rawDelta > 0 ? 'positive' : 'negative';
 }
 
 export function formatMovementLabel(signal: Signal): string {
   const metric = getMetricLabel(signal);
   const deltaPercent = getDeltaPercent(signal);
   if (deltaPercent === null) {
-    return `${metric} vs expected`;
+    return `${metric} vs baseline`;
   }
 
-  const direction = deltaPercent >= 0 ? 'above' : 'below';
-  return `${Math.abs(Math.round(deltaPercent))}% ${direction} expected`;
+  return `${deltaPercent >= 0 ? '+' : ''}${Math.round(deltaPercent)}% vs baseline`;
 }
 
 export function formatSignalSummary(signal: Signal): string {
   if (signal.narrative_summary) return signal.narrative_summary;
 
   const metric = getMetricLabel(signal);
-  const deltaPercent = getDeltaPercent(signal);
-  const window = 'expected';
-
-  if (deltaPercent === null) {
-    const rawDelta = signal.current_value - signal.baseline_value;
-    return `${metric} moved ${rawDelta >= 0 ? 'above' : 'below'} ${window}.`;
-  }
-
-  const rounded = Math.abs(Math.round(deltaPercent));
-  const direction = deltaPercent >= 0 ? 'above' : 'below';
-  return `${metric} is ${rounded}% ${direction} ${window}.`;
+  const rawDelta = signal.current_value - signal.baseline_value;
+  const direction = rawDelta >= 0 ? 'above' : 'below';
+  return `${metric} is ${Math.abs(rawDelta).toFixed(1)} ${direction} baseline.`;
 }
 
 export function formatEventDate(value: string): string {
@@ -165,7 +139,7 @@ export function getSignalMomentum(signal: Signal, tracked = false, sortMode?: st
   const engagementBoost = Math.min(3, totalReactions * 0.25 + signal.comment_count * 0.55);
   const followBoost = tracked ? 2.4 : 0;
   const sortBoost = sortMode === 'most_discussed' ? engagementBoost * 0.6 : 0;
-  const importanceBoost = getImportanceScore(signal) / 55;
+  const importanceBoost = getImportanceScore(signal) / 5.5;
 
   return importanceBoost + engagementBoost + recencyBoost + followBoost + sortBoost;
 }

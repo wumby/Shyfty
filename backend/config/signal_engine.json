@@ -1,6 +1,6 @@
 {
   "windows": {
-    "short_window": 4,
+    "short_window": 5,
     "medium_window": 10,
     "delta_window": 3,
     "trend_window": 5,
@@ -15,6 +15,10 @@
       "high_volatility_index": 1.35
     },
     "metrics": {}
+  },
+  "minutes_eligibility": {
+    "min_absolute": 5.0,
+    "min_fraction_of_baseline": 0.25
   },
   "scoring": {
     "base_score": 24.0,

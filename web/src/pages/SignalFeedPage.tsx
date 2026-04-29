@@ -25,9 +25,9 @@ type SignalTypeFilterValue = (typeof SIGNAL_TYPE_FILTERS)[number]['value'];
 type FeedTab = 'forYou' | 'following';
 
 function getSignalPriority(signal: Signal): number {
+  if (typeof signal.signal_score === 'number') return signal.signal_score;
   if (typeof signal.importance === 'number') return signal.importance;
-  const severityRank = signal.severity === 'OUTLIER' ? 3 : signal.severity === 'SWING' ? 2 : 1;
-  return severityRank * 100 + (signal.deviation ?? Math.abs(signal.z_score));
+  return Math.abs(signal.z_score);
 }
 
 function groupSignalsByPlayerGame(signals: Signal[]): Signal[][] {
@@ -107,8 +107,8 @@ export function SignalFeedPage() {
 
     return signals.filter(
       (signal) =>
-        (signal.player_id != null && profile.follows.players.includes(signal.player_id)) ||
-        profile.follows.teams.includes(signal.team_id),
+        (signal.subject_type === 'player' && signal.player_id != null && profile.follows.players.includes(signal.player_id)) ||
+        (signal.subject_type === 'team' && profile.follows.teams.includes(signal.team_id)),
     );
   }, [activeTab, profile, signals]);
   const groupedSignals = groupSignalsByPlayerGame(visibleSignals);
