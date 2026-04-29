@@ -31,16 +31,126 @@ struct FreshnessContext: Decodable, Hashable {
 }
 
 struct PaginatedSignals: Decodable {
-    let items: [Signal]
+    let items: [FeedItem]
     let hasMore: Bool
     let nextCursor: Int?
     let feedContext: FeedContext?
+
+    var signalItems: [Signal] {
+        items.compactMap {
+            if case .signal(let signal) = $0 { return signal }
+            return nil
+        }
+    }
 
     enum CodingKeys: String, CodingKey {
         case items
         case hasMore = "has_more"
         case nextCursor = "next_cursor"
         case feedContext = "feed_context"
+    }
+}
+
+enum FeedItem: Identifiable, Decodable, Hashable {
+    case signal(Signal)
+    case cascade(CascadeSignal)
+
+    var id: String {
+        switch self {
+        case .signal(let signal): return "signal-\(signal.id)"
+        case .cascade(let cascade): return cascade.id
+        }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case type
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let type = try container.decodeIfPresent(String.self, forKey: .type) ?? "signal"
+        if type == "cascade" {
+            self = .cascade(try CascadeSignal(from: decoder))
+        } else {
+            self = .signal(try Signal(from: decoder))
+        }
+    }
+}
+
+struct CascadePlayer: Decodable, Hashable {
+    let id: Int?
+    let name: String
+}
+
+struct CascadeTrigger: Decodable, Hashable {
+    let player: CascadePlayer
+    let signalID: Int
+    let stat: String
+    let metricLabel: String
+    let delta: Double
+    let deltaPercent: Double?
+    let signalType: String
+    let signalScore: Double
+
+    enum CodingKeys: String, CodingKey {
+        case player
+        case signalID = "signal_id"
+        case stat
+        case metricLabel = "metric_label"
+        case delta
+        case deltaPercent = "delta_percent"
+        case signalType = "signal_type"
+        case signalScore = "signal_score"
+    }
+}
+
+struct CascadeContributor: Decodable, Hashable {
+    let player: CascadePlayer
+    let signalID: Int
+    let stat: String
+    let metricLabel: String
+    let delta: Double
+    let deltaPercent: Double?
+    let signalType: String
+    let signalScore: Double
+
+    enum CodingKeys: String, CodingKey {
+        case player
+        case signalID = "signal_id"
+        case stat
+        case metricLabel = "metric_label"
+        case delta
+        case deltaPercent = "delta_percent"
+        case signalType = "signal_type"
+        case signalScore = "signal_score"
+    }
+}
+
+struct CascadeSignal: Identifiable, Decodable, Hashable {
+    let id: String
+    let gameID: Int
+    let teamID: Int
+    let team: String
+    let leagueName: String
+    let gameDate: String
+    let createdAt: String
+    let trigger: CascadeTrigger
+    let contributors: [CascadeContributor]
+    let underlyingSignals: [Signal]
+    let narrativeSummary: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case gameID = "game_id"
+        case teamID = "team_id"
+        case team
+        case leagueName = "league_name"
+        case gameDate = "game_date"
+        case createdAt = "created_at"
+        case trigger
+        case contributors
+        case underlyingSignals = "underlying_signals"
+        case narrativeSummary = "narrative_summary"
     }
 }
 

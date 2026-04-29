@@ -118,7 +118,7 @@ struct SearchSheetView: View {
         VStack(spacing: 8) {
             Text("No results")
                 .shyftyHeadline(22)
-            Text("No players matched "\(query.trimmingCharacters(in: .whitespaces))"")
+            Text("No players matched \"\(query.trimmingCharacters(in: .whitespaces))\"")
                 .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(ShyftyTheme.muted)
         }

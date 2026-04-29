@@ -37,6 +37,7 @@ export interface SignalDebugTrace {
 }
 
 export interface Signal {
+  type?: 'signal';
   id: number;
   subject_type?: 'player' | 'team';
   player_id: number | null;
@@ -86,6 +87,41 @@ export interface Signal {
   freshness: FreshnessContext | null;
 }
 
+export interface CascadePlayer {
+  id: number | null;
+  name: string;
+}
+
+export interface CascadeTrigger {
+  player: CascadePlayer;
+  signal_id: number;
+  stat: string;
+  metric_label: string;
+  delta: number;
+  delta_percent: number | null;
+  signal_type: SignalType;
+  signal_score: number;
+}
+
+export interface CascadeContributor extends CascadeTrigger {}
+
+export interface CascadeSignal {
+  type: 'cascade';
+  id: string;
+  game_id: number;
+  team_id: number;
+  team: string;
+  league_name: string;
+  game_date: string;
+  created_at: string;
+  trigger: CascadeTrigger;
+  contributors: CascadeContributor[];
+  underlying_signals: Signal[];
+  narrative_summary: string | null;
+}
+
+export type FeedItem = Signal | CascadeSignal;
+
 export interface Player {
   id: number;
   name: string;
@@ -126,7 +162,7 @@ export interface FeedContext {
 }
 
 export interface PaginatedSignals {
-  items: Signal[];
+  items: FeedItem[];
   has_more: boolean;
   next_cursor: number | null;
   feed_context: FeedContext | null;

@@ -149,7 +149,7 @@ final class APIClient {
 
     func fetchFavorites() async throws -> [Signal] {
         let paginated: PaginatedSignals = try await get(baseURL.appendingPathComponent("favorites"))
-        return paginated.items
+        return paginated.signalItems
     }
 
     // MARK: - Comments

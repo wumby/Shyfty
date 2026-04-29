@@ -16,114 +16,140 @@ struct FeedView: View {
     }
 
     var body: some View {
+        navigationRoot
+            .preferredColorScheme(.dark)
+    }
+
+    private var navigationRoot: some View {
         NavigationStack {
-            ZStack {
-                ShyftyBackground()
+            rootContent
+                .navigationDestination(for: Int.self) { playerID in
+                    PlayerDetailView(playerID: playerID)
+                }
+                .navigationDestination(for: Signal.self) { signal in
+                    SignalDetailView(signalId: signal.id, signal: signal)
+                }
+                .navigationDestination(for: CascadeSignal.self) { cascade in
+                    CascadeDetailView(cascade: cascade)
+                }
+                .navigationTitle("")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar { toolbarContent }
+                .toolbarBackground(.hidden, for: .navigationBar)
+                .task {
+                    await viewModel.loadSignals()
+                    await viewModel.loadProfile()
+                }
+                .onChange(of: viewModel.selectedLeague) { _, _ in
+                    Task { await viewModel.loadSignals() }
+                }
+                .onChange(of: viewModel.selectedType) { _, _ in
+                    Task { await viewModel.loadSignals() }
+                }
+                .onChange(of: viewModel.feedMode) { _, _ in
+                    Task { await viewModel.loadSignals() }
+                }
+                .sheet(isPresented: $auth.showAuthSheet) {
+                    AuthView()
+                        .environmentObject(auth)
+                }
+                .sheet(isPresented: $showFilterSheet) {
+                    SignalFilterSheetView(viewModel: viewModel)
+                        .presentationDetents([.medium, .large])
+                }
+                .sheet(isPresented: $showSearchSheet) {
+                    SearchSheetView()
+                        .environmentObject(auth)
+                }
+        }
+    }
 
-                ScrollView {
-                    VStack(spacing: 16) {
-                        headerView
-
-                        if horizontalSizeClass == .regular {
-                            HStack(alignment: .top, spacing: 14) {
-                                filtersPanel
-                                    .frame(width: 240)
-                                VStack(spacing: 14) {
-                                    feedModeSegment
-                                    feedBody
-                                }
-                            }
-                        } else {
-                            feedModeSegment
-                            feedBody
-                        }
-                    }
+    private var rootContent: some View {
+        ZStack {
+            ShyftyBackground()
+            ScrollView {
+                mainStack
                     .padding(.horizontal, 14)
                     .padding(.vertical, 12)
-                }
-            }
-            .navigationDestination(for: Int.self) { playerID in
-                PlayerDetailView(playerID: playerID)
-            }
-            .navigationDestination(for: Signal.self) { signal in
-                SignalDetailView(signalId: signal.id, prefetchedSignal: signal)
-            }
-            .navigationTitle("")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Text("Shyfty")
-                        .font(.system(size: 20, weight: .semibold, design: .serif))
-                        .foregroundStyle(ShyftyTheme.ink)
-                }
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button {
-                        showSearchSheet = true
-                    } label: {
-                        Image(systemName: "magnifyingglass")
-                            .foregroundStyle(ShyftyTheme.muted)
-                    }
-
-                    if horizontalSizeClass != .regular {
-                        Button {
-                            showFilterSheet = true
-                        } label: {
-                            Image(systemName: "slider.horizontal.3")
-                                .foregroundStyle(hasActiveFilters ? ShyftyTheme.accent : ShyftyTheme.muted)
-                        }
-                    }
-
-                    NavigationLink {
-                        FavoritesView()
-                    } label: {
-                        Image(systemName: "star")
-                            .foregroundStyle(ShyftyTheme.muted)
-                    }
-
-                    if auth.currentUser != nil {
-                        NavigationLink {
-                            AccountView()
-                        } label: {
-                            Image(systemName: "person.crop.circle")
-                                .foregroundStyle(ShyftyTheme.muted)
-                        }
-                    } else {
-                        Button("Sign In") {
-                            auth.isSignUp = false
-                            auth.showAuthSheet = true
-                        }
-                        .foregroundStyle(ShyftyTheme.muted)
-                    }
-                }
-            }
-            .toolbarBackground(.hidden, for: .navigationBar)
-            .task {
-                await viewModel.loadSignals()
-                await viewModel.loadProfile()
-            }
-            .onChange(of: viewModel.selectedLeague) { _, _ in
-                Task { await viewModel.loadSignals() }
-            }
-            .onChange(of: viewModel.selectedType) { _, _ in
-                Task { await viewModel.loadSignals() }
-            }
-            .onChange(of: viewModel.feedMode) { _, _ in
-                Task { await viewModel.loadSignals() }
-            }
-            .sheet(isPresented: $auth.showAuthSheet) {
-                AuthView()
-                    .environmentObject(auth)
-            }
-            .sheet(isPresented: $showFilterSheet) {
-                SignalFilterSheetView(viewModel: viewModel)
-                    .presentationDetents([.medium, .large])
-            }
-            .sheet(isPresented: $showSearchSheet) {
-                SearchSheetView()
-                    .environmentObject(auth)
             }
         }
-        .preferredColorScheme(.dark)
+    }
+
+    private var mainStack: some View {
+        VStack(spacing: 16) {
+            headerView
+            if horizontalSizeClass == .regular {
+                regularLayout
+            } else {
+                compactLayout
+            }
+        }
+    }
+
+    private var regularLayout: some View {
+        HStack(alignment: .top, spacing: 14) {
+            filtersPanel
+                .frame(width: 240)
+            VStack(spacing: 14) {
+                feedModeSegment
+                feedBody
+            }
+        }
+    }
+
+    private var compactLayout: some View {
+        VStack(spacing: 16) {
+            feedModeSegment
+            feedBody
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            Text("Shyfty")
+                .font(.system(size: 20, weight: .semibold, design: .serif))
+                .foregroundStyle(ShyftyTheme.ink)
+        }
+        ToolbarItemGroup(placement: .topBarTrailing) {
+            Button {
+                showSearchSheet = true
+            } label: {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(ShyftyTheme.muted)
+            }
+
+            if horizontalSizeClass != .regular {
+                Button {
+                    showFilterSheet = true
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                        .foregroundStyle(hasActiveFilters ? ShyftyTheme.accent : ShyftyTheme.muted)
+                }
+            }
+
+            NavigationLink {
+                FavoritesView()
+            } label: {
+                Image(systemName: "star")
+                    .foregroundStyle(ShyftyTheme.muted)
+            }
+
+            if auth.currentUser != nil {
+                NavigationLink {
+                    AccountView()
+                } label: {
+                    Image(systemName: "person.crop.circle")
+                        .foregroundStyle(ShyftyTheme.muted)
+                }
+            } else {
+                Button("Sign In") {
+                    auth.isSignUp = false
+                    auth.showAuthSheet = true
+                }
+                .foregroundStyle(ShyftyTheme.muted)
+            }
+        }
     }
 
     private var feedModeSegment: some View {
@@ -220,7 +246,7 @@ struct FeedView: View {
                             .strokeBorder(ShyftyTheme.danger.opacity(0.22), lineWidth: 1)
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-            } else if viewModel.feedMode == .following && viewModel.signals.isEmpty {
+            } else if viewModel.feedMode == .following && viewModel.feedItems.isEmpty {
                 VStack(spacing: 10) {
                     Text("Nothing here yet")
                         .shyftyHeadline(24)
@@ -231,7 +257,7 @@ struct FeedView: View {
                 }
                 .frame(maxWidth: .infinity, minHeight: 220)
                 .shyftyPanel(strong: true)
-            } else if viewModel.signals.isEmpty {
+            } else if viewModel.feedItems.isEmpty {
                 VStack(spacing: 10) {
                     Text("No signals in this view")
                         .shyftyHeadline(24)
@@ -242,9 +268,9 @@ struct FeedView: View {
                 .frame(maxWidth: .infinity, minHeight: 220)
                 .shyftyPanel(strong: true)
             } else {
-                let grouped = viewModel.groupedSignals
+                let grouped = viewModel.groupedFeedItems
                 HStack {
-                    Text("\(grouped.count) \(grouped.count == 1 ? "player" : "players")")
+                    Text("\(grouped.count) \(grouped.count == 1 ? "story" : "stories")")
                         .font(.system(size: 11, weight: .semibold))
                         .tracking(1.8)
                         .foregroundStyle(ShyftyTheme.muted)
@@ -254,12 +280,8 @@ struct FeedView: View {
                 .padding(.horizontal, 6)
 
                 LazyVStack(spacing: 12) {
-                    ForEach(grouped) { group in
-                        GroupedSignalCardView(
-                            signals: group.signals,
-                            isFollowed: viewModel.isFollowed(signal: group.primarySignal),
-                            onFollowToggle: { Task { await viewModel.toggleFollow(for: group.primarySignal) } }
-                        )
+                    ForEach(grouped) { item in
+                        feedDisplayItemView(item)
                     }
 
                     if viewModel.hasMore {
@@ -278,6 +300,24 @@ struct FeedView: View {
         }
         .padding(12)
         .shyftyPanel(strong: true)
+    }
+
+    @ViewBuilder
+    private func feedDisplayItemView(_ item: FeedDisplayItem) -> some View {
+        switch item {
+        case .cascade(let cascade):
+            CascadeCardView(
+                cascade: cascade,
+                isFollowed: viewModel.isFollowed(cascade: cascade),
+                onFollowToggle: { Task { await viewModel.toggleFollow(for: cascade) } }
+            )
+        case .signalGroup(let group):
+            GroupedSignalCardView(
+                signals: group.signals,
+                isFollowed: viewModel.isFollowed(signal: group.primarySignal),
+                onFollowToggle: { Task { await viewModel.toggleFollow(for: group.primarySignal) } }
+            )
+        }
     }
 
     private var filtersPanel: some View {

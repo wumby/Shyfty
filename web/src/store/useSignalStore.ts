@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { api } from '../services/api';
 import type {
   FeedContext,
+  FeedItem,
   IngestStatus,
   Player,
   ProfilePreferences,
@@ -16,7 +17,7 @@ import type {
 
 interface SignalStore {
   filters: SignalFilters;
-  signals: Signal[];
+  signals: FeedItem[];
   hasMore: boolean;
   nextCursor: number | null;
   loadingInitial: boolean;
@@ -59,6 +60,10 @@ function applyReactionChange(signal: Signal, reactionType: ReactionType) {
     user_reaction: nextReaction,
     reaction_summary: nextSummary,
   };
+}
+
+function isSignal(item: FeedItem): item is Signal {
+  return item.type !== 'cascade';
 }
 
 let fetchSeq = 0;
@@ -140,11 +145,11 @@ export const useSignalStore = create<SignalStore>((set, get) => ({
 
   reactToSignal: async (signalId, reactionType) => {
     const previousSignals = get().signals;
-    const target = previousSignals.find((signal) => signal.id === signalId);
+    const target = previousSignals.find((signal): signal is Signal => isSignal(signal) && signal.id === signalId);
     if (!target) return;
 
     const optimisticSignals = previousSignals.map((signal) =>
-      signal.id === signalId ? applyReactionChange(signal, reactionType) : signal,
+      isSignal(signal) && signal.id === signalId ? applyReactionChange(signal, reactionType) : signal,
     );
     set({ signals: optimisticSignals });
 
@@ -165,11 +170,11 @@ export const useSignalStore = create<SignalStore>((set, get) => ({
 
   toggleFavorite: async (signalId) => {
     const previousSignals = get().signals;
-    const target = previousSignals.find((s) => s.id === signalId);
+    const target = previousSignals.find((s): s is Signal => isSignal(s) && s.id === signalId);
     if (!target) return;
 
     const optimisticSignals = previousSignals.map((s) =>
-      s.id === signalId ? { ...s, is_favorited: !s.is_favorited } : s,
+      isSignal(s) && s.id === signalId ? { ...s, is_favorited: !s.is_favorited } : s,
     );
     set({ signals: optimisticSignals });
 
@@ -241,6 +246,7 @@ export const useSignalStore = create<SignalStore>((set, get) => ({
       isFollowingFeed && currentlyFollowed
         ? previousSignals.filter(
             (signal) =>
+              !isSignal(signal) ||
               signal.player_id !== playerId ||
               (signal.subject_type === 'team' && nextProfile.follows.teams.includes(signal.team_id)),
           )
@@ -276,6 +282,7 @@ export const useSignalStore = create<SignalStore>((set, get) => ({
       isFollowingFeed && currentlyFollowed
         ? previousSignals.filter(
             (signal) =>
+              !isSignal(signal) ||
               signal.team_id !== teamId ||
               (signal.subject_type === 'player' && nextProfile.follows.players.includes(signal.player_id ?? -1)),
           )

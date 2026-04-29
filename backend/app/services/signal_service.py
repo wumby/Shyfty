@@ -19,6 +19,7 @@ from app.domain.signals import (
     deviation_from_expected,
     meaningful_movement_pct,
     metric_label,
+    stat_signal_config,
     performance_ratio,
     signal_gate_trace,
     trend_direction,
@@ -36,7 +37,19 @@ from app.models.team_game_stat import TeamGameStat
 from app.models.user_favorite import UserFavorite
 from app.models.user_follow import UserFollow
 from app.schemas.reaction import ReactionSummaryRead
-from app.schemas.signal import FeedContextRead, FreshnessContextRead, PaginatedSignals, SignalDebugTraceRead, SignalRead, SignalSummaryTemplateInputs
+from app.schemas.signal import (
+    CascadeContributorRead,
+    CascadePlayerRead,
+    CascadeSignalRead,
+    CascadeTriggerRead,
+    FeedContextRead,
+    FeedItemRead,
+    FreshnessContextRead,
+    PaginatedSignals,
+    SignalDebugTraceRead,
+    SignalRead,
+    SignalSummaryTemplateInputs,
+)
 from app.services.favorite_service import get_favorited_signal_ids
 from app.services.reaction_service import get_reaction_summaries, get_user_reactions
 from app.services.scheduler import get_ingest_state
@@ -50,6 +63,21 @@ FEED_MODE_ALL = "all"
 FEED_MODE_FOLLOWING = "following"
 FEED_MODE_FOR_YOU = "for_you"
 EXCLUDED_SIGNAL_TYPES = {"CONSISTENCY"}
+CASCADE_TRIGGER_STATS = {"minutes", "minutes_played"}
+CASCADE_ALLOWED_CONTRIBUTOR_STATS = {
+    "points",
+    "rebounds",
+    "assists",
+    "steals",
+    "blocks",
+    "turnovers",
+    "usage_rate",
+    "minutes",
+    "minutes_played",
+}
+CASCADE_MIN_TRIGGER_DROP_PCT = -50.0
+CASCADE_MAX_CONTRIBUTORS = 5
+CASCADE_MIN_CONTRIBUTOR_SCORE = 5.0
 
 
 def _deviation_expr():
@@ -509,7 +537,174 @@ def _build_signal_items(rows, db: Session, current_user_id: Optional[int]) -> li
     return items
 
 
-def _personalized_reason(feed_mode: str, current_user_id: Optional[int], items: list[SignalRead]) -> Optional[str]:
+def _delta_percent(item: SignalRead) -> Optional[float]:
+    if item.movement_pct is not None:
+        return item.movement_pct
+    if abs(item.baseline_value) < 0.05:
+        return None
+    return ((item.current_value - item.baseline_value) / item.baseline_value) * 100
+
+
+def _is_cascade_trigger(item: SignalRead) -> bool:
+    if item.subject_type != "player" or item.player_id is None:
+        return False
+    if item.metric_name not in CASCADE_TRIGGER_STATS:
+        return False
+    if item.current_value >= item.baseline_value:
+        return False
+    drop_pct = _delta_percent(item)
+    return item.current_value <= 0.5 or (drop_pct is not None and drop_pct <= CASCADE_MIN_TRIGGER_DROP_PCT)
+
+
+def _is_cascade_contributor(item: SignalRead, trigger: SignalRead) -> bool:
+    if item.subject_type != "player" or item.player_id is None:
+        return False
+    if item.game_id != trigger.game_id or item.team_id != trigger.team_id or item.player_id == trigger.player_id:
+        return False
+    if item.metric_name not in CASCADE_ALLOWED_CONTRIBUTOR_STATS:
+        return False
+    if item.current_value <= item.baseline_value:
+        return False
+    config = stat_signal_config(item.metric_name)
+    if item.current_value - item.baseline_value < config.min_delta:
+        return False
+    return item.signal_score >= CASCADE_MIN_CONTRIBUTOR_SCORE
+
+
+def _cascade_rank_key(item: SignalRead) -> tuple[float, float, float]:
+    delta_pct = _delta_percent(item)
+    return (
+        item.signal_score,
+        abs(delta_pct) if delta_pct is not None else 0.0,
+        abs(item.z_score),
+    )
+
+
+def _trigger_read(item: SignalRead) -> CascadeTriggerRead:
+    return CascadeTriggerRead(
+        player=CascadePlayerRead(id=item.player_id, name=item.player_name),
+        signal_id=item.id,
+        stat=item.metric_name,
+        metric_label=item.metric_label,
+        delta=item.current_value - item.baseline_value,
+        delta_percent=_delta_percent(item),
+        signal_type=item.signal_type,
+        signal_score=item.signal_score,
+    )
+
+
+def _contributor_read(item: SignalRead) -> CascadeContributorRead:
+    return CascadeContributorRead(
+        player=CascadePlayerRead(id=item.player_id, name=item.player_name),
+        signal_id=item.id,
+        stat=item.metric_name,
+        metric_label=item.metric_label,
+        delta=item.current_value - item.baseline_value,
+        delta_percent=_delta_percent(item),
+        signal_type=item.signal_type,
+        signal_score=item.signal_score,
+    )
+
+
+def _cascade_drop_reason(trigger: SignalRead) -> str:
+    drop_pct = _delta_percent(trigger)
+    if trigger.current_value <= 0.5:
+        return "DNP"
+    if drop_pct is not None and drop_pct <= -75:
+        return "minutes cratered"
+    return "minutes cut"
+
+
+def _cascade_usage_phrase(metric_name: str) -> str:
+    phrases = {
+        "points": "scoring",
+        "assists": "playmaking",
+        "rebounds": "boards",
+        "usage_rate": "usage",
+        "minutes": "role",
+        "minutes_played": "role",
+        "steals": "defense",
+        "blocks": "rim protection",
+        "turnovers": "touches",
+    }
+    return phrases.get(metric_name, metric_label(metric_name).lower())
+
+
+def _cascade_summary(trigger: SignalRead, contributors: list[SignalRead]) -> str:
+    primary = contributors[0]
+    reason = _cascade_drop_reason(trigger)
+    primary_phrase = _cascade_usage_phrase(primary.metric_name)
+    summary = f"{trigger.player_name} {reason} → {primary.player_name} absorbed primary {primary_phrase}"
+    if len(contributors) >= 2:
+        secondary = contributors[1]
+        secondary_phrase = _cascade_usage_phrase(secondary.metric_name)
+        summary += f", {secondary.player_name} secondary {secondary_phrase}"
+    return f"{summary}."
+
+
+def detect_cascade_signals(items: list[SignalRead], *, max_contributors: int = CASCADE_MAX_CONTRIBUTORS) -> list[CascadeSignalRead]:
+    cascades: list[CascadeSignalRead] = []
+    triggers = [item for item in items if _is_cascade_trigger(item)]
+    seen_trigger_keys: set[tuple[int, int, int]] = set()
+
+    for trigger in sorted(triggers, key=_cascade_rank_key, reverse=True):
+        trigger_key = (trigger.game_id, trigger.team_id, trigger.player_id or 0)
+        if trigger_key in seen_trigger_keys:
+            continue
+        contributors = [
+            item
+            for item in items
+            if _is_cascade_contributor(item, trigger)
+        ]
+        contributors = sorted(contributors, key=_cascade_rank_key, reverse=True)
+        if not contributors:
+            continue
+        kept = contributors[:max_contributors]
+        seen_trigger_keys.add(trigger_key)
+        cascades.append(
+            CascadeSignalRead(
+                id=f"cascade:{trigger.game_id}:{trigger.team_id}:{trigger.player_id}",
+                game_id=trigger.game_id,
+                team_id=trigger.team_id,
+                team=trigger.team_name,
+                league_name=trigger.league_name,
+                game_date=trigger.event_date,
+                created_at=max([trigger.created_at, *[contributor.created_at for contributor in kept]]),
+                trigger=_trigger_read(trigger),
+                contributors=[_contributor_read(contributor) for contributor in kept],
+                underlying_signals=[trigger, *kept],
+                narrative_summary=_cascade_summary(trigger, kept),
+            )
+        )
+
+    return cascades
+
+
+def _inject_cascades(items: list[SignalRead]) -> list[FeedItemRead]:
+    cascades = detect_cascade_signals(items)
+    if not cascades:
+        return items
+
+    cascades_by_trigger_id = {cascade.trigger.signal_id: cascade for cascade in cascades}
+    grouped_signal_ids = {
+        signal.id
+        for cascade in cascades
+        for signal in cascade.underlying_signals
+    }
+
+    feed_items: list[FeedItemRead] = []
+    for item in items:
+        cascade = cascades_by_trigger_id.get(item.id)
+        if cascade is not None:
+            feed_items.append(cascade)
+            continue
+        if item.id in grouped_signal_ids:
+            continue
+        feed_items.append(item)
+    return feed_items
+
+
+def _personalized_reason(feed_mode: str, current_user_id: Optional[int], items: list[FeedItemRead]) -> Optional[str]:
     if feed_mode == FEED_MODE_FOLLOWING and current_user_id is None:
         return "Sign in to build a following feed."
     if feed_mode == FEED_MODE_FOR_YOU and current_user_id is None:
@@ -617,14 +812,15 @@ def list_signals(
             return score_value
 
         items = sorted(items, key=score, reverse=True)[:limit]
+        feed_items = _inject_cascades(items)
         return PaginatedSignals(
-            items=items,
+            items=feed_items,
             has_more=False,
             next_cursor=None,
             feed_context=FeedContextRead(
                 feed_mode=feed_mode,
                 sort_mode=sort_mode,
-                personalization_reason=_personalized_reason(feed_mode, current_user_id, items),
+                personalization_reason=_personalized_reason(feed_mode, current_user_id, feed_items),
             ),
         )
 
@@ -644,16 +840,18 @@ def list_signals(
             ),
             reverse=True,
         )[:limit]
-    next_cursor = items[-1].id if has_more and items else None
+    feed_items = _inject_cascades(items)
+    signal_cursor_items = [item for item in feed_items if isinstance(item, SignalRead)]
+    next_cursor = signal_cursor_items[-1].id if has_more and signal_cursor_items else (items[-1].id if has_more and items else None)
 
     return PaginatedSignals(
-        items=items,
+        items=feed_items,
         has_more=has_more,
         next_cursor=next_cursor,
         feed_context=FeedContextRead(
             feed_mode=feed_mode,
             sort_mode=sort_mode,
-            personalization_reason=_personalized_reason(feed_mode, current_user_id, items),
+            personalization_reason=_personalized_reason(feed_mode, current_user_id, feed_items),
         ),
     )
 

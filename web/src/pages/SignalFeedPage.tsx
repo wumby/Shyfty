@@ -7,9 +7,10 @@ import { FollowingEmptyState } from '../components/FollowingEmptyState';
 import { LastGameSignalCard } from '../components/LastGameSignalCard';
 import { LoadingState } from '../components/LoadingState';
 import { SignalDetailDrawer } from '../components/SignalDetailDrawer';
+import { formatEventDate } from '../lib/signalFormat';
 import { useAuthStore } from '../store/useAuthStore';
 import { useSignalStore } from '../store/useSignalStore';
-import type { Signal, SignalFilters, SortMode } from '../types';
+import type { CascadeSignal, FeedItem, Signal, SignalFilters, SortMode } from '../types';
 
 const LEAGUES = ['All', 'NBA', 'NFL'];
 const SORTS: SortMode[] = ['newest', 'most_important', 'biggest_deviation'];
@@ -47,6 +48,55 @@ function groupSignalsByPlayerGame(signals: Signal[]): Signal[][] {
     [...group].sort(
       (left, right) => getSignalPriority(right) - getSignalPriority(left),
     ),
+  );
+}
+
+function isSignal(item: FeedItem): item is Signal {
+  return item.type !== 'cascade';
+}
+
+function CascadeSignalCard({ cascade, onOpenDetail }: { cascade: CascadeSignal; onOpenDetail?: (signalId: number) => void }) {
+  const topContributors = cascade.contributors.slice(0, 3);
+  return (
+    <article className="panel-surface border-sky-300/25 px-5 py-5 transition hover:border-sky-300/45 hover:bg-white/[0.035]">
+      <div className="flex items-start gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-sky-300/25 bg-sky-400/10 text-sky-200">
+          ↳
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <span className="truncate text-[21px] font-bold leading-tight text-ink">{cascade.trigger.player.name}</span>
+            <span className="rounded-full border border-danger/30 bg-danger/10 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.16em] text-danger">
+              Minutes DROP
+            </span>
+          </div>
+          <div className="mt-1 text-[12px] text-muted">
+            {cascade.team} • {formatEventDate(cascade.game_date)}
+          </div>
+          <div className="mt-4 text-[15px] font-semibold leading-snug text-ink">
+            {cascade.narrative_summary ?? '→ Usage redistributed'}
+          </div>
+          <div className="mt-3 space-y-2">
+            {topContributors.map((contributor) => (
+              <button
+                key={contributor.signal_id}
+                type="button"
+                onClick={() => onOpenDetail?.(contributor.signal_id)}
+                className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[14px] px-3 py-2 text-left transition hover:bg-white/[0.055]"
+              >
+                <span className="truncate text-sm font-semibold text-ink">{contributor.player.name}</span>
+                <span className="text-sm font-bold tabular-nums text-success">
+                  {contributor.delta >= 0 ? '+' : ''}{Number.isInteger(contributor.delta) ? contributor.delta.toFixed(0) : contributor.delta.toFixed(1)} {contributor.metric_label.toLowerCase()}
+                </span>
+              </button>
+            ))}
+            {cascade.contributors.length > 3 ? (
+              <div className="px-3 text-xs font-semibold text-muted">+{cascade.contributors.length - 3} more</div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </article>
   );
 }
 
@@ -101,17 +151,33 @@ export function SignalFeedPage() {
   const followingHasFollows =
     (profile?.follows.players.length ?? 0) > 0 ||
     (profile?.follows.teams.length ?? 0) > 0;
-  const visibleSignals = useMemo(() => {
+  const visibleItems = useMemo(() => {
     if (activeTab !== 'following') return signals;
     if (!profile) return [];
 
-    return signals.filter(
-      (signal) =>
-        (signal.subject_type === 'player' && signal.player_id != null && profile.follows.players.includes(signal.player_id)) ||
-        (signal.subject_type === 'team' && profile.follows.teams.includes(signal.team_id)),
-    );
+    return signals.filter((item) => {
+      if (!isSignal(item)) {
+        const triggerPlayerId = item.trigger.player.id;
+        return (triggerPlayerId != null && profile.follows.players.includes(triggerPlayerId)) || profile.follows.teams.includes(item.team_id);
+      }
+      return (
+        (item.subject_type === 'player' && item.player_id != null && profile.follows.players.includes(item.player_id)) ||
+        (item.subject_type === 'team' && profile.follows.teams.includes(item.team_id))
+      );
+    });
   }, [activeTab, profile, signals]);
-  const groupedSignals = groupSignalsByPlayerGame(visibleSignals);
+  const feedDisplayItems = useMemo(() => {
+    const displays: Array<{ type: 'cascade'; cascade: CascadeSignal } | { type: 'signals'; signals: Signal[] }> = [];
+    const signalOnly = visibleItems.filter(isSignal);
+    const groupedSignals = groupSignalsByPlayerGame(signalOnly);
+    for (const item of visibleItems) {
+      if (!isSignal(item)) {
+        displays.push({ type: 'cascade', cascade: item });
+      }
+    }
+    displays.push(...groupedSignals.map((group) => ({ type: 'signals' as const, signals: group })));
+    return displays;
+  }, [visibleItems]);
 
   const activeFilters = useMemo<SignalFilters>(
     () => ({
@@ -208,7 +274,7 @@ export function SignalFeedPage() {
               <LoadingState />
             ) : activeTab === 'following' && profile !== null && !followingHasFollows ? (
               <FollowingEmptyState />
-            ) : visibleSignals.length === 0 ? (
+            ) : visibleItems.length === 0 ? (
               activeTab === 'following' ? (
                 <FollowingEmptyState />
               ) : (
@@ -220,12 +286,20 @@ export function SignalFeedPage() {
               )
             ) : (
               <>
-                {groupedSignals.map((signalGroup) => (
-                  <LastGameSignalCard
-                    key={`${signalGroup[0]?.player_id ?? signalGroup[0]?.team_id ?? 'unknown'}-${signalGroup[0]?.game_id ?? 'game'}`}
-                    signals={signalGroup}
-                    onOpenDetail={(signalId) => setDetailSignalId(signalId)}
-                  />
+                {feedDisplayItems.map((item) => (
+                  item.type === 'cascade' ? (
+                    <CascadeSignalCard
+                      key={item.cascade.id}
+                      cascade={item.cascade}
+                      onOpenDetail={(signalId) => setDetailSignalId(signalId)}
+                    />
+                  ) : (
+                    <LastGameSignalCard
+                      key={`${item.signals[0]?.player_id ?? item.signals[0]?.team_id ?? 'unknown'}-${item.signals[0]?.game_id ?? 'game'}`}
+                      signals={item.signals}
+                      onOpenDetail={(signalId) => setDetailSignalId(signalId)}
+                    />
+                  )
                 ))}
                 {hasMore && activeTab === 'forYou' ? (
                   <button

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Optional, Union
+from typing import Literal, Optional, Union
 
 from pydantic import BaseModel
 
@@ -74,6 +74,7 @@ class SignalDebugTraceRead(BaseModel):
 
 
 class SignalRead(BaseModel):
+    type: Literal["signal"] = "signal"
     id: int
     subject_type: str = "player"
     player_id: Optional[int] = None
@@ -118,6 +119,51 @@ class SignalRead(BaseModel):
     is_favorited: bool = False
     created_at: datetime
     freshness: Optional[FreshnessContextRead] = None
+
+
+class CascadePlayerRead(BaseModel):
+    id: Optional[int] = None
+    name: str
+
+
+class CascadeTriggerRead(BaseModel):
+    player: CascadePlayerRead
+    signal_id: int
+    stat: str
+    metric_label: str
+    delta: float
+    delta_percent: Optional[float] = None
+    signal_type: str
+    signal_score: float
+
+
+class CascadeContributorRead(BaseModel):
+    player: CascadePlayerRead
+    signal_id: int
+    stat: str
+    metric_label: str
+    delta: float
+    delta_percent: Optional[float] = None
+    signal_type: str
+    signal_score: float
+
+
+class CascadeSignalRead(BaseModel):
+    type: Literal["cascade"] = "cascade"
+    id: str
+    game_id: int
+    team_id: int
+    team: str
+    league_name: str
+    game_date: date
+    created_at: datetime
+    trigger: CascadeTriggerRead
+    contributors: list[CascadeContributorRead]
+    underlying_signals: list[SignalRead]
+    narrative_summary: Optional[str] = None
+
+
+FeedItemRead = Union[SignalRead, CascadeSignalRead]
 
 
 class BaselineSampleRead(BaseModel):
@@ -187,7 +233,7 @@ class SignalTraceRead(BaseModel):
 
 
 class PaginatedSignals(BaseModel):
-    items: list[SignalRead]
+    items: list[FeedItemRead]
     has_more: bool
     next_cursor: Optional[int]
     feed_context: Optional[FeedContextRead] = None
