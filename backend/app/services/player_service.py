@@ -11,7 +11,7 @@ from app.models.rolling_metric import RollingMetric
 from app.models.signal import Signal
 from app.models.team import Team
 from app.models.user_follow import UserFollow
-from app.schemas.player import GameLogRow, MetricSeriesPoint, PlayerDetail, PlayerRead, SeasonAveragesRow
+from app.schemas.player import GameLogRow, MetricSeriesPoint, PlayerBoxScore, PlayerDetail, PlayerRead, SeasonAveragesRow
 from app.services.signal_service import build_signal_read
 
 
@@ -66,6 +66,7 @@ def get_player_detail(db: Session, player_id: int, current_user_id: Optional[int
         team_name=team_name,
         league_name=league_name,
         signal_count=signal_count,
+        recent_box_scores=get_player_box_scores(db, player_id, limit=5),
         is_followed=(
             current_user_id is not None and db.execute(
                 select(UserFollow.id).where(
@@ -76,6 +77,60 @@ def get_player_detail(db: Session, player_id: int, current_user_id: Optional[int
             ).scalar_one_or_none() is not None
         ),
     )
+
+
+def get_player_box_scores(db: Session, player_id: int, limit: int = 5) -> list[PlayerBoxScore]:
+    HomeTeam = aliased(Team)
+    AwayTeam = aliased(Team)
+
+    rows = db.execute(
+        select(
+            Game.id,
+            Game.game_date,
+            Game.season,
+            Game.home_team_id,
+            Game.away_team_id,
+            HomeTeam.name,
+            AwayTeam.name,
+            Player.team_id,
+            PlayerGameStat,
+        )
+        .join(PlayerGameStat, PlayerGameStat.game_id == Game.id)
+        .join(Player, Player.id == PlayerGameStat.player_id)
+        .join(HomeTeam, Game.home_team_id == HomeTeam.id)
+        .join(AwayTeam, Game.away_team_id == AwayTeam.id)
+        .where(PlayerGameStat.player_id == player_id)
+        .order_by(Game.game_date.desc(), Game.id.desc())
+        .limit(limit)
+    ).all()
+
+    box_scores: list[PlayerBoxScore] = []
+    for game_id, game_date, game_season, home_team_id, _away_team_id, home_name, away_name, player_team_id, stat in rows:
+        is_home = player_team_id == home_team_id
+        box_scores.append(PlayerBoxScore(
+            game_id=game_id,
+            game_date=game_date,
+            season=game_season,
+            opponent=away_name if is_home else home_name,
+            home_away="Home" if is_home else "Away",
+            points=stat.points,
+            rebounds=stat.rebounds,
+            assists=stat.assists,
+            passing_yards=stat.passing_yards,
+            rushing_yards=stat.rushing_yards,
+            receiving_yards=stat.receiving_yards,
+            touchdowns=stat.touchdowns,
+            usage_rate=stat.usage_rate,
+            steals=stat.steals,
+            blocks=stat.blocks,
+            turnovers=stat.turnovers,
+            minutes_played=stat.minutes_played,
+            plus_minus=stat.plus_minus,
+            fg_pct=stat.fg_pct,
+            fg3_pct=stat.fg3_pct,
+            ft_pct=stat.ft_pct,
+        ))
+    return box_scores
 
 
 def get_player_signals(db: Session, player_id: int):

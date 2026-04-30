@@ -12,7 +12,7 @@ from app.models.team import Team
 from app.models.team_game_stat import TeamGameStat
 from app.models.user_follow import UserFollow
 from app.schemas.player import PlayerRead
-from app.schemas.team import TeamDetail, TeamRead
+from app.schemas.team import TeamBoxScore, TeamDetail, TeamRead
 from app.services.signal_service import build_signal_read
 from app.services.reaction_service import get_reaction_summaries, get_user_reactions
 
@@ -145,4 +145,34 @@ def get_team_detail(
         ),
         players=players,
         recent_signals=recent_signals,
+        recent_box_scores=get_team_box_scores(db, team_id=team_db_id, limit=5),
     )
+
+
+def get_team_box_scores(db: Session, team_id: int, limit: int = 5) -> list[TeamBoxScore]:
+    rows = db.execute(
+        select(Game.id, Game.game_date, Game.season, TeamGameStat)
+        .join(TeamGameStat, TeamGameStat.game_id == Game.id)
+        .where(TeamGameStat.team_id == team_id)
+        .order_by(Game.game_date.desc(), Game.id.desc())
+        .limit(limit)
+    ).all()
+
+    return [
+        TeamBoxScore(
+            game_id=game_id,
+            game_date=game_date,
+            season=season,
+            opponent=stat.opponent_name or "Opponent",
+            home_away=stat.home_away or "",
+            points=stat.points,
+            rebounds=stat.rebounds,
+            assists=stat.assists,
+            fg_pct=stat.fg_pct,
+            fg3_pct=stat.fg3_pct,
+            turnovers=stat.turnovers,
+            pace=stat.pace,
+            off_rating=stat.off_rating,
+        )
+        for game_id, game_date, season, stat in rows
+    ]

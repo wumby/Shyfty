@@ -124,7 +124,7 @@ export function PlayersPage() {
                         {grouped[league].length} players
                       </div>
                     </div>
-                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                       {grouped[league].map((player) => (
                         <Link
                           key={player.id}

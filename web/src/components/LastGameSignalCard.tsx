@@ -21,13 +21,15 @@ function getSignalSeverity(signal: Signal): Signal['severity'] {
 }
 
 function getSeverityTone(severity: Signal['severity']): string {
-  if (severity === 'OUTLIER') {
-    return 'border-fuchsia-300/35 bg-fuchsia-400/15 text-fuchsia-100';
-  }
-  if (severity === 'SWING') {
-    return 'border-amber-300/30 bg-amber-400/10 text-amber-100';
-  }
-  return 'border-white/10 bg-white/[0.04] text-muted';
+  if (severity === 'OUTLIER') return 'border-red-400/35 bg-red-400/10 text-red-200';
+  if (severity === 'SWING') return 'border-amber-300/35 bg-amber-400/10 text-amber-200';
+  return 'border-white/10 bg-white/[0.04] text-white/50'; // SHIFT - gray
+}
+
+function getSeverityRail(severity: Signal['severity']): string {
+  if (severity === 'OUTLIER') return 'bg-red-400/80';
+  if (severity === 'SWING') return 'bg-amber-400/80';
+  return 'bg-white/25'; // SHIFT - gray
 }
 
 function formatStatValue(signal: Signal, value: number): string {
@@ -61,8 +63,7 @@ function getMatchupLabel(signal: Signal): string | null {
   const opponent = getOpponentLabel(signal);
   if (!opponent) return null;
   const homeAway = signal.home_away === 'Away' || signal.home_away === '@' ? '@' : 'vs';
-  const teamPrefix = signal.subject_type === 'team' ? '' : `${signal.team_name} `;
-  return `${teamPrefix}${homeAway} ${opponent}`;
+  return `${signal.team_name} ${homeAway} ${opponent}`;
 }
 
 export function LastGameSignalCard({ signals, onOpenDetail }: LastGameSignalCardProps) {
@@ -166,7 +167,7 @@ export function LastGameSignalCard({ signals, onOpenDetail }: LastGameSignalCard
           const dir = getSignalDirection(signal);
           const severity = getSignalSeverity(signal);
           const deltaTone = dir === 'positive' ? 'text-green-400' : dir === 'negative' ? 'text-red-400' : 'text-white/40';
-          const railTone = dir === 'positive' ? 'bg-success' : dir === 'negative' ? 'bg-danger' : 'bg-white/20';
+          const railTone = getSeverityRail(severity);
           const formattedDelta = formatDelta(signal);
           const showArrow = dir !== 'neutral';
           const arrowChar = dir === 'positive' ? '↑' : dir === 'negative' ? '↓' : null;

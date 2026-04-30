@@ -21,6 +21,40 @@ struct GroupedSignalCardView: View {
         }
     }
 
+    private func shortName(_ name: String) -> String {
+        name.split(separator: " ").last.map(String.init) ?? name
+    }
+
+    private func matchupText(_ signal: Signal) -> Text {
+        let muted = ShyftyTheme.muted
+        let dot = Text(" · ").foregroundStyle(muted)
+
+        // Team vs Opponent
+        var base: Text
+        if let opponent = signal.opponent, !opponent.isEmpty {
+            let side = (signal.homeAway == "Away" || signal.homeAway == "@") ? "@" : "vs"
+            base = Text("\(shortName(signal.teamName)) \(side) \(shortName(opponent))").foregroundStyle(muted)
+        } else {
+            base = Text(shortName(signal.teamName)).foregroundStyle(muted)
+        }
+
+        // W / L + score
+        if let result = signal.gameResult, !result.isEmpty {
+            let resultColor: Color = result == "W" ? ShyftyTheme.success : result == "L" ? ShyftyTheme.danger : muted
+            base = base + dot + Text(result).foregroundStyle(resultColor)
+            if let score = signal.finalScore, !score.isEmpty {
+                let clean = score
+                    .replacingOccurrences(of: " - ", with: "–")
+                    .replacingOccurrences(of: "-", with: "–")
+                base = base + Text(" \(clean)").foregroundStyle(muted)
+            }
+        }
+
+        // Date — no year
+        base = base + dot + Text(SignalFormatting.eventDateShort(signal.eventDate)).foregroundStyle(muted)
+        return base
+    }
+
     private func headerRow(_ signal: Signal) -> some View {
         let name = signal.subjectType == "team" ? signal.teamName : signal.playerName
         return HStack(alignment: .top, spacing: 12) {
@@ -37,9 +71,8 @@ struct GroupedSignalCardView: View {
                         .font(.system(size: 22, weight: .semibold, design: .serif))
                         .foregroundStyle(ShyftyTheme.ink)
                 }
-                Text("\(signal.teamName) • \(signal.leagueName) • \(SignalFormatting.eventDateText(signal.eventDate))")
+                matchupText(signal)
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(ShyftyTheme.muted)
             }
 
             Spacer()

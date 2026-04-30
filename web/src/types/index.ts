@@ -16,15 +16,6 @@ export interface User {
   created_at: string;
 }
 
-export interface FreshnessContext {
-  state: 'fresh' | 'delayed' | 'stale' | 'refreshing' | 'unknown';
-  label: string;
-  coverage_summary: string;
-  delayed_data_message: string | null;
-  ingest_age_minutes: number | null;
-  event_age_hours: number | null;
-}
-
 export interface SignalDebugTrace {
   baseline: number;
   actual: number;
@@ -84,7 +75,6 @@ export interface Signal {
   comment_count: number;
   is_favorited: boolean;
   created_at: string;
-  freshness: FreshnessContext | null;
 }
 
 export interface CascadePlayer {
@@ -134,6 +124,7 @@ export interface Player {
 
 export interface PlayerDetail extends Player {
   signal_count: number;
+  recent_box_scores: PlayerBoxScore[];
 }
 
 export interface Team {
@@ -153,6 +144,47 @@ export interface MetricSeriesPoint {
 export interface TeamDetail extends Team {
   players: Player[];
   recent_signals: Signal[];
+  recent_box_scores: TeamBoxScore[];
+}
+
+export interface PlayerBoxScore {
+  game_id: number;
+  game_date: string;
+  season?: string | null;
+  opponent: string;
+  home_away: string;
+  points?: number | null;
+  rebounds?: number | null;
+  assists?: number | null;
+  passing_yards?: number | null;
+  rushing_yards?: number | null;
+  receiving_yards?: number | null;
+  touchdowns?: number | null;
+  usage_rate?: number | null;
+  steals?: number | null;
+  blocks?: number | null;
+  turnovers?: number | null;
+  minutes_played?: number | null;
+  plus_minus?: number | null;
+  fg_pct?: number | null;
+  fg3_pct?: number | null;
+  ft_pct?: number | null;
+}
+
+export interface TeamBoxScore {
+  game_id: number;
+  game_date: string;
+  season?: string | null;
+  opponent: string;
+  home_away: string;
+  points?: number | null;
+  rebounds?: number | null;
+  assists?: number | null;
+  fg_pct?: number | null;
+  fg3_pct?: number | null;
+  turnovers?: number | null;
+  pace?: number | null;
+  off_rating?: number | null;
 }
 
 export interface FeedContext {

@@ -93,12 +93,6 @@ struct SignalCardView: View {
                     .foregroundStyle(ShyftyTheme.muted.opacity(0.9))
                     .lineSpacing(2)
 
-                if let freshness = signal.freshness, freshness.state == "stale" || freshness.state == "delayed" {
-                    Text(freshness.label)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(freshness.state == "stale" ? ShyftyTheme.danger : ShyftyTheme.warning)
-                }
-
                 HStack(spacing: 12) {
                     metricPill(title: "Current", value: signal.currentValue)
                     metricPill(title: "Baseline", value: signal.baselineValue)

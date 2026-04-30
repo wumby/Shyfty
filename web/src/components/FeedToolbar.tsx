@@ -1,5 +1,3 @@
-import type { ReactNode } from 'react';
-
 import type { SignalFilters } from '../types';
 import { ActiveFilterChips } from './ActiveFilterChips';
 
@@ -10,26 +8,22 @@ interface FeedToolbarProps {
   filtersOpen: boolean;
   onOpenFilters: () => void;
   onRemoveFilter: (key: 'league' | 'signal_type' | 'sort') => void;
-  aside?: ReactNode;
   activeTab: FeedTab;
   onTabChange: (tab: FeedTab) => void;
 }
 
-export function FeedToolbar({ filters, filtersOpen, onOpenFilters, onRemoveFilter, aside, activeTab, onTabChange }: FeedToolbarProps) {
+export function FeedToolbar({ filters, filtersOpen, onOpenFilters, onRemoveFilter, activeTab, onTabChange }: FeedToolbarProps) {
+  const hasActiveFilters = !!(filters.league || filters.signal_type || (filters.sort && filters.sort !== 'newest'));
+
   return (
-    <section className="panel-surface px-5 py-5 sm:px-6">
-      <div className="mb-3 text-center">
-        <h1 className="text-xl font-bold text-ink">Signals</h1>
-      </div>
-      <div className="flex flex-wrap items-center justify-center gap-3">
-        <div className="flex rounded-full border border-border/50 bg-white/[0.03] p-0.5">
+    <div>
+      <div className="flex h-[52px] items-center justify-center gap-3">
+        <div className="flex rounded-full border border-border/40 bg-white/[0.04] p-0.5">
           <button
             type="button"
             onClick={() => onTabChange('forYou')}
-            className={`rounded-full px-4 py-1.5 text-xs font-semibold transition ${
-              activeTab === 'forYou'
-                ? 'bg-white/[0.08] text-ink shadow-sm'
-                : 'text-muted hover:text-ink/70'
+            className={`rounded-full px-4 py-1.5 text-[13px] font-semibold transition ${
+              activeTab === 'forYou' ? 'bg-white/[0.09] text-ink shadow-sm' : 'text-muted hover:text-ink/70'
             }`}
           >
             For You
@@ -37,29 +31,40 @@ export function FeedToolbar({ filters, filtersOpen, onOpenFilters, onRemoveFilte
           <button
             type="button"
             onClick={() => onTabChange('following')}
-            className={`rounded-full px-4 py-1.5 text-xs font-semibold transition ${
-              activeTab === 'following'
-                ? 'bg-white/[0.08] text-ink shadow-sm'
-                : 'text-muted hover:text-ink/70'
+            className={`rounded-full px-4 py-1.5 text-[13px] font-semibold transition ${
+              activeTab === 'following' ? 'bg-white/[0.09] text-ink shadow-sm' : 'text-muted hover:text-ink/70'
             }`}
           >
             Following
           </button>
         </div>
-        {!filtersOpen && activeTab === 'forYou' ? (
+
+        {activeTab === 'forYou' && !filtersOpen ? (
           <button
             type="button"
             onClick={onOpenFilters}
-            className="inline-flex h-8 items-center justify-center rounded-full border border-accent/35 bg-accentSoft px-3 text-xs font-bold text-[#ffd8bd] transition hover:border-accent/60 hover:bg-accent/20"
+            aria-label="Filters"
+            className={`relative flex h-8 w-8 items-center justify-center rounded-full border transition ${
+              hasActiveFilters
+                ? 'border-accent/40 bg-accentSoft text-[#ffd8bd] hover:border-accent/60'
+                : 'border-border bg-white/[0.03] text-muted hover:border-borderStrong hover:text-ink'
+            }`}
           >
-            Filters
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
+            </svg>
+            {hasActiveFilters && (
+              <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-accent" />
+            )}
           </button>
         ) : null}
-        {activeTab === 'forYou' ? (
-          <ActiveFilterChips filters={filters} onRemove={onRemoveFilter} />
-        ) : null}
-        {aside}
       </div>
-    </section>
+
+      {activeTab === 'forYou' && hasActiveFilters ? (
+        <div className="pb-2">
+          <ActiveFilterChips filters={filters} onRemove={onRemoveFilter} />
+        </div>
+      ) : null}
+    </div>
   );
 }

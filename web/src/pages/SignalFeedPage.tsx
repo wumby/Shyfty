@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 import { FeedToolbar } from '../components/FeedToolbar';
@@ -100,42 +100,19 @@ function CascadeSignalCard({ cascade, onOpenDetail }: { cascade: CascadeSignal; 
   );
 }
 
-function FreshnessBar() {
-  const { ingestStatus, fetchIngestStatus } = useSignalStore();
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    void fetchIngestStatus();
-    pollRef.current = setInterval(() => void fetchIngestStatus(), 60000);
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-  }, [fetchIngestStatus]);
-
-  if (!ingestStatus?.last_updated) return null;
-
-  const stale = Date.now() - new Date(ingestStatus.last_updated).getTime() > 6 * 60 * 60 * 1000;
-  const dotTone =
-    ingestStatus.status === 'running'
-      ? 'bg-amber-400 animate-pulse'
-      : stale || ingestStatus.status === 'error'
-        ? 'bg-danger'
-        : 'bg-success';
-
-  return (
-    <div className="flex items-center gap-2 text-sm text-muted">
-      <span className={`inline-block h-2 w-2 rounded-full ${dotTone}`} />
-      <span>{stale ? 'Board may be stale' : 'Updated recently'}</span>
-    </div>
-  );
-}
-
 export function SignalFeedPage() {
   const { filters, signals, loadingInitial, loadingMore, hasMore, ingestStatus, setFilters, fetchSignals, loadMore, fetchProfile, profile } = useSignalStore();
   const currentUser = useAuthStore((state) => state.currentUser);
   const [detailSignalId, setDetailSignalId] = useState<number | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    function onScroll() { setScrolled(window.scrollY > 8); }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   const tabFromUrl = searchParams.get('tab') ?? 'forYou';
   const activeTab: FeedTab = tabFromUrl === 'following' ? 'following' : 'forYou';
@@ -256,20 +233,18 @@ export function SignalFeedPage() {
         ) : null}
 
         <div className="min-w-0 flex-1">
-          <div className="sticky top-16 z-40">
+          <div className={`sticky top-16 z-40 -mx-4 px-4 transition-[background-color,border-color,box-shadow] sm:-mx-6 sm:px-6 ${scrolled ? 'border-b border-white/[0.07] bg-[#07111f]/90 shadow-sm backdrop-blur-xl' : ''}`}>
             <FeedToolbar
               filters={activeFilters}
               filtersOpen={filtersOpen}
               onOpenFilters={() => setFiltersOpen(true)}
               onRemoveFilter={removeFilter}
-              aside={<FreshnessBar />}
               activeTab={activeTab}
               onTabChange={handleTabChange}
             />
-            <div className="h-5 bg-gradient-to-b from-bg to-transparent backdrop-blur-md" />
           </div>
 
-          <section className="space-y-4">
+          <section className="space-y-4 pt-4">
             {loadingInitial ? (
               <LoadingState />
             ) : activeTab === 'following' && profile !== null && !followingHasFollows ? (

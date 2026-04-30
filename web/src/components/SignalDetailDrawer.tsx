@@ -15,9 +15,9 @@ interface Props {
 }
 
 const signalTypeColor: Record<string, string> = {
-  OUTLIER: 'text-fuchsia-300',
+  OUTLIER: 'text-red-300',
   SWING: 'text-amber-300',
-  SHIFT: 'text-slate-300',
+  SHIFT: 'text-white/50',
 };
 
 function formatNumber(value: number): string {
@@ -147,21 +147,6 @@ export function SignalDetailDrawer({ signalId, onClose }: Props) {
                 </div>
                 {signal.event_date && <p className="mt-1 text-xs text-muted/70">{formatEventDate(signal.event_date)}</p>}
               </div>
-
-              {signal.freshness ? (
-                <div className={`rounded-[22px] border px-4 py-3 ${
-                  signal.freshness.state === 'stale'
-                    ? 'border-danger/30 bg-danger/10'
-                    : signal.freshness.state === 'delayed'
-                      ? 'border-warning/30 bg-warning/10'
-                      : 'border-border bg-white/[0.03]'
-                }`}>
-                  <div className="eyebrow mb-2">Board Trust</div>
-                  <p className="text-sm text-ink">{signal.freshness.label}</p>
-                  <p className="mt-1 text-xs text-muted">{signal.freshness.coverage_summary}</p>
-                  {signal.freshness.delayed_data_message ? <p className="mt-2 text-xs text-muted">{signal.freshness.delayed_data_message}</p> : null}
-                </div>
-              ) : null}
 
               <div className="grid grid-cols-3 gap-3 rounded-[26px] border border-border bg-white/[0.03] px-4 py-4">
                 <div className="text-center">

@@ -9,7 +9,7 @@ import { SignalDetailDrawer } from '../components/SignalDetailDrawer';
 import { useAuthStore } from '../store/useAuthStore';
 import { useSignalStore } from '../store/useSignalStore';
 import { api } from '../services/api';
-import type { Signal, TeamDetail } from '../types';
+import type { Signal, TeamBoxScore, TeamDetail } from '../types';
 
 function groupSignalsByPlayerGame(signals: Signal[]): Signal[][] {
   const grouped = new Map<string, Signal[]>();
@@ -20,6 +20,80 @@ function groupSignalsByPlayerGame(signals: Signal[]): Signal[][] {
     else grouped.set(key, [signal]);
   }
   return [...grouped.values()];
+}
+
+const TEAM_BOX_SCORE_FIELDS: Array<[keyof TeamBoxScore, string, 'number' | 'percent']> = [
+  ['points', 'PTS', 'number'],
+  ['rebounds', 'REB', 'number'],
+  ['assists', 'AST', 'number'],
+  ['turnovers', 'TO', 'number'],
+  ['fg_pct', 'FG%', 'percent'],
+  ['fg3_pct', '3P%', 'percent'],
+  ['pace', 'PACE', 'number'],
+  ['off_rating', 'OFF RTG', 'number'],
+];
+
+function formatTeamBoxScoreValue(value: number, mode: 'number' | 'percent') {
+  if (mode === 'percent') {
+    const normalized = Math.abs(value) <= 1 ? value * 100 : value;
+    return `${Number.isInteger(normalized) ? normalized.toFixed(0) : normalized.toFixed(1)}%`;
+  }
+  return Number.isInteger(value) ? value.toString() : value.toFixed(1);
+}
+
+function formatBoxScoreDate(value: string) {
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (dateOnly) {
+    const [, year, month, day] = dateOnly;
+    return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+      .format(new Date(Date.UTC(Number(year), Number(month) - 1, Number(day))));
+  }
+  return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value));
+}
+
+function TeamBoxScores({ rows }: { rows: TeamBoxScore[] }) {
+  return (
+    <section className="panel-surface px-4 py-4">
+      <div className="flex items-center justify-between gap-3 px-1">
+        <h2 className="text-base font-semibold text-ink">Last 5 Box Scores</h2>
+        <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">{rows.length}/5 games</span>
+      </div>
+      <div className="mt-3 space-y-2">
+        {rows.length === 0 ? (
+          <div className="rounded-[16px] border border-dashed border-borderStrong bg-white/[0.025] px-4 py-4 text-sm text-muted">
+            No team box scores are stored yet.
+          </div>
+        ) : rows.map((row) => {
+          const stats = TEAM_BOX_SCORE_FIELDS
+            .map(([key, label, mode]) => {
+              const value = row[key];
+              return typeof value === 'number' ? { label, value: formatTeamBoxScoreValue(value, mode) } : null;
+            })
+            .filter(Boolean) as Array<{ label: string; value: string }>;
+          return (
+            <div key={row.game_id} className="rounded-[16px] border border-border bg-white/[0.025] px-3 py-3">
+              <div className="grid gap-3 md:grid-cols-[170px_minmax(0,1fr)] md:items-center">
+                <div className="min-w-0 border-b border-border pb-2 md:border-b-0 md:border-r md:pb-0 md:pr-3">
+                  <div className="truncate text-sm font-semibold text-ink">
+                    {row.home_away === 'Away' ? '@' : 'vs'} {row.opponent}
+                  </div>
+                  <div className="mt-0.5 truncate text-[11px] text-muted">{formatBoxScoreDate(row.game_date)}{row.season ? ` · ${row.season}` : ''}</div>
+                </div>
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(92px,1fr))] gap-px overflow-hidden rounded-[12px] border border-border bg-border">
+                  {stats.map((stat) => (
+                    <div key={`${row.game_id}-${stat.label}`} className="min-w-0 bg-[#081421] px-3 py-2">
+                      <div className="truncate text-[8px] font-semibold uppercase tracking-[0.1em] text-muted">{stat.label}</div>
+                      <div className="mt-0.5 truncate text-xs font-semibold tabular-nums text-ink">{stat.value}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
 }
 
 export function TeamDetailPage() {
@@ -98,7 +172,7 @@ export function TeamDetailPage() {
                 : 'border-border bg-white/[0.04] text-muted hover:border-borderStrong hover:text-ink'
             }`}
           >
-            {isFollowed ? '✓ Following' : '+ Follow team'}
+            {isFollowed ? '✓ Following' : '+ Follow'}
           </button>
         </div>
 
@@ -117,6 +191,8 @@ export function TeamDetailPage() {
           </div>
         </div>
       </section>
+
+      <TeamBoxScores rows={team.recent_box_scores} />
 
       <section className="panel-surface px-4 py-4">
         <SectionHeader

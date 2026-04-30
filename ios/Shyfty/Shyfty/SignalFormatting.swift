@@ -30,8 +30,16 @@ enum SignalFormatting {
 
     private static let eventDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
         formatter.dateStyle = .medium
         formatter.timeStyle = .none
+        return formatter
+    }()
+
+    private static let eventDateShortFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "MMM d"
         return formatter
     }()
 
@@ -114,6 +122,11 @@ enum SignalFormatting {
         return eventDateFormatter.string(from: date)
     }
 
+    static func eventDateShort(_ value: String) -> String {
+        guard let date = parseDate(value) else { return value }
+        return eventDateShortFormatter.string(from: date)
+    }
+
     private static func parseDate(_ value: String) -> Date? {
         if let date = isoDateTimeFormatter.date(from: value) { return date }
         if let date = isoDateTimeNoFractionFormatter.date(from: value) { return date }
@@ -123,10 +136,10 @@ enum SignalFormatting {
 
     static func tint(for signalType: String) -> Color {
         switch signalType {
-        case "SPIKE": return Color(red: 0.24, green: 0.82, blue: 0.56)
-        case "DROP": return Color(red: 0.96, green: 0.39, blue: 0.44)
-        case "SHIFT": return Color(red: 0.95, green: 0.67, blue: 0.24)
-        default: return Color(red: 0.86, green: 0.43, blue: 1.0)
+        case "SHIFT": return Color(red: 0.60, green: 0.63, blue: 0.68)  // gray
+        case "SWING": return Color(red: 0.95, green: 0.67, blue: 0.24)  // amber
+        case "OUTLIER": return Color(red: 0.96, green: 0.36, blue: 0.36) // red
+        default: return Color(red: 0.60, green: 0.63, blue: 0.68)
         }
     }
 }

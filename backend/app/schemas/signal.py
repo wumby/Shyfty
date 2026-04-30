@@ -33,15 +33,6 @@ class FeedContextRead(BaseModel):
     personalization_reason: Optional[str] = None
 
 
-class FreshnessContextRead(BaseModel):
-    state: str
-    label: str
-    coverage_summary: str
-    delayed_data_message: Optional[str] = None
-    ingest_age_minutes: Optional[int] = None
-    event_age_hours: Optional[int] = None
-
-
 class SignalSummaryTemplateInputs(BaseModel):
     current_value: float
     baseline_value: float
@@ -118,7 +109,6 @@ class SignalRead(BaseModel):
     comment_count: int = 0
     is_favorited: bool = False
     created_at: datetime
-    freshness: Optional[FreshnessContextRead] = None
 
 
 class CascadePlayerRead(BaseModel):

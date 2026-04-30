@@ -105,6 +105,12 @@ export function formatSignalSummary(signal: Signal): string {
 }
 
 export function formatEventDate(value: string): string {
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (dateOnly) {
+    const [, year, month, day] = dateOnly;
+    return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' })
+      .format(new Date(Date.UTC(Number(year), Number(month) - 1, Number(day))));
+  }
   return new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 

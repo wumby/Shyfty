@@ -167,23 +167,6 @@ struct SignalDetailView: View {
                             .foregroundStyle(ShyftyTheme.muted)
                     }
 
-                    if let freshness = signal.freshness {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(freshness.label)
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(freshness.state == "stale" ? ShyftyTheme.danger : ShyftyTheme.ink)
-                            Text(freshness.coverageSummary)
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(ShyftyTheme.muted)
-                            if let delayed = freshness.delayedDataMessage {
-                                Text(delayed)
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundStyle(ShyftyTheme.muted)
-                            }
-                        }
-                        .padding(14)
-                        .shyftyPanel()
-                    }
                 }
                 .padding(18)
                 .shyftyPanel()

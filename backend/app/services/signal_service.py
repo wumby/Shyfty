@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 from typing import Optional
 
 from sqlalchemy import and_, case, func, or_, select
@@ -44,7 +44,6 @@ from app.schemas.signal import (
     CascadeTriggerRead,
     FeedContextRead,
     FeedItemRead,
-    FreshnessContextRead,
     PaginatedSignals,
     SignalDebugTraceRead,
     SignalRead,
@@ -52,7 +51,6 @@ from app.schemas.signal import (
 )
 from app.services.favorite_service import get_favorited_signal_ids
 from app.services.reaction_service import get_reaction_summaries, get_user_reactions
-from app.services.scheduler import get_ingest_state
 
 SORT_MODE_NEWEST = "newest"
 SORT_MODE_IMPORTANT = "most_important"
@@ -95,67 +93,6 @@ def _severity_order_expr():
 
 def _severity_filter_expr(signal_type: str):
     return Signal.signal_type.ilike(signal_type)
-
-
-def _parse_iso(value: Optional[str]) -> Optional[datetime]:
-    if not value:
-        return None
-    try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-        return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc)
-    except ValueError:
-        return None
-
-
-def _build_freshness(event_date, created_at: datetime) -> FreshnessContextRead:
-    ingest_state = get_ingest_state()
-    last_updated = _parse_iso(ingest_state.get("last_updated"))
-    now = datetime.now(timezone.utc)
-    ingest_age_minutes = None
-    if last_updated is not None:
-        last_updated = last_updated.astimezone(timezone.utc)
-        ingest_age_minutes = max(0, int((now - last_updated).total_seconds() // 60))
-
-    event_age_hours = None
-    if event_date is not None:
-        event_dt = datetime.combine(event_date, datetime.min.time(), tzinfo=timezone.utc)
-        event_age_hours = max(0, int((now - event_dt).total_seconds() // 3600))
-
-    if ingest_state.get("status") == "running":
-        state = "refreshing"
-        label = "Refreshing board data"
-        delayed = "A refresh is in progress. Some signal context may shift as the latest ingest completes."
-    elif ingest_age_minutes is None:
-        state = "unknown"
-        label = "Freshness unknown"
-        delayed = "Freshness metadata is not available yet. Treat the board as directional until a successful ingest lands."
-    elif ingest_age_minutes <= 90:
-        state = "fresh"
-        label = "Board refreshed recently"
-        delayed = None
-    elif ingest_age_minutes <= 6 * 60:
-        state = "delayed"
-        label = "Board is mildly delayed"
-        delayed = "This board is still usable, but some game context may lag behind the latest box scores."
-    else:
-        state = "stale"
-        label = "Board freshness is weak"
-        delayed = "Signal timing is now materially delayed. Verify the latest box score context before trusting sharp changes."
-
-    coverage = f"Built from the last {BASELINE_WINDOW_SIZE} games"
-    if event_age_hours is not None:
-        coverage += f"; this game landed about {event_age_hours}h ago."
-    else:
-        coverage += "."
-
-    return FreshnessContextRead(
-        state=state,
-        label=label,
-        coverage_summary=coverage,
-        delayed_data_message=delayed,
-        ingest_age_minutes=ingest_age_minutes,
-        event_age_hours=event_age_hours,
-    )
 
 
 def effective_metric_to_snapshot(signal: Signal, rolling_metric: Optional[RollingMetric]) -> MetricSnapshot:
@@ -290,7 +227,6 @@ def build_signal_read(
         comment_count=comment_count,
         is_favorited=is_favorited,
         created_at=signal.created_at,
-        freshness=_build_freshness(event_date, signal.created_at),
     )
 
 

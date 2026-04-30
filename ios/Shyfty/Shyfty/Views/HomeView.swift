@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct HomeView: View {
-    @Binding var selectedTab: ShyftyTab
     @StateObject private var viewModel = HomeViewModel()
     @EnvironmentObject private var auth: AuthViewModel
 
@@ -143,54 +142,41 @@ struct HomeView: View {
                 .padding(.horizontal, 6)
 
             HStack(spacing: 12) {
-                shortcutButton(title: "Players", subtitle: "Browse roster", systemImage: "person.2", tab: .players)
-                shortcutButton(title: "Teams", subtitle: "Browse clubs", systemImage: "shield", tab: .teams)
+                shortcutButton(title: "Players", subtitle: "Browse roster", systemImage: "person.2")
+                shortcutButton(title: "Teams", subtitle: "Browse clubs", systemImage: "shield")
             }
         }
     }
 
-    private func shortcutButton(title: String, subtitle: String, systemImage: String, tab: ShyftyTab) -> some View {
-        Button {
-            selectedTab = tab
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(ShyftyTheme.accent)
-                    .frame(width: 34, height: 34)
-                    .background(ShyftyTheme.accentSoft)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    private func shortcutButton(title: String, subtitle: String, systemImage: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(ShyftyTheme.accent)
+                .frame(width: 34, height: 34)
+                .background(ShyftyTheme.accentSoft)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(ShyftyTheme.ink)
-                    Text(subtitle)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(ShyftyTheme.muted)
-                }
-
-                Spacer()
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(ShyftyTheme.ink)
+                Text(subtitle)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(ShyftyTheme.muted)
             }
-            .padding(16)
-            .shyftyPanel(strong: true)
+
+            Spacer()
         }
-        .buttonStyle(.plain)
+        .padding(16)
+        .shyftyPanel(strong: true)
     }
 
     private var topSignalsModule: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Top Signals")
-                    .shyftyEyebrow()
-                Spacer()
-                Button("Open Players") {
-                    selectedTab = .players
-                }
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Color(red: 1.0, green: 0.85, blue: 0.74))
-            }
-            .padding(.horizontal, 6)
+            Text("Top Signals")
+                .shyftyEyebrow()
+                .padding(.horizontal, 6)
 
             VStack(spacing: 10) {
                 ForEach(viewModel.topSignals) { signal in

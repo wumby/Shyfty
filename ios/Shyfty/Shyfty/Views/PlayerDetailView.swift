@@ -11,6 +11,25 @@ struct PlayerDetailView: View {
     @State private var metrics: [MetricSeriesPoint] = []
     @State private var errorMessage: String?
 
+    private var signalGroups: [GroupedSignal] {
+        var seen: [String: Int] = [:]
+        var groups: [[Signal]] = []
+        var keys: [String] = []
+        for signal in signals {
+            let key = signal.eventDate
+            if let idx = seen[key] {
+                groups[idx].append(signal)
+            } else {
+                seen[key] = groups.count
+                keys.append(key)
+                groups.append([signal])
+            }
+        }
+        return zip(keys, groups).map { key, sigs in
+            GroupedSignal(id: key, signals: sigs.sorted { $0.importance > $1.importance })
+        }
+    }
+
     var body: some View {
         ZStack {
             ShyftyBackground()
@@ -41,7 +60,7 @@ struct PlayerDetailView: View {
                                             .padding(.horizontal, 12)
                                             .padding(.vertical, 8)
                                             .foregroundStyle(isFollowed ? ShyftyTheme.accent : Color(red: 1.0, green: 0.85, blue: 0.74))
-                                            .background(isFollowed ? ShyftyTheme.accentSoft : ShyftyTheme.accentSoft)
+                                            .background(ShyftyTheme.accentSoft)
                                             .overlay(
                                                 Capsule()
                                                     .strokeBorder(ShyftyTheme.accent.opacity(isFollowed ? 0.35 : 0.25), lineWidth: 1)
@@ -98,12 +117,18 @@ struct PlayerDetailView: View {
                         .shyftyPanel()
                     }
 
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Signals")
-                            .shyftyEyebrow()
-                            .padding(.horizontal, 6)
-                        ForEach(signals) { signal in
-                            SignalCardView(signal: signal)
+                    if let boxScores = player?.recentBoxScores {
+                        playerBoxScores(boxScores)
+                    }
+
+                    if !signalGroups.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Signals")
+                                .shyftyEyebrow()
+                                .padding(.horizontal, 6)
+                            ForEach(signalGroups) { group in
+                                GroupedSignalCardView(signals: group.signals)
+                            }
                         }
                     }
 
@@ -117,12 +142,110 @@ struct PlayerDetailView: View {
                 .padding(.vertical, 12)
             }
         }
+        .navigationDestination(for: Signal.self) { signal in
+            SignalDetailView(signalId: signal.id, signal: signal)
+        }
         .navigationTitle("Player Detail")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
         .task {
             await load()
         }
+    }
+
+    private func playerBoxScores(_ rows: [PlayerBoxScore]) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Last 5 Box Scores")
+                .shyftyEyebrow()
+                .padding(.horizontal, 6)
+
+            if rows.isEmpty {
+                Text("No box scores are stored for this player yet.")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(ShyftyTheme.muted)
+                    .padding(18)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .shyftyPanel(strong: true)
+            } else {
+                ForEach(rows) { row in
+                    HStack(alignment: .center, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("\(row.homeAway == "Away" ? "@" : "vs") \(row.opponent)")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(ShyftyTheme.ink)
+                                .lineLimit(1)
+                            Text("\(SignalFormatting.eventDateText(row.gameDate))\(row.season.map { " · \($0)" } ?? "")")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(ShyftyTheme.muted)
+                                .lineLimit(1)
+                        }
+                        .frame(width: 112, alignment: .leading)
+
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(playerStats(row), id: \.label) { stat in
+                                    boxScoreCell(label: stat.label, value: stat.value)
+                                }
+                            }
+                        }
+                    }
+                    .padding(12)
+                    .shyftyPanel(strong: true)
+                }
+            }
+        }
+    }
+
+    private func boxScoreCell(label: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(.system(size: 9, weight: .semibold))
+                .tracking(1.1)
+                .foregroundStyle(ShyftyTheme.muted)
+            Text(value)
+                .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                .foregroundStyle(ShyftyTheme.ink)
+        }
+        .frame(width: 66, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(Color.white.opacity(0.035))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private func playerStats(_ row: PlayerBoxScore) -> [(label: String, value: String)] {
+        var stats: [(String, String)] = []
+        appendInt(&stats, "PTS", row.points)
+        appendInt(&stats, "REB", row.rebounds)
+        appendInt(&stats, "AST", row.assists)
+        appendDouble(&stats, "MIN", row.minutesPlayed)
+        appendPercent(&stats, "USG", row.usageRate)
+        appendInt(&stats, "STL", row.steals)
+        appendInt(&stats, "BLK", row.blocks)
+        appendInt(&stats, "TO", row.turnovers)
+        appendInt(&stats, "+/-", row.plusMinus)
+        appendPercent(&stats, "FG%", row.fgPct)
+        appendPercent(&stats, "3P%", row.fg3Pct)
+        appendPercent(&stats, "FT%", row.ftPct)
+        appendInt(&stats, "PASS YDS", row.passingYards)
+        appendInt(&stats, "RUSH YDS", row.rushingYards)
+        appendInt(&stats, "REC YDS", row.receivingYards)
+        appendInt(&stats, "TD", row.touchdowns)
+        return stats.map { (label: $0.0, value: $0.1) }
+    }
+
+    private func appendInt(_ stats: inout [(String, String)], _ label: String, _ value: Int?) {
+        if let value { stats.append((label, "\(value)")) }
+    }
+
+    private func appendDouble(_ stats: inout [(String, String)], _ label: String, _ value: Double?) {
+        if let value { stats.append((label, value.truncatingRemainder(dividingBy: 1) == 0 ? "\(Int(value))" : String(format: "%.1f", value))) }
+    }
+
+    private func appendPercent(_ stats: inout [(String, String)], _ label: String, _ value: Double?) {
+        guard let value else { return }
+        let normalized = abs(value) <= 1 ? value * 100 : value
+        stats.append((label, "\(normalized.truncatingRemainder(dividingBy: 1) == 0 ? "\(Int(normalized))" : String(format: "%.1f", normalized))%"))
     }
 
     @MainActor

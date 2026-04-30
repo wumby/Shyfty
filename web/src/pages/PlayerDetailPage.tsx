@@ -9,7 +9,7 @@ import { SignalDetailDrawer } from '../components/SignalDetailDrawer';
 import { api } from '../services/api';
 import { useAuthStore } from '../store/useAuthStore';
 import { useSignalStore } from '../store/useSignalStore';
-import type { PlayerDetail, Signal } from '../types';
+import type { PlayerBoxScore, PlayerDetail, Signal } from '../types';
 import { formatGameContext, formatSignalLabel } from '../lib/signalFormat';
 
 function groupSignalsByGame(signals: Signal[]): Signal[][] {
@@ -21,6 +21,88 @@ function groupSignalsByGame(signals: Signal[]): Signal[][] {
     else grouped.set(key, [signal]);
   }
   return [...grouped.values()];
+}
+
+const PLAYER_BOX_SCORE_FIELDS: Array<[keyof PlayerBoxScore, string, 'number' | 'percent']> = [
+  ['points', 'PTS', 'number'],
+  ['rebounds', 'REB', 'number'],
+  ['assists', 'AST', 'number'],
+  ['minutes_played', 'MIN', 'number'],
+  ['usage_rate', 'USG', 'percent'],
+  ['steals', 'STL', 'number'],
+  ['blocks', 'BLK', 'number'],
+  ['turnovers', 'TO', 'number'],
+  ['plus_minus', '+/-', 'number'],
+  ['fg_pct', 'FG%', 'percent'],
+  ['fg3_pct', '3P%', 'percent'],
+  ['ft_pct', 'FT%', 'percent'],
+  ['passing_yards', 'PASS YDS', 'number'],
+  ['rushing_yards', 'RUSH YDS', 'number'],
+  ['receiving_yards', 'REC YDS', 'number'],
+  ['touchdowns', 'TD', 'number'],
+];
+
+function formatBoxScoreValue(value: number, mode: 'number' | 'percent') {
+  if (mode === 'percent') {
+    const normalized = Math.abs(value) <= 1 ? value * 100 : value;
+    return `${Number.isInteger(normalized) ? normalized.toFixed(0) : normalized.toFixed(1)}%`;
+  }
+  return Number.isInteger(value) ? value.toString() : value.toFixed(1);
+}
+
+function PlayerBoxScores({ rows }: { rows: PlayerBoxScore[] }) {
+  return (
+    <section className="panel-surface px-4 py-4">
+      <div className="flex items-center justify-between gap-3 px-1">
+        <h2 className="text-base font-semibold text-ink">Last 5 Box Scores</h2>
+        <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">{rows.length}/5 games</span>
+      </div>
+      <div className="mt-3 space-y-2">
+        {rows.length === 0 ? (
+          <div className="rounded-[16px] border border-dashed border-borderStrong bg-white/[0.025] px-4 py-4 text-sm text-muted">
+            No box scores are stored for this player yet.
+          </div>
+        ) : rows.map((row) => {
+          const stats = PLAYER_BOX_SCORE_FIELDS
+            .map(([key, label, mode]) => {
+              const value = row[key];
+              return typeof value === 'number' ? { label, value: formatBoxScoreValue(value, mode) } : null;
+            })
+            .filter(Boolean) as Array<{ label: string; value: string }>;
+          return (
+            <div key={row.game_id} className="rounded-[16px] border border-border bg-white/[0.025] px-3 py-3">
+              <div className="grid gap-3 lg:grid-cols-[170px_minmax(0,1fr)] lg:items-center">
+                <div className="min-w-0 border-b border-border pb-2 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-3">
+                  <div className="truncate text-sm font-semibold text-ink">
+                    {row.home_away === 'Away' ? '@' : 'vs'} {row.opponent}
+                  </div>
+                  <div className="mt-0.5 truncate text-[11px] text-muted">{formatGameContextDate(row.game_date)}{row.season ? ` · ${row.season}` : ''}</div>
+                </div>
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(64px,1fr))] gap-px overflow-hidden rounded-[12px] border border-border bg-border">
+                  {stats.map((stat) => (
+                    <div key={`${row.game_id}-${stat.label}`} className="min-w-0 bg-[#081421] px-2.5 py-2">
+                      <div className="truncate text-[8px] font-semibold uppercase tracking-[0.1em] text-muted">{stat.label}</div>
+                      <div className="mt-0.5 truncate text-xs font-semibold tabular-nums text-ink">{stat.value}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function formatGameContextDate(value: string) {
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (dateOnly) {
+    const [, year, month, day] = dateOnly;
+    return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+      .format(new Date(Date.UTC(Number(year), Number(month) - 1, Number(day))));
+  }
+  return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value));
 }
 
 export function PlayerDetailPage() {
@@ -129,6 +211,8 @@ export function PlayerDetailPage() {
             ))}
           </div>
         </section>
+
+        <PlayerBoxScores rows={player.recent_box_scores} />
 
         {primarySignal ? (
           <section className="panel-surface px-4 py-4">

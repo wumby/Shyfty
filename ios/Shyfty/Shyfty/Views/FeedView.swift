@@ -6,7 +6,6 @@ struct FeedView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     @State private var showFilterSheet = false
-    @State private var showSearchSheet = false
 
     private let leagues = ["ALL", "NBA", "NFL"]
     private let signalTypes = ["ALL", "SPIKE", "DROP", "SHIFT", "OUTLIER"]
@@ -57,10 +56,6 @@ struct FeedView: View {
                     SignalFilterSheetView(viewModel: viewModel)
                         .presentationDetents([.medium, .large])
                 }
-                .sheet(isPresented: $showSearchSheet) {
-                    SearchSheetView()
-                        .environmentObject(auth)
-                }
         }
     }
 
@@ -77,7 +72,6 @@ struct FeedView: View {
 
     private var mainStack: some View {
         VStack(spacing: 16) {
-            headerView
             if horizontalSizeClass == .regular {
                 regularLayout
             } else {
@@ -90,35 +84,25 @@ struct FeedView: View {
         HStack(alignment: .top, spacing: 14) {
             filtersPanel
                 .frame(width: 240)
-            VStack(spacing: 14) {
-                feedModeSegment
-                feedBody
-            }
-        }
-    }
-
-    private var compactLayout: some View {
-        VStack(spacing: 16) {
-            feedModeSegment
             feedBody
         }
     }
 
+    private var compactLayout: some View {
+        feedBody
+    }
+
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .topBarLeading) {
-            Text("Shyfty")
-                .font(.system(size: 20, weight: .semibold, design: .serif))
-                .foregroundStyle(ShyftyTheme.ink)
+        ToolbarItem(placement: .principal) {
+            HStack(spacing: 6) {
+                Button("For You") { viewModel.feedMode = .all }
+                    .buttonStyle(ShyftyPillButtonStyle(active: viewModel.feedMode == .all))
+                Button("Following") { viewModel.feedMode = .following }
+                    .buttonStyle(ShyftyPillButtonStyle(active: viewModel.feedMode == .following))
+            }
         }
         ToolbarItemGroup(placement: .topBarTrailing) {
-            Button {
-                showSearchSheet = true
-            } label: {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(ShyftyTheme.muted)
-            }
-
             if horizontalSizeClass != .regular {
                 Button {
                     showFilterSheet = true
@@ -127,40 +111,7 @@ struct FeedView: View {
                         .foregroundStyle(hasActiveFilters ? ShyftyTheme.accent : ShyftyTheme.muted)
                 }
             }
-
-            NavigationLink {
-                FavoritesView()
-            } label: {
-                Image(systemName: "star")
-                    .foregroundStyle(ShyftyTheme.muted)
-            }
-
-            if auth.currentUser != nil {
-                NavigationLink {
-                    AccountView()
-                } label: {
-                    Image(systemName: "person.crop.circle")
-                        .foregroundStyle(ShyftyTheme.muted)
-                }
-            } else {
-                Button("Sign In") {
-                    auth.isSignUp = false
-                    auth.showAuthSheet = true
-                }
-                .foregroundStyle(ShyftyTheme.muted)
-            }
         }
-    }
-
-    private var feedModeSegment: some View {
-        HStack(spacing: 8) {
-            Button("For You") { viewModel.feedMode = .all }
-                .buttonStyle(ShyftyPillButtonStyle(active: viewModel.feedMode == .all))
-            Button("Following") { viewModel.feedMode = .following }
-                .buttonStyle(ShyftyPillButtonStyle(active: viewModel.feedMode == .following))
-            Spacer()
-        }
-        .padding(.horizontal, 4)
     }
 
     private var headerView: some View {
@@ -192,38 +143,8 @@ struct FeedView: View {
         .shyftyPanel()
     }
 
-    @ViewBuilder
-    private var freshnessBanner: some View {
-        if let f = viewModel.freshness, f.state != "live" {
-            let isError = f.state == "error"
-            HStack(spacing: 8) {
-                Image(systemName: isError ? "exclamationmark.circle" : "clock")
-                    .font(.system(size: 12, weight: .medium))
-                Text(f.label)
-                    .font(.system(size: 12, weight: .medium))
-                Spacer()
-                if let msg = f.delayedDataMessage {
-                    Text(msg)
-                        .font(.system(size: 11))
-                        .lineLimit(1)
-                }
-            }
-            .foregroundStyle(isError ? ShyftyTheme.danger : ShyftyTheme.warning)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background((isError ? ShyftyTheme.danger : ShyftyTheme.warning).opacity(0.10))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder((isError ? ShyftyTheme.danger : ShyftyTheme.warning).opacity(0.25), lineWidth: 1)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        }
-    }
-
     private var feedBody: some View {
         VStack(alignment: .leading, spacing: 14) {
-            freshnessBanner
-
             if viewModel.isLoading {
                 VStack(spacing: 14) {
                     ProgressView()
@@ -280,14 +201,13 @@ struct FeedView: View {
                 .padding(.horizontal, 6)
 
                 LazyVStack(spacing: 12) {
-                    ForEach(grouped) { item in
+                    ForEach(Array(grouped.enumerated()), id: \.element.id) { index, item in
                         feedDisplayItemView(item)
-                    }
-
-                    if viewModel.hasMore {
-                        Color.clear
-                            .frame(height: 1)
-                            .onAppear { Task { await viewModel.loadMore() } }
+                            .onAppear {
+                                if index == grouped.count - 1 {
+                                    Task { await viewModel.loadMore() }
+                                }
+                            }
                     }
                     if viewModel.isLoadingMore {
                         ProgressView()

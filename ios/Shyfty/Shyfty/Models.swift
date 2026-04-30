@@ -12,24 +12,6 @@ struct FeedContext: Decodable, Hashable {
     }
 }
 
-struct FreshnessContext: Decodable, Hashable {
-    let state: String
-    let label: String
-    let coverageSummary: String
-    let delayedDataMessage: String?
-    let ingestAgeMinutes: Int?
-    let eventAgeHours: Int?
-
-    enum CodingKeys: String, CodingKey {
-        case state
-        case label
-        case coverageSummary = "coverage_summary"
-        case delayedDataMessage = "delayed_data_message"
-        case ingestAgeMinutes = "ingest_age_minutes"
-        case eventAgeHours = "event_age_hours"
-    }
-}
-
 struct PaginatedSignals: Decodable {
     let items: [FeedItem]
     let hasMore: Bool
@@ -202,10 +184,13 @@ struct Signal: Identifiable, Decodable, Hashable {
     let userReaction: String?
     let commentCount: Int
     let isFavorited: Bool
+    let opponent: String?
+    let homeAway: String?
+    let gameResult: String?
+    let finalScore: String?
     let streak: Int
     let classificationReason: String?
     let createdAt: String
-    let freshness: FreshnessContext?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -233,10 +218,13 @@ struct Signal: Identifiable, Decodable, Hashable {
         case userReaction = "user_reaction"
         case commentCount = "comment_count"
         case isFavorited = "is_favorited"
+        case opponent
+        case homeAway = "home_away"
+        case gameResult = "game_result"
+        case finalScore = "final_score"
         case streak
         case classificationReason = "classification_reason"
         case createdAt = "created_at"
-        case freshness
     }
 }
 
@@ -248,6 +236,7 @@ struct Player: Identifiable, Decodable, Hashable {
     let leagueName: String
     let signalCount: Int?
     let isFollowed: Bool
+    let recentBoxScores: [PlayerBoxScore]?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -257,6 +246,57 @@ struct Player: Identifiable, Decodable, Hashable {
         case leagueName = "league_name"
         case signalCount = "signal_count"
         case isFollowed = "is_followed"
+        case recentBoxScores = "recent_box_scores"
+    }
+}
+
+struct PlayerBoxScore: Decodable, Hashable, Identifiable {
+    let gameID: Int
+    let gameDate: String
+    let season: String?
+    let opponent: String
+    let homeAway: String
+    let points: Int?
+    let rebounds: Int?
+    let assists: Int?
+    let passingYards: Int?
+    let rushingYards: Int?
+    let receivingYards: Int?
+    let touchdowns: Int?
+    let usageRate: Double?
+    let steals: Int?
+    let blocks: Int?
+    let turnovers: Int?
+    let minutesPlayed: Double?
+    let plusMinus: Int?
+    let fgPct: Double?
+    let fg3Pct: Double?
+    let ftPct: Double?
+
+    var id: Int { gameID }
+
+    enum CodingKeys: String, CodingKey {
+        case gameID = "game_id"
+        case gameDate = "game_date"
+        case season
+        case opponent
+        case homeAway = "home_away"
+        case points
+        case rebounds
+        case assists
+        case passingYards = "passing_yards"
+        case rushingYards = "rushing_yards"
+        case receivingYards = "receiving_yards"
+        case touchdowns
+        case usageRate = "usage_rate"
+        case steals
+        case blocks
+        case turnovers
+        case minutesPlayed = "minutes_played"
+        case plusMinus = "plus_minus"
+        case fgPct = "fg_pct"
+        case fg3Pct = "fg3_pct"
+        case ftPct = "ft_pct"
     }
 }
 
@@ -283,18 +323,56 @@ struct TeamDetail: Decodable, Hashable {
     let name: String
     let leagueName: String
     let playerCount: Int
+    let signalCount: Int?
     let isFollowed: Bool
     let players: [Player]
     let recentSignals: [Signal]
+    let recentBoxScores: [TeamBoxScore]
 
     enum CodingKeys: String, CodingKey {
         case id
         case name
         case leagueName = "league_name"
         case playerCount = "player_count"
+        case signalCount = "signal_count"
         case isFollowed = "is_followed"
         case players
         case recentSignals = "recent_signals"
+        case recentBoxScores = "recent_box_scores"
+    }
+}
+
+struct TeamBoxScore: Decodable, Hashable, Identifiable {
+    let gameID: Int
+    let gameDate: String
+    let season: String?
+    let opponent: String
+    let homeAway: String
+    let points: Int?
+    let rebounds: Int?
+    let assists: Int?
+    let fgPct: Double?
+    let fg3Pct: Double?
+    let turnovers: Int?
+    let pace: Double?
+    let offRating: Double?
+
+    var id: Int { gameID }
+
+    enum CodingKeys: String, CodingKey {
+        case gameID = "game_id"
+        case gameDate = "game_date"
+        case season
+        case opponent
+        case homeAway = "home_away"
+        case points
+        case rebounds
+        case assists
+        case fgPct = "fg_pct"
+        case fg3Pct = "fg3_pct"
+        case turnovers
+        case pace
+        case offRating = "off_rating"
     }
 }
 

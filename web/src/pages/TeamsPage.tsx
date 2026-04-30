@@ -88,7 +88,7 @@ export function TeamsPage() {
                         {leagueTeams.length} teams
                       </div>
                     </div>
-                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                       {leagueTeams.map((team) => {
                         const activityCount = team.signal_count ?? team.player_count;
                         return (

@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct PlayersView: View {
-    @EnvironmentObject private var auth: AuthViewModel
     @State private var players: [Player] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
@@ -25,6 +24,7 @@ struct PlayersView: View {
                         searchField
                         content
                     }
+                    .frame(maxWidth: .infinity)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 12)
                 }
@@ -35,11 +35,6 @@ struct PlayersView: View {
             .navigationTitle("Players")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
-            .toolbar { accountToolbar }
-            .sheet(isPresented: $auth.showAuthSheet) {
-                AuthView()
-                    .environmentObject(auth)
-            }
             .task { await load() }
             .refreshable { await load() }
         }
@@ -70,6 +65,8 @@ struct PlayersView: View {
         .shyftyField()
     }
 
+    private let columns = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
+
     @ViewBuilder
     private var content: some View {
         if isLoading {
@@ -85,10 +82,10 @@ struct PlayersView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .shyftyPanel(strong: true)
         } else {
-            LazyVStack(spacing: 10) {
+            LazyVGrid(columns: columns, spacing: 10) {
                 ForEach(filteredPlayers) { player in
                     NavigationLink(value: player.id) {
-                        playerRow(player)
+                        playerCell(player)
                     }
                     .buttonStyle(.plain)
                 }
@@ -96,56 +93,38 @@ struct PlayersView: View {
         }
     }
 
-    private func playerRow(_ player: Player) -> some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
+    private func playerCell(_ player: Player) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(player.name)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(ShyftyTheme.ink)
-                    .lineLimit(1)
-                Text("\(player.teamName) · \(player.position) · \(player.leagueName)")
-                    .font(.system(size: 12, weight: .medium))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("\(player.teamName) · \(player.position)")
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(ShyftyTheme.muted)
                     .lineLimit(1)
             }
-            Spacer()
-            if let count = player.signalCount, count > 0 {
-                Text("\(count)")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(ShyftyTheme.accent)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(ShyftyTheme.accentSoft)
-                    .clipShape(Capsule())
+            HStack {
+                if let count = player.signalCount, count > 0 {
+                    Text("\(count)")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(ShyftyTheme.accent)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(ShyftyTheme.accentSoft)
+                        .clipShape(Capsule())
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(ShyftyTheme.muted.opacity(0.5))
             }
-            Image(systemName: "chevron.right")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(ShyftyTheme.muted.opacity(0.55))
         }
-        .padding(16)
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .shyftyPanel(strong: true)
-    }
-
-    @ToolbarContentBuilder
-    private var accountToolbar: some ToolbarContent {
-        ToolbarItem(placement: .topBarTrailing) {
-            if let user = auth.currentUser {
-                NavigationLink {
-                    AccountView()
-                } label: {
-                    Text(user.email)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(ShyftyTheme.muted)
-                        .lineLimit(1)
-                }
-            } else {
-                Button("Sign In") {
-                    auth.isSignUp = false
-                    auth.showAuthSheet = true
-                }
-                .foregroundStyle(ShyftyTheme.muted)
-            }
-        }
     }
 
     @MainActor

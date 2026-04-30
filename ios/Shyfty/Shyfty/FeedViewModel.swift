@@ -30,6 +30,10 @@ final class FeedViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var profile: UserProfile?
 
+    init(initialFeedMode: FeedMode = .all) {
+        self.feedMode = initialFeedMode
+    }
+
     var signals: [Signal] {
         feedItems.flatMap { item in
             switch item {
@@ -39,10 +43,6 @@ final class FeedViewModel: ObservableObject {
                 return cascade.underlyingSignals
             }
         }
-    }
-
-    var freshness: FreshnessContext? {
-        signals.first?.freshness
     }
 
     var groupedFeedItems: [FeedDisplayItem] {
@@ -116,7 +116,9 @@ final class FeedViewModel: ObservableObject {
                 feed: feedMode == .following ? "following" : nil,
                 cursor: cursor
             )
-            feedItems += page.items
+            let existingIDs = Set(feedItems.map(\.id))
+            let newItems = page.items.filter { !existingIDs.contains($0.id) }
+            feedItems += newItems
             hasMore = page.hasMore
             nextCursor = page.nextCursor
         } catch { }

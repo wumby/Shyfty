@@ -1,4 +1,6 @@
 from pydantic import BaseModel
+from datetime import date
+from typing import Optional
 
 from app.schemas.player import PlayerRead
 from app.schemas.signal import SignalRead
@@ -16,3 +18,20 @@ class TeamRead(BaseModel):
 class TeamDetail(TeamRead):
     players: list[PlayerRead]
     recent_signals: list[SignalRead]
+    recent_box_scores: list["TeamBoxScore"] = []
+
+
+class TeamBoxScore(BaseModel):
+    game_id: int
+    game_date: date
+    season: Optional[str] = None
+    opponent: str
+    home_away: str
+    points: Optional[int] = None
+    rebounds: Optional[int] = None
+    assists: Optional[int] = None
+    fg_pct: Optional[float] = None
+    fg3_pct: Optional[float] = None
+    turnovers: Optional[int] = None
+    pace: Optional[float] = None
+    off_rating: Optional[float] = None
