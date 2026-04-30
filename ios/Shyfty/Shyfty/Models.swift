@@ -265,6 +265,7 @@ struct Team: Identifiable, Decodable, Hashable {
     let name: String
     let leagueName: String
     let playerCount: Int
+    let signalCount: Int?
     let isFollowed: Bool
 
     enum CodingKeys: String, CodingKey {
@@ -272,6 +273,7 @@ struct Team: Identifiable, Decodable, Hashable {
         case name
         case leagueName = "league_name"
         case playerCount = "player_count"
+        case signalCount = "signal_count"
         case isFollowed = "is_followed"
     }
 }
@@ -450,7 +452,6 @@ struct SignalTrace: Decodable {
     let sourceStat: SourceStatContext?
     let baselineSamples: [BaselineSample]
     let discussionPreview: [Comment]
-    let relatedSignals: [Signal]
     let feedContext: FeedContext?
 
     enum CodingKeys: String, CodingKey {
@@ -459,7 +460,6 @@ struct SignalTrace: Decodable {
         case sourceStat = "source_stat"
         case baselineSamples = "baseline_samples"
         case discussionPreview = "discussion_preview"
-        case relatedSignals = "related_signals"
         case feedContext = "feed_context"
     }
 }

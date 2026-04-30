@@ -282,33 +282,6 @@ export function SignalDetailDrawer({ signalId, onClose }: Props) {
                 </div>
               )}
 
-              {trace.related_signals.length > 0 && (
-                <div className="rounded-[22px] border border-border bg-white/[0.03] px-4 py-3">
-                  <div className="eyebrow mb-3">Related Signals</div>
-                  <div className="space-y-2">
-                    {trace.related_signals.map((related) => (
-                      <div
-                        key={related.id}
-                        className="rounded-2xl border border-border bg-white/[0.02] px-3 py-3"
-                      >
-                        <div className="text-[11px] uppercase tracking-[0.16em] text-muted">{formatSignalLabel(related.severity ?? related.signal_type)}</div>
-                        <div className="mt-1 text-sm font-semibold text-ink">{related.player_name}</div>
-                        <div className="mt-1 text-xs text-muted">{related.explanation}</div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setLoading(true);
-                            api.getSignal(related.id).then(setTrace).finally(() => setLoading(false));
-                          }}
-                          className="mt-2 text-[10px] uppercase tracking-[0.14em] text-[#ffd8bd]"
-                        >
-                          Open signal
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </div>

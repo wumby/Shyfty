@@ -2,9 +2,8 @@ import SwiftUI
 
 enum ShyftyTab: Hashable {
     case home
-    case signals
-    case saved
-    case profile
+    case players
+    case teams
 }
 
 struct MainTabView: View {
@@ -18,27 +17,17 @@ struct MainTabView: View {
                 }
                 .tag(ShyftyTab.home)
 
-            SignalsView()
+            PlayersView()
                 .tabItem {
-                    Label("Signals", systemImage: "waveform.path.ecg")
+                    Label("Players", systemImage: "person.2")
                 }
-                .tag(ShyftyTab.signals)
+                .tag(ShyftyTab.players)
 
-            NavigationStack {
-                FavoritesView()
-            }
-            .tabItem {
-                Label("Saved", systemImage: "star")
-            }
-            .tag(ShyftyTab.saved)
-
-            NavigationStack {
-                ProfileView()
-            }
-            .tabItem {
-                Label("Profile", systemImage: "person")
-            }
-            .tag(ShyftyTab.profile)
+            TeamsView()
+                .tabItem {
+                    Label("Teams", systemImage: "shield")
+                }
+                .tag(ShyftyTab.teams)
         }
         .tint(ShyftyTheme.accent)
     }

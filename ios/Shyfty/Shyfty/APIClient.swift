@@ -85,6 +85,12 @@ final class APIClient {
         return try await get(baseURL.appendingPathComponent("players/\(id)/metrics"))
     }
 
+    // MARK: - Teams
+
+    func fetchTeams() async throws -> [Team] {
+        try await get(baseURL.appendingPathComponent("teams"))
+    }
+
     func followTeam(id: Int) async throws {
         let _: EmptyResponse = try await post(baseURL.appendingPathComponent("teams/\(id)/follow"), body: EmptyBody())
     }

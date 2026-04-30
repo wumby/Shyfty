@@ -28,12 +28,14 @@
 		A10000000000000000000022 /* SignalsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000022 /* SignalsView.swift */; };
 		A10000000000000000000023 /* CompactSignalCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000023 /* CompactSignalCardView.swift */; };
 		A10000000000000000000024 /* SignalFilterSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000024 /* SignalFilterSheetView.swift */; };
-		A10000000000000000000025 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000025 /* ProfileView.swift */; };
 		A10000000000000000000026 /* SignalDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000026 /* SignalDetailView.swift */; };
 		A10000000000000000000027 /* CascadeCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000027 /* CascadeCardView.swift */; };
 		A10000000000000000000028 /* CascadeDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000028 /* CascadeDetailView.swift */; };
 		A10000000000000000000029 /* SearchSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000029 /* SearchSheetView.swift */; };
 		A10000000000000000000030 /* GroupedSignalCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000030 /* GroupedSignalCardView.swift */; };
+		A10000000000000000000031 /* PlayersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000031 /* PlayersView.swift */; };
+		A10000000000000000000032 /* TeamsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000032 /* TeamsView.swift */; };
+		A10000000000000000000033 /* TeamDetailViewIOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000033 /* TeamDetailViewIOS.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -61,12 +63,14 @@
 		A20000000000000000000022 /* SignalsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignalsView.swift; sourceTree = "<group>"; };
 		A20000000000000000000023 /* CompactSignalCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactSignalCardView.swift; sourceTree = "<group>"; };
 		A20000000000000000000024 /* SignalFilterSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignalFilterSheetView.swift; sourceTree = "<group>"; };
-		A20000000000000000000025 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 		A20000000000000000000026 /* SignalDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignalDetailView.swift; sourceTree = "<group>"; };
 		A20000000000000000000027 /* CascadeCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CascadeCardView.swift; sourceTree = "<group>"; };
 		A20000000000000000000028 /* CascadeDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CascadeDetailView.swift; sourceTree = "<group>"; };
 		A20000000000000000000029 /* SearchSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchSheetView.swift; sourceTree = "<group>"; };
 		A20000000000000000000030 /* GroupedSignalCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupedSignalCardView.swift; sourceTree = "<group>"; };
+		A20000000000000000000031 /* PlayersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayersView.swift; sourceTree = "<group>"; };
+		A20000000000000000000032 /* TeamsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamsView.swift; sourceTree = "<group>"; };
+		A20000000000000000000033 /* TeamDetailViewIOS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamDetailViewIOS.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -122,6 +126,9 @@
 				A20000000000000000000015 /* AccountView.swift */,
 				A20000000000000000000016 /* AuthView.swift */,
 				A20000000000000000000021 /* HomeView.swift */,
+				A20000000000000000000031 /* PlayersView.swift */,
+				A20000000000000000000032 /* TeamsView.swift */,
+				A20000000000000000000033 /* TeamDetailViewIOS.swift */,
 				A20000000000000000000022 /* SignalsView.swift */,
 				A20000000000000000000006 /* FeedView.swift */,
 				A20000000000000000000007 /* PlayerDetailView.swift */,
@@ -134,7 +141,6 @@
 				A20000000000000000000029 /* SearchSheetView.swift */,
 				A20000000000000000000010 /* FilterChipsView.swift */,
 				A20000000000000000000024 /* SignalFilterSheetView.swift */,
-				A20000000000000000000025 /* ProfileView.swift */,
 				A20000000000000000000026 /* SignalDetailView.swift */,
 			);
 			path = Views;
@@ -226,7 +232,7 @@
 				A10000000000000000000019 /* MainTabView.swift in Sources */,
 				A10000000000000000000003 /* Models.swift in Sources */,
 				A10000000000000000000007 /* PlayerDetailView.swift in Sources */,
-				A10000000000000000000025 /* ProfileView.swift in Sources */,
+				A10000000000000000000031 /* PlayersView.swift in Sources */,
 				A10000000000000000000009 /* SignalCardView.swift in Sources */,
 				A10000000000000000000024 /* SignalFilterSheetView.swift in Sources */,
 				A10000000000000000000011 /* SignalFormatting.swift in Sources */,
@@ -235,6 +241,8 @@
 				A10000000000000000000001 /* ShyftyApp.swift in Sources */,
 				A10000000000000000000022 /* SignalsView.swift in Sources */,
 				A10000000000000000000026 /* SignalDetailView.swift in Sources */,
+				A10000000000000000000033 /* TeamDetailViewIOS.swift in Sources */,
+				A10000000000000000000032 /* TeamsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

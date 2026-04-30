@@ -14,7 +14,6 @@ from app.services.signal_service import (
     FEED_MODE_ALL,
     FEED_MODE_FOLLOWING,
     SORT_MODE_NEWEST,
-    list_related_signals,
     list_signals,
     list_trending_signals,
 )
@@ -106,14 +105,6 @@ def get_signal_detail(
     trace.discussion_preview = list_discussion_preview(
         db,
         signal_id=signal_id,
-        current_user_id=current_user.id if current_user else None,
-    )
-    trace.related_signals = list_related_signals(
-        db,
-        signal_id=signal_id,
-        player_id=trace.signal.player_id,
-        team_id=trace.signal.team_id,
-        metric_name=trace.signal.metric_name,
         current_user_id=current_user.id if current_user else None,
     )
     trace.feed_context = FeedContextRead(feed_mode=FEED_MODE_ALL, sort_mode=SORT_MODE_NEWEST)

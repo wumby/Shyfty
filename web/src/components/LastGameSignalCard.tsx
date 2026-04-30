@@ -95,7 +95,7 @@ export function LastGameSignalCard({ signals, onOpenDetail }: LastGameSignalCard
   }
 
   const followLabel = isTeamSignal
-    ? (isTeamFollowed ? '✓ Team' : '+ Team')
+    ? (isTeamFollowed ? '✓ Following' : '+ Follow')
     : (isPlayerFollowed ? '✓ Following' : '+ Follow');
 
   const primaryDirection = getSignalDirection(primarySignal);
@@ -187,11 +187,6 @@ export function LastGameSignalCard({ signals, onOpenDetail }: LastGameSignalCard
                   <span className={`rounded-full border px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.12em] ${getSeverityTone(severity)}`}>
                     {severity}
                   </span>
-                  {signal.streak >= 2 && (
-                    <span className="rounded-full border border-orange-400/30 bg-orange-400/10 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.12em] text-orange-300">
-                      {signal.streak}G
-                    </span>
-                  )}
                 </span>
                 <span className="mt-1 block whitespace-nowrap text-[16px] leading-none tabular-nums sm:text-[17px]">
                   <span className="font-bold text-ink">{formatStatValue(signal, signal.current_value)}</span>

@@ -190,7 +190,6 @@ export interface SignalTrace {
   } | null;
   baseline_samples: BaselineSample[];
   discussion_preview: Comment[];
-  related_signals: Signal[];
   feed_context: FeedContext | null;
 }
 

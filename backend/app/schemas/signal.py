@@ -228,7 +228,6 @@ class SignalTraceRead(BaseModel):
     source_stat: SourceStatContextRead
     baseline_samples: list[BaselineSampleRead]
     discussion_preview: list[CommentRead] = []
-    related_signals: list[SignalRead] = []
     feed_context: Optional[FeedContextRead] = None
 
 

@@ -874,29 +874,3 @@ def list_trending_signals(
     )
     return page.items
 
-
-def list_related_signals(
-    db: Session,
-    *,
-    signal_id: int,
-    player_id: Optional[int],
-    team_id: int,
-    metric_name: str,
-    current_user_id: Optional[int],
-    limit: int = 4,
-) -> list[SignalRead]:
-    clauses = [
-        Signal.team_id == team_id,
-        Signal.metric_name == metric_name,
-    ]
-    if player_id is not None:
-        clauses.insert(0, Signal.player_id == player_id)
-    query = (
-        _base_signal_query()
-        .where(Signal.id != signal_id)
-        .where(or_(*clauses))
-        .order_by(Signal.created_at.desc(), Signal.id.desc())
-        .limit(limit)
-    )
-    rows = db.execute(query).all()
-    return _build_signal_items(rows, db, current_user_id)

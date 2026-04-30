@@ -44,7 +44,16 @@ struct HomeView: View {
                         .foregroundStyle(ShyftyTheme.ink)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    if auth.currentUser == nil {
+                    if let user = auth.currentUser {
+                        NavigationLink {
+                            AccountView()
+                        } label: {
+                            Text(user.email)
+                                .font(.system(size: 13, weight: .semibold))
+                                .lineLimit(1)
+                        }
+                        .foregroundStyle(ShyftyTheme.muted)
+                    } else {
                         Button("Sign In") {
                             auth.isSignUp = false
                             auth.showAuthSheet = true
@@ -77,7 +86,7 @@ struct HomeView: View {
             }
             Text("A calmer front page for tonight’s biggest movement.")
                 .shyftyHeadline(30)
-            Text("Use Home for the quick read. Jump into Signals when you want the full board and filters.")
+            Text("Use Home for the quick read. Jump into Players or Teams when you want roster-level context.")
                 .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(ShyftyTheme.muted)
                 .lineSpacing(2)
@@ -134,13 +143,8 @@ struct HomeView: View {
                 .padding(.horizontal, 6)
 
             HStack(spacing: 12) {
-                shortcutButton(title: "Signals", subtitle: "Browse all", systemImage: "waveform.path.ecg", tab: .signals)
-                shortcutButton(title: "Saved", subtitle: "Watchlist", systemImage: "star", tab: .saved)
-            }
-
-            HStack(spacing: 12) {
-                shortcutButton(title: "Profile", subtitle: auth.currentUser == nil ? "Sign in" : "Account", systemImage: "person", tab: .profile)
-                shortcutButton(title: "Top Board", subtitle: "Open feed", systemImage: "arrow.right.circle", tab: .signals)
+                shortcutButton(title: "Players", subtitle: "Browse roster", systemImage: "person.2", tab: .players)
+                shortcutButton(title: "Teams", subtitle: "Browse clubs", systemImage: "shield", tab: .teams)
             }
         }
     }
@@ -180,8 +184,8 @@ struct HomeView: View {
                 Text("Top Signals")
                     .shyftyEyebrow()
                 Spacer()
-                Button("Open Signals") {
-                    selectedTab = .signals
+                Button("Open Players") {
+                    selectedTab = .players
                 }
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(Color(red: 1.0, green: 0.85, blue: 0.74))

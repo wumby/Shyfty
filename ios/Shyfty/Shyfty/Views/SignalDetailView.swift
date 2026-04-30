@@ -208,7 +208,6 @@ struct SignalDetailView: View {
                 provenanceSection(trace: trace)
                 reactionSection(signal: signal)
                 discussionSection
-                relatedSection(trace.relatedSignals)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
@@ -340,38 +339,6 @@ struct SignalDetailView: View {
         }
         .padding(18)
         .shyftyPanel()
-    }
-
-    @ViewBuilder
-    private func relatedSection(_ signals: [Signal]) -> some View {
-        if !signals.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Related Signals")
-                    .shyftyEyebrow()
-                ForEach(signals) { signal in
-                    NavigationLink {
-                        SignalDetailView(signalId: signal.id, signal: signal)
-                    } label: {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(signal.playerName)
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(ShyftyTheme.ink)
-                            Text(signal.explanation)
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(ShyftyTheme.muted)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(12)
-                        .background(Color.white.opacity(0.03))
-                        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(ShyftyTheme.border, lineWidth: 1))
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(18)
-            .shyftyPanel()
-        }
     }
 
     private func reactionPill(label: String, count: Int, active: Bool, color: Color, action: @escaping () -> Void) -> some View {

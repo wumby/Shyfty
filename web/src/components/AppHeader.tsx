@@ -8,7 +8,6 @@ const navItems = [
   { to: '/', label: 'Home' },
   { to: '/players', label: 'Players' },
   { to: '/teams', label: 'Teams' },
-  { to: '/profile', label: 'Profile' },
 ];
 
 export function AppHeader() {

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 
 import { useAuthStore } from '../store/useAuthStore';
 
@@ -11,7 +12,6 @@ export function AuthPanel() {
     authError,
     signIn,
     signUp,
-    signOut,
     openAuth,
     setAuthMode,
     closeAuth,
@@ -32,16 +32,9 @@ export function AuthPanel() {
   if (currentUser) {
     return (
       <div className="flex flex-wrap items-center justify-end gap-2">
-        <div className="rounded-full border border-border bg-white/[0.03] px-3 py-2 text-xs text-muted">
+        <Link to="/account" className="max-w-[180px] truncate rounded-full border border-border bg-white/[0.03] px-3 py-2 text-xs text-muted transition hover:border-borderStrong hover:text-ink">
           {currentUser.email}
-        </div>
-        <button
-          type="button"
-          onClick={() => void signOut()}
-          className="rounded-full border border-border bg-white/[0.03] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted transition hover:border-borderStrong hover:bg-white/[0.05] hover:text-ink"
-        >
-          Sign Out
-        </button>
+        </Link>
       </div>
     );
   }
