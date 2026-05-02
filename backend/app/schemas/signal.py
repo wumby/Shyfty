@@ -6,7 +6,7 @@ from typing import Literal, Optional, Union
 from pydantic import BaseModel
 
 from app.schemas.comment import CommentRead
-from app.schemas.reaction import ReactionSummaryRead, ReactionType
+from app.schemas.reaction import ReactionAggregateRead, ReactionSummaryRead, ReactionType
 
 
 class IngestRunRead(BaseModel):
@@ -106,6 +106,8 @@ class SignalRead(BaseModel):
     streak: int = 1
     reaction_summary: ReactionSummaryRead
     user_reaction: Optional[ReactionType]
+    reactions: list[ReactionAggregateRead] = []
+    user_reactions: list[ReactionType] = []
     comment_count: int = 0
     is_favorited: bool = False
     created_at: datetime

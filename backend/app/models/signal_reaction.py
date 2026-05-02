@@ -8,7 +8,7 @@ from app.db.base import Base
 
 class SignalReaction(Base):
     __tablename__ = "signal_reactions"
-    __table_args__ = (UniqueConstraint("user_id", "signal_id", name="uq_user_signal_reaction"),)
+    __table_args__ = (UniqueConstraint("user_id", "signal_id", "type", name="uq_user_signal_reaction_emoji"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)

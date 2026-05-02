@@ -5,6 +5,7 @@ import { EmptyState } from '../components/EmptyState';
 import { LastGameSignalCard } from '../components/LastGameSignalCard';
 import { LoadingState } from '../components/LoadingState';
 import { SectionHeader } from '../components/SectionHeader';
+import { SignalCommentsDrawer } from '../components/SignalCommentsDrawer';
 import { SignalDetailDrawer } from '../components/SignalDetailDrawer';
 import { api } from '../services/api';
 import { useAuthStore } from '../store/useAuthStore';
@@ -37,9 +38,17 @@ const PLAYER_BOX_SCORE_FIELDS: Array<[keyof PlayerBoxScore, string, 'number' | '
   ['fg3_pct', '3P%', 'percent'],
   ['ft_pct', 'FT%', 'percent'],
   ['passing_yards', 'PASS YDS', 'number'],
+  ['passing_completions', 'COMP', 'number'],
+  ['passing_attempts', 'ATT', 'number'],
+  ['interceptions', 'INT', 'number'],
   ['rushing_yards', 'RUSH YDS', 'number'],
+  ['rushing_attempts', 'RUSH ATT', 'number'],
   ['receiving_yards', 'REC YDS', 'number'],
+  ['receptions', 'REC', 'number'],
+  ['targets', 'TGT', 'number'],
   ['touchdowns', 'TD', 'number'],
+  ['sacks', 'SACK', 'number'],
+  ['fumbles_lost', 'FUM LOST', 'number'],
 ];
 
 function formatBoxScoreValue(value: number, mode: 'number' | 'percent') {
@@ -112,12 +121,15 @@ export function PlayerDetailPage() {
   const toggleFollowPlayer = useSignalStore((s) => s.toggleFollowPlayer);
   const profile = useSignalStore((s) => s.profile);
   const fetchProfile = useSignalStore((s) => s.fetchProfile);
+  const signalMetaById = useSignalStore((s) => s.signalMetaById);
+  const setSignalCommentCount = useSignalStore((s) => s.setSignalCommentCount);
 
   const [player, setPlayer] = useState<PlayerDetail | null>(null);
   const [signals, setSignals] = useState<Signal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [detailSignalId, setDetailSignalId] = useState<number | null>(null);
+  const [commentThread, setCommentThread] = useState<{ signalId: number; title: string; subtitle?: string } | null>(null);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -144,6 +156,23 @@ export function PlayerDetailPage() {
 
     void load();
   }, [id]);
+
+  useEffect(() => {
+    setSignals((prev) =>
+      prev.map((signal) => {
+        const meta = signalMetaById[signal.id];
+        if (!meta) return signal;
+        return {
+          ...signal,
+          comment_count: meta.comment_count,
+          reaction_summary: meta.reaction_summary,
+          user_reaction: meta.user_reaction,
+          reactions: meta.reactions,
+          user_reactions: meta.user_reactions,
+        };
+      }),
+    );
+  }, [signalMetaById]);
 
   const primarySignal = signals[0] ?? null;
   const groupedSignals = useMemo(() => groupSignalsByGame(signals), [signals]);
@@ -271,6 +300,7 @@ export function PlayerDetailPage() {
                   key={`${group[0]?.player_id ?? group[0]?.team_id ?? 'unknown'}-${group[0]?.game_id ?? group[0]?.event_date ?? 'game'}`}
                   signals={group}
                   onOpenDetail={(signalId) => setDetailSignalId(signalId)}
+                  onOpenComments={(signalId, title, subtitle) => setCommentThread({ signalId, title, subtitle })}
                 />
               ))
             )}
@@ -280,6 +310,22 @@ export function PlayerDetailPage() {
 
       {detailSignalId != null ? (
         <SignalDetailDrawer signalId={detailSignalId} onClose={() => setDetailSignalId(null)} />
+      ) : null}
+      {commentThread ? (
+        <SignalCommentsDrawer
+          signalId={commentThread.signalId}
+          title={commentThread.title}
+          subtitle={commentThread.subtitle}
+          onCountChange={(count) => {
+            setSignalCommentCount(commentThread.signalId, count);
+            setSignals((prev) =>
+              prev.map((signal) =>
+                signal.id === commentThread.signalId ? { ...signal, comment_count: count } : signal,
+              ),
+            );
+          }}
+          onClose={() => setCommentThread(null)}
+        />
       ) : null}
     </>
   );

@@ -1,6 +1,7 @@
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
-import type { Signal } from '../types';
+import type { ReactionEntry, ReactionType, Signal } from '../types';
 import { formatDelta, formatEventDate, getMetricLabel, getSignalDirection } from '../lib/signalFormat';
 import { useAuthStore } from '../store/useAuthStore';
 import { useSignalStore } from '../store/useSignalStore';
@@ -8,6 +9,7 @@ import { useSignalStore } from '../store/useSignalStore';
 interface LastGameSignalCardProps {
   signals: Signal[];
   onOpenDetail?: (signalId: number) => void;
+  onOpenComments?: (signalId: number, title: string, subtitle?: string) => void;
 }
 
 function getSignalPriority(signal: Signal): number {
@@ -66,12 +68,48 @@ function getMatchupLabel(signal: Signal): string | null {
   return `${signal.team_name} ${homeAway} ${opponent}`;
 }
 
-export function LastGameSignalCard({ signals, onOpenDetail }: LastGameSignalCardProps) {
+const QUICK_EMOJIS = [
+  '👍', '👎', '🔥', '💯', '👏', '🙌', '🙏', '✅',
+  '😂', '🤣', '😅', '😬', '😮', '🤯', '😍', '😭',
+  '😤', '😎', '🤔', '🤝', '🎯', '📈', '📉', '🚀',
+  '🏀', '🏈', '💪', '🧠', '⚡', '🍿', '👀', '❤️',
+  '💥', '🫡', '🫠', '😴', '🥶', '🥵', '🧯', '🛡️',
+  '🐐', '🧱', '🪄', '🎲', '🔒', '🧨', '🪙', '🧩',
+  '⭐', '🌪️', '🛰️', '🕹️', '📊', '📝', '⏱️', '🏆',
+];
+
+function normalizeReactionEntries(signal: Signal): ReactionEntry[] {
+  if (signal.reactions && signal.reactions.length > 0) {
+    return signal.reactions
+      .map((item) => ({
+        emoji: item.emoji,
+        count: item.count,
+        reactedByCurrentUser:
+          item.reactedByCurrentUser ??
+          (item as unknown as { reacted_by_current_user?: boolean }).reacted_by_current_user ??
+          false,
+      }))
+      .filter((item) => item.count > 0);
+  }
+  const userSet = new Set<string>(signal.user_reactions ?? []);
+  const legacyEntries: ReactionEntry[] = [
+    { emoji: '👍', count: signal.reaction_summary.agree ?? 0, reactedByCurrentUser: userSet.has('👍') },
+    { emoji: '🔥', count: signal.reaction_summary.strong ?? 0, reactedByCurrentUser: userSet.has('🔥') },
+    { emoji: '👎', count: signal.reaction_summary.risky ?? 0, reactedByCurrentUser: userSet.has('👎') },
+  ];
+  return legacyEntries.filter((item) => item.count > 0);
+}
+
+export function LastGameSignalCard({ signals, onOpenDetail, onOpenComments }: LastGameSignalCardProps) {
   const currentUser = useAuthStore((state) => state.currentUser);
   const openAuth = useAuthStore((state) => state.openAuth);
   const toggleFollowPlayer = useSignalStore((state) => state.toggleFollowPlayer);
   const toggleFollowTeam = useSignalStore((state) => state.toggleFollowTeam);
+  const reactToSignal = useSignalStore((state) => state.reactToSignal);
   const profile = useSignalStore((state) => state.profile);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showAllReactions, setShowAllReactions] = useState(false);
+  const singleReactionPerUser = (import.meta.env.VITE_REACTION_MODE ?? 'multi') === 'single';
 
   if (!signals[0]) return null;
 
@@ -123,10 +161,40 @@ export function LastGameSignalCard({ signals, onOpenDetail }: LastGameSignalCard
   const subjectPath = primarySignal.subject_type === 'team'
     ? `/teams/${primarySignal.team_id}`
     : `/players/${primarySignal.player_id}`;
+  const reactions = useMemo(
+    () =>
+      normalizeReactionEntries(primarySignal).sort((a, b) => {
+        if (b.count !== a.count) return b.count - a.count;
+        return a.emoji.localeCompare(b.emoji);
+      }),
+    [primarySignal],
+  );
+  const userReactions = reactions.filter((item) => item.reactedByCurrentUser);
+  const topThree = reactions.slice(0, 3);
+  const inlineReactions = [...topThree];
+  for (const reaction of userReactions) {
+    if (!inlineReactions.some((item) => item.emoji === reaction.emoji)) {
+      inlineReactions.push(reaction);
+    }
+  }
+  const inlineReactionKeys = new Set(inlineReactions.map((item) => item.emoji));
+  const overflowReactions = reactions.filter((item) => !inlineReactionKeys.has(item.emoji));
+  const hasAnyReactions = reactions.length > 0;
+
+  async function handleReactionClick(e: React.MouseEvent, reactionType: ReactionType) {
+    e.stopPropagation();
+    if (!currentUser) { openAuth('signin'); return; }
+    await reactToSignal(primarySignal.id, reactionType);
+  }
+
+  function reactionButtonClass(isActive: boolean): string {
+    if (isActive) return 'bg-accentSoft text-[#ffd8bd]';
+    return 'bg-white/[0.02] text-muted/70 hover:text-ink';
+  }
 
   return (
     <article
-      className={`panel-surface select-none px-5 py-5 transition-all duration-200 hover:bg-white/[0.035] sm:px-6 sm:py-6 ${borderTone}`}
+      className={`panel-surface relative overflow-visible select-none px-5 py-5 transition-all duration-200 hover:bg-white/[0.035] sm:px-6 sm:py-6 ${borderTone} ${showEmojiPicker || showAllReactions ? 'z-[125]' : 'z-0'}`}
     >
       <div className="px-3 pb-2 pt-3">
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
@@ -216,6 +284,102 @@ export function LastGameSignalCard({ signals, onOpenDetail }: LastGameSignalCard
             </button>
           );
         })}
+      </div>
+      <div className="mt-2 flex flex-wrap items-center justify-end gap-2 border-t border-white/[0.06] px-3 pb-1 pt-3">
+        {hasAnyReactions ? (
+          <>
+            {inlineReactions.map((reaction) => (
+              <button
+                key={reaction.emoji}
+                type="button"
+                onClick={(e) => void handleReactionClick(e, reaction.emoji)}
+                className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${reactionButtonClass(reaction.reactedByCurrentUser)}`}
+                aria-label={`React with ${reaction.emoji}`}
+              >
+                <span className="inline-flex items-center gap-1.5">
+                  <span>{reaction.emoji}</span>
+                  <span className="tabular-nums">{reaction.count}</span>
+                </span>
+              </button>
+            ))}
+            {overflowReactions.length > 0 ? (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowAllReactions((value) => !value)}
+                  className="rounded-full bg-white/[0.02] px-2.5 py-1 text-[11px] font-semibold text-muted/80 transition hover:text-ink"
+                  aria-label="Show all reactions"
+                >
+                  +{overflowReactions.length}
+                </button>
+                {showAllReactions ? (
+                  <div className="absolute right-0 top-[calc(100%+0.4rem)] z-[130] min-w-[160px] rounded-2xl border border-border bg-[#091422] p-2 shadow-xl">
+                    <div className="max-h-48 space-y-1 overflow-y-auto">
+                      {reactions.map((reaction) => (
+                        <button
+                          key={`all-${reaction.emoji}`}
+                          type="button"
+                          onClick={(e) => void handleReactionClick(e, reaction.emoji)}
+                          className={`flex w-full items-center justify-between rounded-xl px-2.5 py-1.5 text-left text-[12px] transition ${reaction.reactedByCurrentUser ? 'bg-accentSoft text-[#ffd8bd]' : 'text-muted hover:bg-white/[0.05] hover:text-ink'}`}
+                        >
+                          <span>{reaction.emoji}</span>
+                          <span className="tabular-nums">{reaction.count}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </>
+        ) : null}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setShowEmojiPicker((value) => !value)}
+            className="rounded-full bg-white/[0.02] px-2.5 py-1 text-[11px] font-semibold text-muted/80 transition hover:text-ink"
+            aria-label="Add reaction"
+          >
+            {hasAnyReactions ? '＋' : 'Add Reaction'}
+          </button>
+          {showEmojiPicker ? (
+            <div className="absolute right-0 top-[calc(100%+0.4rem)] z-[130] w-[280px] rounded-2xl border border-border bg-[#091422] p-2 shadow-xl">
+              <div className="grid grid-cols-8 gap-1">
+                {QUICK_EMOJIS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={(e) => {
+                      void handleReactionClick(e, emoji);
+                      setShowEmojiPicker(false);
+                    }}
+                    className="rounded-lg px-2 py-1.5 text-lg transition hover:bg-white/[0.06]"
+                    aria-label={`Add ${emoji} reaction`}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
+        <button
+          type="button"
+          onClick={() =>
+            onOpenComments?.(
+              primarySignal.id,
+              primarySignal.subject_type === 'team' ? primarySignal.team_name : primarySignal.player_name,
+              matchupLabel ?? undefined,
+            )
+          }
+          className="rounded-full bg-white/[0.02] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted/70 transition hover:text-ink"
+          aria-label="Open comments"
+        >
+          <span>{primarySignal.comment_count > 0 ? `💬 ${primarySignal.comment_count}` : 'Comment'}</span>
+        </button>
+        <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-muted/60">
+          {singleReactionPerUser ? '1 reaction/user' : 'multi-reaction'}
+        </span>
       </div>
     </article>
   );

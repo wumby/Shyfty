@@ -12,6 +12,7 @@ import { CommentsPanel } from './CommentsPanel';
 interface Props {
   signalId: number;
   onClose: () => void;
+  onCommentCountChange?: (signalId: number, count: number) => void;
 }
 
 const signalTypeColor: Record<string, string> = {
@@ -43,7 +44,7 @@ const gateLabels: Record<string, string> = {
   minutes_guard: 'Minutes guard',
 };
 
-export function SignalDetailDrawer({ signalId, onClose }: Props) {
+export function SignalDetailDrawer({ signalId, onClose, onCommentCountChange }: Props) {
   const [trace, setTrace] = useState<SignalTrace | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -235,7 +236,15 @@ export function SignalDetailDrawer({ signalId, onClose }: Props) {
                   </button>
                 </div>
                 {showAllComments ? (
-                  <CommentsPanel signalId={signal.id} />
+                  <CommentsPanel
+                    signalId={signal.id}
+                    onCountChange={(count) => {
+                      setTrace((prev) =>
+                        prev ? { ...prev, signal: { ...prev.signal, comment_count: count } } : prev,
+                      );
+                      onCommentCountChange?.(signal.id, count);
+                    }}
+                  />
                 ) : trace.discussion_preview.length > 0 ? (
                   <div className="space-y-2">
                     {trace.discussion_preview.map((comment, index) => (

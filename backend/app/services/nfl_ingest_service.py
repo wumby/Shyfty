@@ -40,6 +40,18 @@ def _safe_int(value: Any) -> Optional[int]:
         return None
 
 
+def _safe_pct(value: Any) -> Optional[float]:
+    if value is None:
+        return None
+    raw = str(value).strip().replace("%", "")
+    if not raw or raw in ("--", "-"):
+        return None
+    try:
+        return float(raw)
+    except ValueError:
+        return None
+
+
 def _extract_stat(labels: list[str], stats: list[str], *label_options: str) -> Optional[str]:
     upper_map = {lbl.upper(): i for i, lbl in enumerate(labels)}
     for lbl in label_options:
@@ -89,7 +101,15 @@ def _parse_player_stats(boxscore_players: list[dict[str, Any]]) -> list[dict[str
                         row["PassingTouchdowns"] = _safe_int(td)
                     catt = _extract_stat(labels, stats, "C/ATT")
                     if catt and "/" in catt:
+                        row["PassingCompletions"] = _safe_int(catt.split("/")[0])
                         row["PassingAttempts"] = _safe_int(catt.split("/")[1])
+                    interceptions = _extract_stat(labels, stats, "INT")
+                    if interceptions:
+                        row["Interceptions"] = _safe_int(interceptions)
+                    sacks = _extract_stat(labels, stats, "SACKS")
+                    if sacks:
+                        # Formats like "2-14"
+                        row["Sacks"] = _safe_int(sacks.split("-")[0])
 
                 elif category == "rushing":
                     yds = _extract_stat(labels, stats, "YDS")
@@ -101,6 +121,9 @@ def _parse_player_stats(boxscore_players: list[dict[str, Any]]) -> list[dict[str
                     car = _extract_stat(labels, stats, "CAR")
                     if car:
                         row["RushingAttempts"] = _safe_int(car)
+                    lng = _extract_stat(labels, stats, "LONG", "LNG")
+                    if lng:
+                        row["RushingLong"] = _safe_int(lng)
 
                 elif category == "receiving":
                     yds = _extract_stat(labels, stats, "YDS")
@@ -115,8 +138,51 @@ def _parse_player_stats(boxscore_players: list[dict[str, Any]]) -> list[dict[str
                     tgt = _extract_stat(labels, stats, "TGTS", "TGT")
                     if tgt:
                         row["Targets"] = _safe_int(tgt)
+                    lng = _extract_stat(labels, stats, "LONG", "LNG")
+                    if lng:
+                        row["ReceivingLong"] = _safe_int(lng)
+
+                elif category == "fumbles":
+                    lost = _extract_stat(labels, stats, "LOST")
+                    if lost:
+                        row["FumblesLost"] = _safe_int(lost)
 
     return list(player_stats.values())
+
+
+def _parse_team_stats(boxscore_teams: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for team_entry in boxscore_teams:
+        team = team_entry.get("team") or {}
+        team_id = str(team.get("id", ""))
+        if not team_id:
+            continue
+        stats = team_entry.get("statistics") or []
+        labels = [str(item.get("label", "")).upper() for item in stats if isinstance(item, dict)]
+        values = [item.get("displayValue") for item in stats if isinstance(item, dict)]
+        row: dict[str, Any] = {"TeamID": team_id}
+
+        def pick_int(*names: str) -> Optional[int]:
+            for name in names:
+                if name in labels:
+                    return _safe_int(values[labels.index(name)])
+            return None
+
+        def pick_pct(*names: str) -> Optional[float]:
+            for name in names:
+                if name in labels:
+                    return _safe_pct(values[labels.index(name)])
+            return None
+
+        row["TotalYards"] = pick_int("TOTAL YARDS", "YARDS")
+        row["FirstDowns"] = pick_int("FIRST DOWNS")
+        row["Penalties"] = pick_int("PENALTIES")
+        row["PenaltyYards"] = pick_int("PENALTY YARDS")
+        row["TurnoversLost"] = pick_int("TURNOVERS")
+        row["ThirdDownPct"] = pick_pct("THIRD DOWN EFFICIENCY", "3RD DOWN CONV")
+        row["RedZonePct"] = pick_pct("RED ZONE EFFICIENCY", "RED ZONE")
+        rows.append(row)
+    return rows
 
 
 def _default_season_candidates(today: Optional[date] = None) -> list[int]:
@@ -229,6 +295,7 @@ class ESPNNFLClient:
         season_year = season_raw.get("year") if isinstance(season_raw, dict) else season_raw
         week_number = week_raw.get("number") if isinstance(week_raw, dict) else week_raw
         player_rows = _parse_player_stats(boxscore_section.get("players") or [])
+        team_rows = _parse_team_stats(boxscore_section.get("teams") or [])
 
         return {
             "GameID": event_id,
@@ -242,6 +309,7 @@ class ESPNNFLClient:
             "Season": str(season_year or season),
             "Week": week_number,
             "PlayerGames": player_rows,
+            "TeamGames": team_rows,
         }
 
     def fetch_recent_completed_data(
@@ -251,9 +319,11 @@ class ESPNNFLClient:
         weeks_back: int = 6,
         max_games: int = 80,
         today: Optional[date] = None,
+        skip_event_ids: Optional[set[str]] = None,
     ) -> NFLFetchResult:
         teams = self.fetch_teams()
         season_candidates = [season] if season is not None else _default_season_candidates(today)
+        skipped_ids = skip_event_ids or set()
 
         windows: list[NFLFetchWindow] = []
         boxscores: list[dict[str, Any]] = []
@@ -282,6 +352,9 @@ class ESPNNFLClient:
                         if len(boxscores) >= max_games:
                             break
                         event_id = event_meta["event_id"]
+                        if event_id in skipped_ids:
+                            seen_event_ids.add(event_id)
+                            continue
                         seen_event_ids.add(event_id)
                         boxscore = self.fetch_game_boxscore(
                             event_id=event_id, season=season_year, event_meta=event_meta

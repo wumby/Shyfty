@@ -36,7 +36,7 @@ from app.models.team import Team
 from app.models.team_game_stat import TeamGameStat
 from app.models.user_favorite import UserFavorite
 from app.models.user_follow import UserFollow
-from app.schemas.reaction import ReactionSummaryRead
+from app.schemas.reaction import ReactionAggregateRead, ReactionSummaryRead
 from app.schemas.signal import (
     CascadeContributorRead,
     CascadePlayerRead,
@@ -76,6 +76,8 @@ CASCADE_ALLOWED_CONTRIBUTOR_STATS = {
 CASCADE_MIN_TRIGGER_DROP_PCT = -50.0
 CASCADE_MAX_CONTRIBUTORS = 5
 CASCADE_MIN_CONTRIBUTOR_SCORE = 5.0
+
+EMOJI_TO_LEGACY_REACTION = {"👍": "agree", "🔥": "strong", "👎": "risky"}
 
 
 def _deviation_expr():
@@ -150,7 +152,9 @@ def build_signal_read(
     event_date,
     rolling_metric: Optional[RollingMetric],
     reaction_summary: Optional[ReactionSummaryRead] = None,
+    reactions: Optional[list[ReactionAggregateRead]] = None,
     user_reaction: Optional[str] = None,
+    user_reactions: Optional[list[str]] = None,
     comment_count: int = 0,
     is_favorited: bool = False,
     opponent: Optional[str] = None,
@@ -174,6 +178,14 @@ def build_signal_read(
         if rolling_metric and rolling_metric.short_rolling_stddev is not None
         else (rolling_metric.rolling_stddev if rolling_metric is not None else 0.0)
     )
+    reaction_entries = reactions or []
+    reaction_summary_value = reaction_summary or ReactionSummaryRead(
+        agree=sum(item.count for item in reaction_entries if item.emoji == "👍"),
+        strong=sum(item.count for item in reaction_entries if item.emoji == "🔥"),
+        risky=sum(item.count for item in reaction_entries if item.emoji == "👎"),
+    )
+    user_reactions_value = user_reactions or ([user_reaction] if user_reaction else [])
+
     return SignalRead(
         id=signal.id,
         subject_type=signal.subject_type,
@@ -222,8 +234,10 @@ def build_signal_read(
             usage_shift=rolling_metric.usage_shift if rolling_metric else None,
         ),
         streak=streak,
-        reaction_summary=reaction_summary or ReactionSummaryRead(),
+        reaction_summary=reaction_summary_value,
         user_reaction=user_reaction,
+        reactions=reaction_entries,
+        user_reactions=user_reactions_value,
         comment_count=comment_count,
         is_favorited=is_favorited,
         created_at=signal.created_at,
@@ -451,6 +465,7 @@ def _build_signal_items(rows, db: Session, current_user_id: Optional[int]) -> li
         )
         game_result = score_result or (None if signal.subject_type == "team" else ("W" if plus_minus and plus_minus > 0 else "L" if plus_minus and plus_minus < 0 else None))
 
+        current_user_reactions = sorted(user_reactions.get(signal.id, set()))
         items.append(
             build_signal_read(
                 signal,
@@ -459,8 +474,12 @@ def _build_signal_items(rows, db: Session, current_user_id: Optional[int]) -> li
                 league_name,
                 event_date,
                 rolling_metric,
-                reaction_summary=reaction_summaries.get(signal.id),
-                user_reaction=user_reactions.get(signal.id),
+                reactions=reaction_summaries.get(signal.id),
+                user_reactions=current_user_reactions,
+                user_reaction=EMOJI_TO_LEGACY_REACTION.get(
+                    next(iter(user_reactions.get(signal.id, set())), ""),
+                    next(iter(user_reactions.get(signal.id, set())), None),
+                ),
                 comment_count=comment_count,
                 is_favorited=signal.id in favorited_ids,
                 opponent=opponent,
@@ -809,4 +828,3 @@ def list_trending_signals(
         sort_mode=SORT_MODE_IMPORTANT,
     )
     return page.items
-

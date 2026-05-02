@@ -82,12 +82,102 @@ def _iso_date(value: date) -> str:
     return value.isoformat()
 
 
+def _fetch_league_game_log_with_retry(
+    *,
+    season: str,
+    season_type: str,
+    date_from: date,
+    date_to: date,
+    attempts: int = 4,
+    base_delay_seconds: float = 1.5,
+) -> dict[str, Any]:
+    import time
+
+    last_error: Optional[Exception] = None
+    for attempt in range(1, attempts + 1):
+        try:
+            payload = LeagueGameLog(
+                counter=0,
+                direction="DESC",
+                league_id="00",
+                player_or_team_abbreviation="T",
+                season=season,
+                season_type_all_star=season_type,
+                sorter="DATE",
+                date_from_nullable=_iso_date(date_from),
+                date_to_nullable=_iso_date(date_to),
+            ).get_dict()
+            result_sets = payload.get("resultSets")
+            if not isinstance(result_sets, list):
+                raise ValueError("LeagueGameLog response missing resultSets.")
+            return payload
+        except Exception as exc:
+            last_error = exc
+            if attempt >= attempts:
+                break
+            delay = base_delay_seconds * attempt
+            logger.warning(
+                "NBA LeagueGameLog attempt %d/%d failed: %s. Retrying in %.1fs",
+                attempt,
+                attempts,
+                exc,
+                delay,
+            )
+            time.sleep(delay)
+    assert last_error is not None
+    raise last_error
+
+
+def _select_game_ids_for_team_coverage(
+    game_rows: list[dict[str, Any]],
+    *,
+    max_games: int,
+    min_games_per_team: int = 0,
+) -> list[str]:
+    deduped_ordered_ids: list[str] = []
+    seen_ids: set[str] = set()
+    teams_by_game: dict[str, set[int]] = {}
+    for row in game_rows:
+        game_id = str(row["GAME_ID"])
+        team_id = int(row["TEAM_ID"])
+        teams_by_game.setdefault(game_id, set()).add(team_id)
+        if game_id in seen_ids:
+            continue
+        seen_ids.add(game_id)
+        deduped_ordered_ids.append(game_id)
+
+    if min_games_per_team <= 0:
+        return deduped_ordered_ids[:max_games]
+
+    all_team_ids = {int(row["TEAM_ID"]) for row in game_rows}
+    per_team_counts = {team_id: 0 for team_id in all_team_ids}
+    selected_ids: list[str] = []
+    selected_set: set[str] = set()
+
+    for game_id in deduped_ordered_ids:
+        game_teams = teams_by_game.get(game_id, set())
+        needs_game = any(per_team_counts.get(team_id, 0) < min_games_per_team for team_id in game_teams)
+        if not needs_game and len(selected_ids) >= max_games:
+            continue
+        if game_id in selected_set:
+            continue
+        selected_set.add(game_id)
+        selected_ids.append(game_id)
+        for team_id in game_teams:
+            per_team_counts[team_id] = per_team_counts.get(team_id, 0) + 1
+        if all(count >= min_games_per_team for count in per_team_counts.values()) and len(selected_ids) >= max_games:
+            break
+
+    return selected_ids
+
+
 def fetch_recent_nba_data(
     *,
     season: Optional[str] = None,
     season_type: str = "Regular Season",
     days_back: int = 21,
     max_games: int = 50,
+    min_games_per_team: int = 0,
     output_root: Optional[Path] = None,
     date_from_override: Optional[date] = None,
     date_to_override: Optional[date] = None,
@@ -109,25 +199,20 @@ def fetch_recent_nba_data(
     output_dir = output_root / f"{stamp}_{season_value.replace('-', '_')}"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    league_game_log_payload = LeagueGameLog(
-        counter=0,
-        direction="DESC",
-        league_id="00",
-        player_or_team_abbreviation="T",
+    league_game_log_payload = _fetch_league_game_log_with_retry(
         season=season_value,
-        season_type_all_star=season_type,
-        sorter="DATE",
-        date_from_nullable=_iso_date(date_from),
-        date_to_nullable=_iso_date(date_to),
-    ).get_dict()
+        season_type=season_type,
+        date_from=date_from,
+        date_to=date_to,
+    )
     _write_json(output_dir / "leaguegamelog.json", league_game_log_payload)
     game_rows = _to_rows(league_game_log_payload, "LeagueGameLog")
 
-    deduped_games: dict[str, dict[str, Any]] = {}
-    for row in game_rows:
-        deduped_games.setdefault(str(row["GAME_ID"]), row)
-
-    selected_game_ids = list(deduped_games.keys())[:max_games]
+    selected_game_ids = _select_game_ids_for_team_coverage(
+        game_rows,
+        max_games=max_games,
+        min_games_per_team=min_games_per_team,
+    )
     selected_rows = [row for row in game_rows if str(row["GAME_ID"]) in selected_game_ids]
     team_ids = sorted({int(row["TEAM_ID"]) for row in selected_rows})
 

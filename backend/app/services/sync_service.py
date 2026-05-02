@@ -18,8 +18,10 @@ logger = logging.getLogger(__name__)
 
 SyncMode = Literal["bootstrap", "incremental"]
 
-MIN_LAST_FIVE_GAMES_PER_LEAGUE = 90
+MIN_BOOTSTRAP_GAMES_PER_LEAGUE = 90
+MIN_INCREMENTAL_GAMES_PER_LEAGUE = 30
 MIN_NFL_COMPLETED_WEEKS = 5
+MIN_NBA_GAMES_PER_TEAM = 5
 
 
 @dataclass(frozen=True)
@@ -90,6 +92,13 @@ def _record_raw_ingest_events(db, events) -> None:
     db.flush()
 
 
+def _existing_external_ids(db, *, source: str) -> set[str]:
+    rows = db.execute(
+        select(RawIngestEvent.external_id).where(RawIngestEvent.source == source)
+    ).scalars().all()
+    return {row for row in rows if row}
+
+
 def _upsert_checkpoint(
     db,
     *,
@@ -136,9 +145,17 @@ def _run_nba_sync(
     from app.services.signal_generation_service import SignalGenerationResult, generate_signals_for_players
 
     source = NBASAPISource()
-    max_games = max(max_games, MIN_LAST_FIVE_GAMES_PER_LEAGUE)
+    min_games = MIN_BOOTSTRAP_GAMES_PER_LEAGUE if mode == "bootstrap" else MIN_INCREMENTAL_GAMES_PER_LEAGUE
+    max_games = max(max_games, min_games)
     logger.info("Sync: starting %s sync for source=%s", mode, source.source_name)
-    events = list(source.fetch_events(season=season, days_back=days_back, max_games=max_games))
+    events = list(
+        source.fetch_events(
+            season=season,
+            days_back=days_back,
+            max_games=max_games,
+            min_games_per_team=MIN_NBA_GAMES_PER_TEAM,
+        )
+    )
 
     with SessionLocal() as db:
         _record_raw_ingest_events(db, events)
@@ -161,6 +178,7 @@ def _run_nba_sync(
             checkpoint_metadata={
                 "days_back": days_back,
                 "max_games": max_games,
+                "min_games_per_team": MIN_NBA_GAMES_PER_TEAM,
                 "season": season,
                 "games_loaded": load.games_loaded,
                 "players_loaded": load.players_loaded,
@@ -195,12 +213,21 @@ def _run_nfl_sync(
         settings.espn_nfl_bootstrap_weeks if mode == "bootstrap" else settings.espn_nfl_incremental_weeks,
         MIN_NFL_COMPLETED_WEEKS,
     )
-    max_games = max(max_games, MIN_LAST_FIVE_GAMES_PER_LEAGUE)
+    min_games = MIN_BOOTSTRAP_GAMES_PER_LEAGUE if mode == "bootstrap" else MIN_INCREMENTAL_GAMES_PER_LEAGUE
+    max_games = max(max_games, min_games)
 
     logger.info("Sync: starting %s sync for source=%s", mode, source.source_name)
-    events = list(source.fetch_events(season=season, max_games=max_games, weeks_back=weeks_back))
 
     with SessionLocal() as db:
+        existing_event_ids = _existing_external_ids(db, source=source.source_name)
+        events = list(
+            source.fetch_events(
+                season=season,
+                max_games=max_games,
+                weeks_back=weeks_back,
+                skip_external_ids=existing_event_ids,
+            )
+        )
         _record_raw_ingest_events(db, events)
         load = source.load_events(db, events)
 
@@ -261,27 +288,38 @@ def run_sync(
     results: list[SourceSyncResult] = []
 
     for source in normalized_sources:
-        if source == "nba":
+        try:
+            if source == "nba":
+                results.append(
+                    _run_nba_sync(
+                        mode=mode,
+                        days_back=resolved_days_back,
+                        max_games=max_games,
+                        season=season,
+                    )
+                )
+                continue
+
+            if source == "nfl":
+                results.append(
+                    _run_nfl_sync(
+                        mode=mode,
+                        max_games=max_games,
+                        season=season,
+                    )
+                )
+                continue
+
+            raise ValueError(f"Unsupported sync source: {source}")
+        except Exception as exc:
+            logger.exception("Sync source failed: %s", source)
             results.append(
-                _run_nba_sync(
+                SourceSyncResult(
+                    source=source,
                     mode=mode,
-                    days_back=resolved_days_back,
-                    max_games=max_games,
-                    season=season,
+                    skipped=True,
+                    detail=f"failed: {exc}",
                 )
             )
-            continue
-
-        if source == "nfl":
-            results.append(
-                _run_nfl_sync(
-                    mode=mode,
-                    max_games=max_games,
-                    season=season,
-                )
-            )
-            continue
-
-        raise ValueError(f"Unsupported sync source: {source}")
 
     return SyncResult(mode=mode, source_results=tuple(results))

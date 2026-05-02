@@ -13,7 +13,8 @@ BACKEND_HOST="${BACKEND_HOST:-0.0.0.0}"
 BACKEND_RELOAD="${BACKEND_RELOAD:-1}"
 DEV_FOREGROUND="${DEV_FOREGROUND:-0}"
 IPHONE_API_HOST="${SHYFTY_LAN_IP:-192.168.0.28}"
-DEV_SYNC_MAX_GAMES="${DEV_SYNC_MAX_GAMES:-50}"
+DEV_SYNC_MAX_GAMES="${DEV_SYNC_MAX_GAMES:-260}"
+DEV_MIN_GAMES_PER_TEAM="${DEV_MIN_GAMES_PER_TEAM:-5}"
 
 detect_lan_ip() {
   if [[ -n "${SHYFTY_LAN_IP:-}" ]]; then
@@ -208,10 +209,9 @@ echo "Applying backend migrations..."
 echo "Starting data sync in background (NBA + NFL)..."
 nohup /bin/bash -lc "
   set -euo pipefail
-  cd '$BACKEND_DIR'
-  source .venv/bin/activate
+  cd '$ROOT'
   export DATABASE_URL='$DATABASE_URL'
-  python -m app.cli.run_ingest --mode bootstrap --source nba --source nfl --max-games '$DEV_SYNC_MAX_GAMES'
+  bash scripts/bootstrap-min-coverage.sh --min-games-per-team '$DEV_MIN_GAMES_PER_TEAM' --max-games '$DEV_SYNC_MAX_GAMES'
 " > "$ROOT/.run/sync.log" 2>&1 &
 SYNC_PID=$!
 echo "$SYNC_PID" > "$ROOT/.run/sync.pid"

@@ -1,9 +1,9 @@
-"""Background scheduler that runs the real-data sync pipeline daily at 3 AM UTC."""
+"""Background scheduler that runs the real-data sync pipeline on a polling interval."""
 from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -203,24 +203,30 @@ async def run_ingest_once(mode: str = "incremental", sources: Optional[tuple[str
 async def _daily_loop() -> None:
     while True:
         delay = await _next_run_delay()
-        logger.info("Scheduler: next ingest in %.0f seconds (%.1f hours)", delay, delay / 3600)
+        logger.info("Scheduler: next ingest in %.0f seconds (%.1f minutes)", delay, delay / 60)
         await asyncio.sleep(delay)
         await run_ingest_once()
 
 
 async def _next_run_delay() -> float:
-    now = datetime.utcnow()
-    target = now.replace(hour=3, minute=0, second=0, microsecond=0)
-    if now >= target:
-        target += timedelta(days=1)
-    return (target - now).total_seconds()
+    from app.core.config import settings
+
+    interval_minutes = max(1, int(settings.sync_poll_interval_minutes))
+    return float(interval_minutes * 60)
 
 
 def start_scheduler() -> None:
     global _ingest_task
+    from app.core.config import settings
+
     _load_state_from_db()
     _ingest_task = asyncio.create_task(_daily_loop())
-    logger.info("Scheduler: daily ingest task started")
+    logger.info(
+        "Scheduler: polling ingest task started (interval=%d minutes)",
+        max(1, int(settings.sync_poll_interval_minutes)),
+    )
+    if settings.sync_run_on_startup:
+        asyncio.create_task(run_ingest_once())
 
 
 def stop_scheduler() -> None:

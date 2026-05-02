@@ -7,7 +7,7 @@ Shyfty is a signal-first sports product for NBA and NFL data. The product is no 
 - No manual/demo seed step is required for app startup.
 - The app can start against an empty database.
 - Real data is pulled in through sync jobs and bootstrap ingestion.
-- Current implementation supports real NBA sync and real NFL sync through SportsDataIO.
+- Current implementation supports real NBA sync and real NFL sync through ESPN public endpoints.
 - No seeded/demo fallback should be used for either league.
 
 ## Architecture
@@ -28,7 +28,6 @@ Shyfty is a signal-first sports product for NBA and NFL data. The product is no 
 3. `source .venv/bin/activate`
 4. `pip install -r requirements.txt`
 5. `export DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/shyfty`
-6. `export SPORTSDATAIO_NFL_API_KEY=your_real_key`
 7. `alembic upgrade head`
 8. `uvicorn app.main:app --reload --host 0.0.0.0 --port 8001`
 
@@ -50,8 +49,7 @@ From the repo root:
 Notes:
 
 - Raw NBA payloads are stored under `data/raw/nba/`.
-- NFL sync uses SportsDataIO's weekly final box score feeds and falls back to the most recent completed weeks from the latest finished season during offseason.
-- SportsDataIO's own documentation says the free trial uses scrambled data. For real NFL data, use a production or replay key only.
+- NFL sync uses ESPN scoreboard + summary endpoints and falls back to the most recent completed weeks from the latest finished season during offseason.
 - Sync runs are tracked in `ingest_runs`.
 - Source checkpoints are tracked in `sync_checkpoints`.
 - Games now retain `last_synced_at` and `signals_generated_at`.
@@ -97,12 +95,13 @@ Deprioritized or being removed:
 
 ## Tests
 
-- `cd backend && .venv/bin/python -m unittest discover -s tests -q`
+- `bash scripts/test-backend.sh`
+- `cd backend && PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=$(pwd) .venv/bin/python -m unittest discover -s tests -p 'test_*.py'`
 
 Unit tests may still use small deterministic fixtures, but the runtime app path no longer depends on seed scripts or demo data.
 
 ## Current Gaps
 
 - Scheduler currently runs a simple once-daily sync model.
-- SportsDataIO integration is implemented against the documented weekly final feeds, but it still needs live-key validation in this repo environment.
+- ESPN endpoint stability/rate behavior can change over time because these are not a versioned paid feed.
 - Additional source-specific checkpoints and incremental cursors can be layered onto the new sync tracking without redesigning the core flow.

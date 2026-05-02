@@ -35,3 +35,11 @@ class TeamBoxScore(BaseModel):
     turnovers: Optional[int] = None
     pace: Optional[float] = None
     off_rating: Optional[float] = None
+    total_yards: Optional[int] = None
+    first_downs: Optional[int] = None
+    penalties: Optional[int] = None
+    penalty_yards: Optional[int] = None
+    turnovers_forced: Optional[int] = None
+    turnovers_lost: Optional[int] = None
+    third_down_pct: Optional[float] = None
+    redzone_pct: Optional[float] = None

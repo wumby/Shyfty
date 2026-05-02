@@ -5,6 +5,7 @@ import { EmptyState } from '../components/EmptyState';
 import { LastGameSignalCard } from '../components/LastGameSignalCard';
 import { LoadingState } from '../components/LoadingState';
 import { SectionHeader } from '../components/SectionHeader';
+import { SignalCommentsDrawer } from '../components/SignalCommentsDrawer';
 import { SignalDetailDrawer } from '../components/SignalDetailDrawer';
 import { useAuthStore } from '../store/useAuthStore';
 import { useSignalStore } from '../store/useSignalStore';
@@ -31,6 +32,14 @@ const TEAM_BOX_SCORE_FIELDS: Array<[keyof TeamBoxScore, string, 'number' | 'perc
   ['fg3_pct', '3P%', 'percent'],
   ['pace', 'PACE', 'number'],
   ['off_rating', 'OFF RTG', 'number'],
+  ['total_yards', 'TOT YDS', 'number'],
+  ['first_downs', '1ST DN', 'number'],
+  ['penalties', 'PEN', 'number'],
+  ['penalty_yards', 'PEN YDS', 'number'],
+  ['turnovers_forced', 'TO FORCED', 'number'],
+  ['turnovers_lost', 'TO LOST', 'number'],
+  ['third_down_pct', '3RD%', 'percent'],
+  ['redzone_pct', 'RZ%', 'percent'],
 ];
 
 function formatTeamBoxScoreValue(value: number, mode: 'number' | 'percent') {
@@ -102,11 +111,14 @@ export function TeamDetailPage() {
   const openAuth = useAuthStore((state) => state.openAuth);
   const fetchProfile = useSignalStore((state) => state.fetchProfile);
   const toggleFollowTeam = useSignalStore((state) => state.toggleFollowTeam);
+  const setSignalCommentCount = useSignalStore((state) => state.setSignalCommentCount);
   const profile = useSignalStore((state) => state.profile);
+  const signalMetaById = useSignalStore((state) => state.signalMetaById);
   const [team, setTeam] = useState<TeamDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [detailSignalId, setDetailSignalId] = useState<number | null>(null);
+  const [commentThread, setCommentThread] = useState<{ signalId: number; title: string; subtitle?: string } | null>(null);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -128,6 +140,25 @@ export function TeamDetailPage() {
 
     void load();
   }, [id]);
+
+  useEffect(() => {
+    setTeam((prev) => {
+      if (!prev) return prev;
+      const nextSignals = prev.recent_signals.map((signal) => {
+        const meta = signalMetaById[signal.id];
+        if (!meta) return signal;
+        return {
+          ...signal,
+          comment_count: meta.comment_count,
+          reaction_summary: meta.reaction_summary,
+          user_reaction: meta.user_reaction,
+          reactions: meta.reactions,
+          user_reactions: meta.user_reactions,
+        };
+      });
+      return { ...prev, recent_signals: nextSignals };
+    });
+  }, [signalMetaById]);
 
   const groupedSignals = useMemo(
     () => (team ? groupSignalsByPlayerGame(team.recent_signals) : []),
@@ -210,6 +241,7 @@ export function TeamDetailPage() {
                 key={`${group[0]?.player_id ?? group[0]?.team_id ?? 'unknown'}-${group[0]?.game_id ?? group[0]?.event_date ?? 'game'}`}
                 signals={group}
                 onOpenDetail={(signalId) => setDetailSignalId(signalId)}
+                onOpenComments={(signalId, title, subtitle) => setCommentThread({ signalId, title, subtitle })}
               />
             ))
           )}
@@ -241,6 +273,26 @@ export function TeamDetailPage() {
 
       {detailSignalId != null ? (
         <SignalDetailDrawer signalId={detailSignalId} onClose={() => setDetailSignalId(null)} />
+      ) : null}
+      {commentThread ? (
+        <SignalCommentsDrawer
+          signalId={commentThread.signalId}
+          title={commentThread.title}
+          subtitle={commentThread.subtitle}
+          onCountChange={(count) => {
+            setSignalCommentCount(commentThread.signalId, count);
+            setTeam((prev) => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                recent_signals: prev.recent_signals.map((signal) =>
+                  signal.id === commentThread.signalId ? { ...signal, comment_count: count } : signal,
+                ),
+              };
+            });
+          }}
+          onClose={() => setCommentThread(null)}
+        />
       ) : null}
     </div>
   );

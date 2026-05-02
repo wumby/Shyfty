@@ -156,6 +156,50 @@ class NFLIngestionTests(unittest.TestCase):
         self.assertEqual(result.windows[0].week, 18)
         self.assertEqual(result.boxscores[0]["GameID"], "9001")
 
+    def test_espn_client_skips_already_ingested_event_ids(self) -> None:
+        responses = {
+            "https://example.test/teams?limit=32": {
+                "sports": [{"leagues": [{"teams": []}]}]
+            },
+            "https://example.test/scoreboard?season=2025&seasontype=3&week=4": {"events": []},
+            "https://example.test/scoreboard?season=2025&seasontype=3&week=3": {"events": []},
+            "https://example.test/scoreboard?season=2025&seasontype=3&week=2": {"events": []},
+            "https://example.test/scoreboard?season=2025&seasontype=3&week=1": {"events": []},
+            "https://example.test/scoreboard?season=2025&seasontype=2&week=18": {
+                "events": [
+                    {
+                        "id": "9001",
+                        "date": "2026-01-04T18:00:00Z",
+                        "competitions": [
+                            {
+                                "status": {"type": {"completed": True}},
+                                "competitors": [
+                                    {"homeAway": "home", "team": {"id": "1", "abbreviation": "KC"}},
+                                    {"homeAway": "away", "team": {"id": "2", "abbreviation": "BUF"}},
+                                ],
+                            }
+                        ],
+                    }
+                ]
+            },
+        }
+        called_urls: list[str] = []
+
+        def fake_fetch(url: str, timeout_seconds: float):
+            called_urls.append(url)
+            return responses.get(url, {"events": []})
+
+        client = ESPNNFLClient(base_url="https://example.test", fetch_json=fake_fetch)
+        result = client.fetch_recent_completed_data(
+            season=2025,
+            weeks_back=1,
+            max_games=10,
+            skip_event_ids={"9001"},
+        )
+
+        self.assertEqual(result.game_count, 0)
+        self.assertTrue(all("/summary?event=9001" not in url for url in called_urls))
+
 
 if __name__ == "__main__":
     unittest.main()

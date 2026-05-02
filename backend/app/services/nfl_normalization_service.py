@@ -230,9 +230,13 @@ def _should_keep_player_row(row: dict[str, Any]) -> bool:
         row.get("RushingTouchdowns"),
         row.get("ReceivingTouchdowns"),
         row.get("PassingAttempts"),
+        row.get("PassingCompletions"),
+        row.get("Interceptions"),
+        row.get("Sacks"),
         row.get("RushingAttempts"),
         row.get("Targets"),
         row.get("Receptions"),
+        row.get("FumblesLost"),
     ]
     return any(value not in (None, "", 0) for value in tracked_values)
 
@@ -327,8 +331,26 @@ def load_nfl_boxscores_incremental(
             (away_team, home_team, "@", away_score, str(away_team_ref)),
         ]
         for team, opponent, home_away, points, source_team_id in score_rows:
-            if points is None or _team_stat_exists(db, source_game_id=source_game_id, source_team_id=source_team_id):
+            if _team_stat_exists(db, source_game_id=source_game_id, source_team_id=source_team_id):
                 continue
+            team_row = next(
+                (row for row in _coalesce_rows(boxscore, "TeamGames", "TeamStats") if str(row.get("TeamID")) == source_team_id),
+                {},
+            )
+            turnovers_lost = _safe_int(team_row.get("TurnoversLost"))
+            turnovers_forced = None
+            if turnovers_lost is not None:
+                opponent_row = next(
+                    (
+                        row
+                        for row in _coalesce_rows(boxscore, "TeamGames", "TeamStats")
+                        if str(row.get("TeamID")) == str(opponent.source_id or "")
+                    ),
+                    {},
+                )
+                opponent_turnovers_lost = _safe_int(opponent_row.get("TurnoversLost"))
+                if opponent_turnovers_lost is not None:
+                    turnovers_forced = opponent_turnovers_lost
             db.add(
                 TeamGameStat(
                     team_id=team.id,
@@ -337,6 +359,14 @@ def load_nfl_boxscores_incremental(
                     opponent_name=opponent.name,
                     home_away=home_away,
                     points=points,
+                    total_yards=_safe_int(team_row.get("TotalYards")),
+                    first_downs=_safe_int(team_row.get("FirstDowns")),
+                    penalties=_safe_int(team_row.get("Penalties")),
+                    penalty_yards=_safe_int(team_row.get("PenaltyYards")),
+                    turnovers_lost=turnovers_lost,
+                    turnovers_forced=turnovers_forced,
+                    third_down_pct=team_row.get("ThirdDownPct"),
+                    redzone_pct=team_row.get("RedZonePct"),
                     source_system=NFL_SOURCE_SYSTEM,
                     source_game_id=source_game_id,
                     source_team_id=source_team_id,
@@ -395,9 +425,17 @@ def load_nfl_boxscores_incremental(
                     player_id=player.id,
                     game_id=game.id,
                     passing_yards=row.get("PassingYards"),
+                    passing_completions=row.get("PassingCompletions"),
+                    passing_attempts=row.get("PassingAttempts"),
+                    interceptions=row.get("Interceptions"),
                     rushing_yards=row.get("RushingYards"),
+                    rushing_attempts=row.get("RushingAttempts"),
                     receiving_yards=row.get("ReceivingYards"),
+                    receptions=row.get("Receptions"),
+                    targets=row.get("Targets"),
                     touchdowns=_touchdowns(row),
+                    sacks=row.get("Sacks"),
+                    fumbles_lost=row.get("FumblesLost"),
                     source_system=NFL_SOURCE_SYSTEM,
                     source_game_id=source_game_id,
                     source_player_id=source_player_id,

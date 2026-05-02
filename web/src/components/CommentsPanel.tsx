@@ -23,9 +23,10 @@ function emailHandle(email: string) {
 interface Props {
   signalId: number;
   initialComments?: Comment[];
+  onCountChange?: (count: number) => void;
 }
 
-export function CommentsPanel({ signalId, initialComments }: Props) {
+export function CommentsPanel({ signalId, initialComments, onCountChange }: Props) {
   const [comments, setComments] = useState<Comment[]>(initialComments ?? []);
   const [loading, setLoading] = useState(!initialComments);
   const [draft, setDraft] = useState('');
@@ -35,16 +36,24 @@ export function CommentsPanel({ signalId, initialComments }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [reportingId, setReportingId] = useState<number | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const onCountChangeRef = useRef(onCountChange);
 
   const currentUser = useAuthStore((s) => s.currentUser);
   const openAuth = useAuthStore((s) => s.openAuth);
+
+  useEffect(() => {
+    onCountChangeRef.current = onCountChange;
+  }, [onCountChange]);
 
   useEffect(() => {
     if (initialComments) return;
     setLoading(true);
     api
       .getComments(signalId)
-      .then(setComments)
+      .then((rows) => {
+        setComments(rows);
+        onCountChangeRef.current?.(rows.length);
+      })
       .catch(() => setComments([]))
       .finally(() => setLoading(false));
   }, [initialComments, signalId]);
@@ -61,7 +70,11 @@ export function CommentsPanel({ signalId, initialComments }: Props) {
     setError(null);
     try {
       const newComment = await api.postComment(signalId, body);
-      setComments((prev) => [...prev, newComment]);
+      setComments((prev) => {
+        const next = [...prev, newComment];
+        onCountChangeRef.current?.(next.length);
+        return next;
+      });
       setDraft('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to post comment');
@@ -73,7 +86,11 @@ export function CommentsPanel({ signalId, initialComments }: Props) {
   async function handleDelete(commentId: number) {
     try {
       await api.deleteComment(commentId);
-      setComments((prev) => prev.filter((c) => c.id !== commentId));
+      setComments((prev) => {
+        const next = prev.filter((c) => c.id !== commentId);
+        onCountChangeRef.current?.(next.length);
+        return next;
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Delete failed');
     }

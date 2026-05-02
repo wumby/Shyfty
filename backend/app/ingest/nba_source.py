@@ -114,6 +114,22 @@ def _iter_snapshot_events(
         )
 
 
+def _event_team_ids(event: IngestEvent) -> set[int]:
+    payload = event.raw_payload or {}
+    meta = payload.get("game_log_meta") or {}
+    home = meta.get("home_team_id")
+    away = meta.get("away_team_id")
+    team_ids: set[int] = set()
+    for value in (home, away):
+        if value is None:
+            continue
+        try:
+            team_ids.add(int(value))
+        except (TypeError, ValueError):
+            continue
+    return team_ids
+
+
 def _find_salvageable_snapshots(exclude_dir: Path) -> list[Path]:
     """Return snapshot dirs (excluding exclude_dir) that have at least one game file with real data."""
     root = raw_nba_root()
@@ -138,6 +154,7 @@ def _reuse_or_fetch(
     season: Optional[str],
     days_back: int,
     max_games: int,
+    min_games_per_team: int = 0,
     season_type: str = "Regular Season",
     force_fetch: bool = False,
 ) -> FetchResult:
@@ -168,7 +185,13 @@ def _reuse_or_fetch(
                 manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
                 # Treat missing season_type as Regular Season (older snapshots).
                 snap_type = manifest.get("season_type") or "Regular Season"
+                snap_season = manifest.get("season")
+                snap_game_count = len(manifest.get("game_ids", []))
                 if snap_type != season_type:
+                    continue
+                if season and snap_season and snap_season != season:
+                    continue
+                if snap_game_count < max_games:
                     continue
                 logger.info(
                     "NBA: reusing %s snapshot %s (< %.0fh old, skipping API call)",
@@ -190,6 +213,7 @@ def _reuse_or_fetch(
         season_type=season_type,
         days_back=days_back,
         max_games=max_games,
+        min_games_per_team=min_games_per_team,
     )
 
 
@@ -218,6 +242,7 @@ class NBASAPISource(IngestSource):
         season: Optional[str] = None,
         days_back: int = 21,
         max_games: int = 50,
+        min_games_per_team: int = 0,
         **kwargs,
     ) -> Iterator[IngestEvent]:
         """Fetch recent NBA games and yield one IngestEvent per game.
@@ -231,7 +256,13 @@ class NBASAPISource(IngestSource):
         seen_game_ids: set[str] = set()
 
         # --- Regular Season ---
-        reg_result = _reuse_or_fetch(season=season, days_back=days_back, max_games=max_games, season_type="Regular Season")
+        reg_result = _reuse_or_fetch(
+            season=season,
+            days_back=days_back,
+            max_games=max_games,
+            min_games_per_team=min_games_per_team,
+            season_type="Regular Season",
+        )
         reg_meta = _build_game_log_meta(reg_result.output_dir)
 
         reg_events = list(_iter_snapshot_events(reg_result.output_dir, reg_meta, seen_game_ids))
@@ -244,11 +275,73 @@ class NBASAPISource(IngestSource):
                 season=season,
                 days_back=_OFFSEASON_FALLBACK_DAYS_BACK,
                 max_games=max_games,
+                min_games_per_team=min_games_per_team,
                 season_type="Regular Season",
                 force_fetch=True,
             )
             reg_meta = _build_game_log_meta(reg_result.output_dir)
             reg_events = list(_iter_snapshot_events(reg_result.output_dir, reg_meta, seen_game_ids))
+
+        if reg_events and min_games_per_team > 0:
+            all_team_ids: set[int] = set()
+            for game_meta in reg_meta.values():
+                for value in (game_meta.get("home_team_id"), game_meta.get("away_team_id")):
+                    if value is None:
+                        continue
+                    try:
+                        all_team_ids.add(int(value))
+                    except (TypeError, ValueError):
+                        continue
+
+            if len(all_team_ids) < 30 and days_back < _OFFSEASON_FALLBACK_DAYS_BACK:
+                logger.info(
+                    "NBA: only %d teams in %d-day window; widening to %d days for full-league coverage",
+                    len(all_team_ids),
+                    days_back,
+                    _OFFSEASON_FALLBACK_DAYS_BACK,
+                )
+                reg_result = _reuse_or_fetch(
+                    season=season,
+                    days_back=_OFFSEASON_FALLBACK_DAYS_BACK,
+                    max_games=max_games,
+                    min_games_per_team=min_games_per_team,
+                    season_type="Regular Season",
+                    force_fetch=True,
+                )
+                reg_meta = _build_game_log_meta(reg_result.output_dir)
+                seen_game_ids.clear()
+                reg_events = list(_iter_snapshot_events(reg_result.output_dir, reg_meta, seen_game_ids))
+                all_team_ids = set()
+                for game_meta in reg_meta.values():
+                    for value in (game_meta.get("home_team_id"), game_meta.get("away_team_id")):
+                        if value is None:
+                            continue
+                        try:
+                            all_team_ids.add(int(value))
+                        except (TypeError, ValueError):
+                            continue
+
+            team_counts: dict[int, int] = {team_id: 0 for team_id in all_team_ids}
+            for event in reg_events:
+                for team_id in _event_team_ids(event):
+                    team_counts[team_id] = team_counts.get(team_id, 0) + 1
+
+            under_target = {team_id for team_id, count in team_counts.items() if count < min_games_per_team}
+            if under_target:
+                salvage_dirs = _find_salvageable_snapshots(exclude_dir=reg_result.output_dir)
+                for snap_dir in salvage_dirs:
+                    if not under_target:
+                        break
+                    snap_meta = _build_game_log_meta(snap_dir)
+                    for event in _iter_snapshot_events(snap_dir, snap_meta, seen_game_ids):
+                        event_teams = _event_team_ids(event)
+                        if not event_teams.intersection(under_target):
+                            continue
+                        reg_events.append(event)
+                        for team_id in event_teams:
+                            team_counts[team_id] = team_counts.get(team_id, 0) + 1
+                            if team_counts[team_id] >= min_games_per_team:
+                                under_target.discard(team_id)
 
         if reg_events:
             logger.info("NBA: loaded %d Regular Season games with real stats", len(reg_events))
@@ -271,19 +364,22 @@ class NBASAPISource(IngestSource):
         # --- Playoffs (April–June) ---
         today = date.today()
         if 4 <= today.month <= 6:
-            playoffs_result = _reuse_or_fetch(
-                season=season,
-                days_back=days_back,
-                max_games=max_games,
-                season_type="Playoffs",
-            )
-            playoffs_meta = _build_game_log_meta(playoffs_result.output_dir)
-            playoff_events = list(_iter_snapshot_events(playoffs_result.output_dir, playoffs_meta, seen_game_ids))
-            if playoff_events:
-                logger.info("NBA: loaded %d Playoff games", len(playoff_events))
-                yield from playoff_events
-            else:
-                logger.info("NBA: no Playoff games found")
+            try:
+                playoffs_result = _reuse_or_fetch(
+                    season=season,
+                    days_back=days_back,
+                    max_games=max_games,
+                    season_type="Playoffs",
+                )
+                playoffs_meta = _build_game_log_meta(playoffs_result.output_dir)
+                playoff_events = list(_iter_snapshot_events(playoffs_result.output_dir, playoffs_meta, seen_game_ids))
+                if playoff_events:
+                    logger.info("NBA: loaded %d Playoff games", len(playoff_events))
+                    yield from playoff_events
+                else:
+                    logger.info("NBA: no Playoff games found")
+            except Exception as exc:
+                logger.warning("NBA: playoff fetch failed; continuing with regular-season data: %s", exc)
 
     def load_events(self, db: Session, events: list[IngestEvent]) -> LoadSummary:
         """Normalize and incrementally load a batch of NBA game events.

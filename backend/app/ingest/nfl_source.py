@@ -45,6 +45,7 @@ class ESPNNFLSource(IngestSource):
         season: Optional[str] = None,
         max_games: int = 80,
         weeks_back: Optional[int] = None,
+        skip_external_ids: Optional[set[str]] = None,
         **kwargs,
     ) -> Iterator[IngestEvent]:
         client = ESPNNFLClient(timeout_seconds=settings.espn_timeout_seconds)
@@ -53,6 +54,7 @@ class ESPNNFLSource(IngestSource):
             season=_parse_season_year(season),
             weeks_back=resolved_weeks_back,
             max_games=max_games,
+            skip_event_ids=skip_external_ids,
         )
         self._last_teams = fetch.teams
         self._last_windows = [

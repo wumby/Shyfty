@@ -13,6 +13,7 @@ import type {
   SignalFilters,
   Team,
   UserProfile,
+  ReactionEntry,
 } from '../types';
 
 interface SignalStore {
@@ -29,12 +30,14 @@ interface SignalStore {
   ingestStatus: IngestStatus | null;
   feedContext: FeedContext | null;
   profile: UserProfile | null;
+  signalMetaById: Record<number, Pick<Signal, 'comment_count' | 'reaction_summary' | 'user_reaction' | 'reactions' | 'user_reactions'>>;
   setFilters: (filters: SignalFilters) => void;
   fetchSignals: () => Promise<void>;
   loadMore: () => Promise<void>;
   fetchPlayers: () => Promise<void>;
   fetchTeams: () => Promise<void>;
   reactToSignal: (signalId: number, reactionType: ReactionType) => Promise<void>;
+  setSignalCommentCount: (signalId: number, count: number) => void;
   toggleFavorite: (signalId: number) => Promise<void>;
   fetchIngestStatus: () => Promise<void>;
   triggerIngest: () => Promise<void>;
@@ -46,19 +49,55 @@ interface SignalStore {
   deleteSavedView: (savedViewId: number) => Promise<void>;
 }
 
-function applyReactionChange(signal: Signal, reactionType: ReactionType) {
-  const nextSummary = { ...signal.reaction_summary };
-  if (signal.user_reaction) {
-    nextSummary[signal.user_reaction] = Math.max(0, nextSummary[signal.user_reaction] - 1);
+function normalizeReactions(signal: Signal): ReactionEntry[] {
+  if (signal.reactions && signal.reactions.length > 0) {
+    return signal.reactions.map((item) => ({
+      emoji: item.emoji,
+      count: item.count,
+      reactedByCurrentUser:
+        item.reactedByCurrentUser ??
+        (item as unknown as { reacted_by_current_user?: boolean }).reacted_by_current_user ??
+        false,
+    }));
   }
-  const nextReaction = signal.user_reaction === reactionType ? null : reactionType;
-  if (nextReaction) {
-    nextSummary[nextReaction] += 1;
+  const userSet = new Set<string>(signal.user_reactions ?? []);
+  const legacyMap: Array<[string, number]> = [
+    ['👍', signal.reaction_summary.agree ?? 0],
+    ['🔥', signal.reaction_summary.strong ?? 0],
+    ['👎', signal.reaction_summary.risky ?? 0],
+  ];
+  return legacyMap
+    .filter(([, count]) => count > 0)
+    .map(([emoji, count]) => ({ emoji, count, reactedByCurrentUser: userSet.has(emoji) }));
+}
+
+function applyReactionChange(signal: Signal, emoji: ReactionType) {
+  const reactions = normalizeReactions(signal);
+  const existing = reactions.find((item) => item.emoji === emoji);
+  const nextReactions = reactions
+    .map((item) => {
+      if (item.emoji !== emoji) return item;
+      if (item.reactedByCurrentUser) {
+        return { ...item, count: Math.max(0, item.count - 1), reactedByCurrentUser: false };
+      }
+      return { ...item, count: item.count + 1, reactedByCurrentUser: true };
+    })
+    .filter((item) => item.count > 0);
+  if (!existing) {
+    nextReactions.push({ emoji, count: 1, reactedByCurrentUser: true });
   }
+
+  const isLegacyEmoji = emoji === '👍' || emoji === '🔥' || emoji === '👎';
   return {
     ...signal,
-    user_reaction: nextReaction,
-    reaction_summary: nextSummary,
+    reactions: nextReactions,
+    user_reactions: nextReactions.filter((item) => item.reactedByCurrentUser).map((item) => item.emoji),
+    user_reaction: isLegacyEmoji ? emoji : signal.user_reaction,
+    reaction_summary: {
+      agree: nextReactions.find((item) => item.emoji === '👍')?.count ?? 0,
+      strong: nextReactions.find((item) => item.emoji === '🔥')?.count ?? 0,
+      risky: nextReactions.find((item) => item.emoji === '👎')?.count ?? 0,
+    },
   };
 }
 
@@ -67,6 +106,28 @@ function isSignal(item: FeedItem): item is Signal {
 }
 
 let fetchSeq = 0;
+
+function extractSignalMeta(signal: Signal): Pick<Signal, 'comment_count' | 'reaction_summary' | 'user_reaction' | 'reactions' | 'user_reactions'> {
+  return {
+    comment_count: signal.comment_count ?? 0,
+    reaction_summary: signal.reaction_summary,
+    user_reaction: signal.user_reaction ?? null,
+    reactions: normalizeReactions(signal),
+    user_reactions: signal.user_reactions ?? [],
+  };
+}
+
+function mergeSignalMeta(
+  current: Record<number, Pick<Signal, 'comment_count' | 'reaction_summary' | 'user_reaction' | 'reactions' | 'user_reactions'>>,
+  signals: FeedItem[],
+) {
+  const next = { ...current };
+  for (const item of signals) {
+    if (!isSignal(item)) continue;
+    next[item.id] = extractSignalMeta(item);
+  }
+  return next;
+}
 
 export const useSignalStore = create<SignalStore>((set, get) => ({
   filters: { sort: 'newest', feed: 'all' },
@@ -82,6 +143,7 @@ export const useSignalStore = create<SignalStore>((set, get) => ({
   ingestStatus: null,
   feedContext: null,
   profile: null,
+  signalMetaById: {},
 
   setFilters: (filters) => set({ filters, signals: [], hasMore: false, nextCursor: null }),
 
@@ -96,6 +158,7 @@ export const useSignalStore = create<SignalStore>((set, get) => ({
         hasMore: page.has_more,
         nextCursor: page.next_cursor,
         feedContext: page.feed_context,
+        signalMetaById: mergeSignalMeta(get().signalMetaById, page.items),
         loadingInitial: false,
         loading: false,
       });
@@ -116,6 +179,7 @@ export const useSignalStore = create<SignalStore>((set, get) => ({
         hasMore: page.has_more,
         nextCursor: page.next_cursor,
         feedContext: page.feed_context,
+        signalMetaById: mergeSignalMeta(get().signalMetaById, page.items),
         loadingMore: false,
       });
     } catch (error) {
@@ -145,27 +209,94 @@ export const useSignalStore = create<SignalStore>((set, get) => ({
 
   reactToSignal: async (signalId, reactionType) => {
     const previousSignals = get().signals;
+    const previousMeta = get().signalMetaById;
     const target = previousSignals.find((signal): signal is Signal => isSignal(signal) && signal.id === signalId);
-    if (!target) return;
+    const metaTarget = previousMeta[signalId];
+    const sourceSignal: Signal | null = target
+      ? target
+      : metaTarget
+        ? {
+            id: signalId,
+            type: 'signal',
+            subject_type: 'player',
+            player_id: null,
+            team_id: 0,
+            game_id: 0,
+            player_name: '',
+            team_name: '',
+            league_name: '',
+            signal_type: 'SHIFT',
+            severity: 'SHIFT',
+            metric_name: '',
+            current_value: 0,
+            baseline_value: 0,
+            performance: null,
+            deviation: null,
+            z_score: 0,
+            signal_score: 0,
+            explanation: '',
+            movement_pct: null,
+            streak: 1,
+            reaction_summary: metaTarget.reaction_summary,
+            user_reaction: metaTarget.user_reaction,
+            reactions: metaTarget.reactions,
+            user_reactions: metaTarget.user_reactions,
+            comment_count: metaTarget.comment_count,
+            is_favorited: false,
+            created_at: new Date(0).toISOString(),
+          }
+        : null;
+    if (!sourceSignal) return;
 
+    const optimisticSignal = applyReactionChange(sourceSignal, reactionType);
     const optimisticSignals = previousSignals.map((signal) =>
-      isSignal(signal) && signal.id === signalId ? applyReactionChange(signal, reactionType) : signal,
+      isSignal(signal) && signal.id === signalId ? optimisticSignal : signal,
     );
-    set({ signals: optimisticSignals });
+    set({
+      signals: optimisticSignals,
+      signalMetaById: {
+        ...previousMeta,
+        [signalId]: extractSignalMeta(optimisticSignal),
+      },
+    });
 
+    const wasReacted = normalizeReactions(sourceSignal).some((item) => item.emoji === reactionType && item.reactedByCurrentUser);
     try {
-      if (target.user_reaction === reactionType) {
-        await api.clearSignalReaction(signalId);
+      if (wasReacted) {
+        await api.clearSignalReaction(signalId, reactionType);
       } else {
         await api.setSignalReaction(signalId, reactionType);
       }
     } catch (error) {
       set({
         signals: previousSignals,
+        signalMetaById: previousMeta,
         error: error instanceof Error ? error.message : 'Reaction update failed.',
       });
       throw error;
     }
+  },
+
+  setSignalCommentCount: (signalId, count) => {
+    const prevMeta = get().signalMetaById;
+    const existing = prevMeta[signalId];
+    set({
+      signals: get().signals.map((item) =>
+        isSignal(item) && item.id === signalId
+          ? { ...item, comment_count: count }
+          : item,
+      ),
+      signalMetaById: {
+        ...prevMeta,
+        [signalId]: {
+          comment_count: count,
+          reaction_summary: existing?.reaction_summary ?? { agree: 0, strong: 0, risky: 0 },
+          user_reaction: existing?.user_reaction ?? null,
+          reactions: existing?.reactions ?? [],
+          user_reactions: existing?.user_reactions ?? [],
+        },
+      },
+    });
   },
 
   toggleFavorite: async (signalId) => {

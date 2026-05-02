@@ -1,14 +1,23 @@
 from datetime import datetime
-from typing import Literal
 
 from pydantic import BaseModel
 
 
-ReactionType = Literal["strong", "agree", "risky"]
+ReactionType = str
 
 
 class ReactionWrite(BaseModel):
-    type: ReactionType
+    type: str = "agree"
+
+
+class EmojiReactionWrite(BaseModel):
+    emoji: str
+
+
+class ReactionAggregateRead(BaseModel):
+    emoji: str
+    count: int
+    reacted_by_current_user: bool = False
 
 
 class ReactionSummaryRead(BaseModel):
@@ -21,6 +30,6 @@ class ReactionRead(BaseModel):
     id: int
     signal_id: int
     user_id: int
-    type: ReactionType
+    emoji: str
     created_at: datetime
     updated_at: datetime

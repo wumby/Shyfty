@@ -13,7 +13,7 @@ from app.models.team_game_stat import TeamGameStat
 from app.models.user_follow import UserFollow
 from app.schemas.player import PlayerRead
 from app.schemas.team import TeamBoxScore, TeamDetail, TeamRead
-from app.services.signal_service import build_signal_read
+from app.services.signal_service import EMOJI_TO_LEGACY_REACTION, build_signal_read
 from app.services.reaction_service import get_reaction_summaries, get_user_reactions
 
 
@@ -118,10 +118,15 @@ def get_team_detail(
     user_reactions = get_user_reactions(db, user_id=current_user_id, signal_ids=signal_ids)
 
     recent_signals = [
+        # Keep legacy user_reaction compatible while also returning user_reactions.
         build_signal_read(
             sig, pname, tname, lname, event_date, rolling_metric,
-            reaction_summary=reaction_summaries.get(sig.id),
-            user_reaction=user_reactions.get(sig.id),
+            reactions=reaction_summaries.get(sig.id),
+            user_reactions=sorted(user_reactions.get(sig.id, set())),
+            user_reaction=EMOJI_TO_LEGACY_REACTION.get(
+                next(iter(user_reactions.get(sig.id, set())), ""),
+                next(iter(user_reactions.get(sig.id, set())), None),
+            ),
             opponent=opponent_name,
             home_away=home_away,
         )
@@ -173,6 +178,14 @@ def get_team_box_scores(db: Session, team_id: int, limit: int = 5) -> list[TeamB
             turnovers=stat.turnovers,
             pace=stat.pace,
             off_rating=stat.off_rating,
+            total_yards=stat.total_yards,
+            first_downs=stat.first_downs,
+            penalties=stat.penalties,
+            penalty_yards=stat.penalty_yards,
+            turnovers_forced=stat.turnovers_forced,
+            turnovers_lost=stat.turnovers_lost,
+            third_down_pct=stat.third_down_pct,
+            redzone_pct=stat.redzone_pct,
         )
         for game_id, game_date, season, stat in rows
     ]

@@ -1,6 +1,6 @@
 export type SignalSeverity = 'SHIFT' | 'SWING' | 'OUTLIER';
 export type SignalType = SignalSeverity;
-export type ReactionType = 'strong' | 'agree' | 'risky';
+export type ReactionType = string;
 export type SortMode = 'newest' | 'most_important' | 'biggest_deviation' | 'most_discussed';
 export type FeedMode = 'all' | 'following' | 'for_you';
 
@@ -8,6 +8,12 @@ export interface ReactionSummary {
   strong: number;
   agree: number;
   risky: number;
+}
+
+export interface ReactionEntry {
+  emoji: string;
+  count: number;
+  reactedByCurrentUser: boolean;
 }
 
 export interface User {
@@ -72,6 +78,8 @@ export interface Signal {
   streak: number;
   reaction_summary: ReactionSummary;
   user_reaction: ReactionType | null;
+  reactions?: ReactionEntry[];
+  user_reactions?: string[];
   comment_count: number;
   is_favorited: boolean;
   created_at: string;
@@ -157,9 +165,17 @@ export interface PlayerBoxScore {
   rebounds?: number | null;
   assists?: number | null;
   passing_yards?: number | null;
+  passing_completions?: number | null;
+  passing_attempts?: number | null;
+  interceptions?: number | null;
   rushing_yards?: number | null;
+  rushing_attempts?: number | null;
   receiving_yards?: number | null;
+  receptions?: number | null;
+  targets?: number | null;
   touchdowns?: number | null;
+  sacks?: number | null;
+  fumbles_lost?: number | null;
   usage_rate?: number | null;
   steals?: number | null;
   blocks?: number | null;
@@ -185,6 +201,14 @@ export interface TeamBoxScore {
   turnovers?: number | null;
   pace?: number | null;
   off_rating?: number | null;
+  total_yards?: number | null;
+  first_downs?: number | null;
+  penalties?: number | null;
+  penalty_yards?: number | null;
+  turnovers_forced?: number | null;
+  turnovers_lost?: number | null;
+  third_down_pct?: number | null;
+  redzone_pct?: number | null;
 }
 
 export interface FeedContext {
@@ -249,9 +273,17 @@ export interface GameLogRow {
   rebounds: number | null;
   assists: number | null;
   passing_yards: number | null;
+  passing_completions: number | null;
+  passing_attempts: number | null;
+  interceptions: number | null;
   rushing_yards: number | null;
+  rushing_attempts: number | null;
   receiving_yards: number | null;
+  receptions: number | null;
+  targets: number | null;
   touchdowns: number | null;
+  sacks: number | null;
+  fumbles_lost: number | null;
   usage_rate: number | null;
 }
 
@@ -262,9 +294,17 @@ export interface SeasonAveragesRow {
   rebounds: number | null;
   assists: number | null;
   passing_yards: number | null;
+  passing_completions: number | null;
+  passing_attempts: number | null;
+  interceptions: number | null;
   rushing_yards: number | null;
+  rushing_attempts: number | null;
   receiving_yards: number | null;
+  receptions: number | null;
+  targets: number | null;
   touchdowns: number | null;
+  sacks: number | null;
+  fumbles_lost: number | null;
   usage_rate: number | null;
 }
 

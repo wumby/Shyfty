@@ -6,6 +6,7 @@ import { FilterDrawer } from '../components/FilterDrawer';
 import { FollowingEmptyState } from '../components/FollowingEmptyState';
 import { LastGameSignalCard } from '../components/LastGameSignalCard';
 import { LoadingState } from '../components/LoadingState';
+import { SignalCommentsDrawer } from '../components/SignalCommentsDrawer';
 import { SignalDetailDrawer } from '../components/SignalDetailDrawer';
 import { formatEventDate } from '../lib/signalFormat';
 import { useAuthStore } from '../store/useAuthStore';
@@ -102,8 +103,10 @@ function CascadeSignalCard({ cascade, onOpenDetail }: { cascade: CascadeSignal; 
 
 export function SignalFeedPage() {
   const { filters, signals, loadingInitial, loadingMore, hasMore, ingestStatus, setFilters, fetchSignals, loadMore, fetchProfile, profile } = useSignalStore();
+  const setSignalCommentCount = useSignalStore((state) => state.setSignalCommentCount);
   const currentUser = useAuthStore((state) => state.currentUser);
   const [detailSignalId, setDetailSignalId] = useState<number | null>(null);
+  const [commentThread, setCommentThread] = useState<{ signalId: number; title: string; subtitle?: string } | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -222,7 +225,7 @@ export function SignalFeedPage() {
 
   return (
     <>
-      <div className="flex max-w-[1540px] min-w-0 flex-col gap-6 transition-[padding] duration-300 lg:flex-row lg:items-start">
+      <div className="flex w-full min-w-0 flex-col gap-6 transition-[padding] duration-300 lg:flex-row lg:items-start">
         {activeTab === 'forYou' ? (
           <FilterDrawer
             open={filtersOpen}
@@ -273,6 +276,7 @@ export function SignalFeedPage() {
                       key={`${item.signals[0]?.player_id ?? item.signals[0]?.team_id ?? 'unknown'}-${item.signals[0]?.game_id ?? 'game'}`}
                       signals={item.signals}
                       onOpenDetail={(signalId) => setDetailSignalId(signalId)}
+                      onOpenComments={(signalId, title, subtitle) => setCommentThread({ signalId, title, subtitle })}
                     />
                   )
                 ))}
@@ -293,6 +297,15 @@ export function SignalFeedPage() {
 
       {detailSignalId != null ? (
         <SignalDetailDrawer signalId={detailSignalId} onClose={() => setDetailSignalId(null)} />
+      ) : null}
+      {commentThread ? (
+        <SignalCommentsDrawer
+          signalId={commentThread.signalId}
+          title={commentThread.title}
+          subtitle={commentThread.subtitle}
+          onCountChange={(count) => setSignalCommentCount(commentThread.signalId, count)}
+          onClose={() => setCommentThread(null)}
+        />
       ) : null}
     </>
   );

@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     espn_timeout_seconds: float = 20.0
     espn_nfl_bootstrap_weeks: int = 6
     espn_nfl_incremental_weeks: int = 2
+    sync_poll_interval_minutes: int = 30
+    sync_run_on_startup: bool = True
 
 
 settings = Settings()

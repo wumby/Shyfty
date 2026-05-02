@@ -36,9 +36,17 @@ class GameLogRow(BaseModel):
     rebounds: Optional[int] = None
     assists: Optional[int] = None
     passing_yards: Optional[int] = None
+    passing_completions: Optional[int] = None
+    passing_attempts: Optional[int] = None
+    interceptions: Optional[int] = None
     rushing_yards: Optional[int] = None
+    rushing_attempts: Optional[int] = None
     receiving_yards: Optional[int] = None
+    receptions: Optional[int] = None
+    targets: Optional[int] = None
     touchdowns: Optional[int] = None
+    sacks: Optional[int] = None
+    fumbles_lost: Optional[int] = None
     usage_rate: Optional[float] = None
 
 
@@ -52,9 +60,17 @@ class PlayerBoxScore(BaseModel):
     rebounds: Optional[int] = None
     assists: Optional[int] = None
     passing_yards: Optional[int] = None
+    passing_completions: Optional[int] = None
+    passing_attempts: Optional[int] = None
+    interceptions: Optional[int] = None
     rushing_yards: Optional[int] = None
+    rushing_attempts: Optional[int] = None
     receiving_yards: Optional[int] = None
+    receptions: Optional[int] = None
+    targets: Optional[int] = None
     touchdowns: Optional[int] = None
+    sacks: Optional[int] = None
+    fumbles_lost: Optional[int] = None
     usage_rate: Optional[float] = None
     steals: Optional[int] = None
     blocks: Optional[int] = None
@@ -73,7 +89,15 @@ class SeasonAveragesRow(BaseModel):
     rebounds: Optional[float] = None
     assists: Optional[float] = None
     passing_yards: Optional[float] = None
+    passing_completions: Optional[float] = None
+    passing_attempts: Optional[float] = None
+    interceptions: Optional[float] = None
     rushing_yards: Optional[float] = None
+    rushing_attempts: Optional[float] = None
     receiving_yards: Optional[float] = None
+    receptions: Optional[float] = None
+    targets: Optional[float] = None
     touchdowns: Optional[float] = None
+    sacks: Optional[float] = None
+    fumbles_lost: Optional[float] = None
     usage_rate: Optional[float] = None
