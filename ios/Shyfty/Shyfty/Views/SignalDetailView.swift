@@ -6,16 +6,12 @@ final class SignalDetailViewModel: ObservableObject {
     @Published var comments: [Comment] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
-    @Published var isFavorited = false
     @Published var draftComment = ""
 
     let signalId: Int
 
     init(signalId: Int, prefetchedSignal: Signal? = nil) {
         self.signalId = signalId
-        if let s = prefetchedSignal {
-            self.isFavorited = s.isFavorited
-        }
     }
 
     func load() async {
@@ -25,25 +21,10 @@ final class SignalDetailViewModel: ObservableObject {
             let fetched = try await APIClient.shared.fetchSignalDetail(id: signalId)
             trace = fetched
             comments = fetched.discussionPreview
-            isFavorited = fetched.signal.isFavorited
         } catch {
             errorMessage = error.localizedDescription
         }
         isLoading = false
-    }
-
-    func toggleFavorite() async {
-        let was = isFavorited
-        isFavorited = !was
-        do {
-            if was {
-                try await APIClient.shared.removeFavorite(signalId: signalId)
-            } else {
-                try await APIClient.shared.addFavorite(signalId: signalId)
-            }
-        } catch {
-            isFavorited = was
-        }
     }
 
     func react(type: String) async {
@@ -93,16 +74,6 @@ struct SignalDetailView: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    Task { await viewModel.toggleFavorite() }
-                } label: {
-                    Image(systemName: viewModel.isFavorited ? "star.fill" : "star")
-                        .foregroundStyle(viewModel.isFavorited ? ShyftyTheme.warning : ShyftyTheme.muted)
-                }
-            }
-        }
         .task { await viewModel.load() }
         .preferredColorScheme(.dark)
     }

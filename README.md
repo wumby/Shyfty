@@ -84,7 +84,7 @@ Kept:
 - Signal feed
 - Player and team pages that support the signal story
 - Recent signal context and provenance
-- Saved views and personalization
+- Personalization (follows and feed preferences)
 
 Deprioritized or being removed:
 

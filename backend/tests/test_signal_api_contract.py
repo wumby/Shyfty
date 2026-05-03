@@ -6,8 +6,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.db.base import Base
+from app.models.signal_reaction import SignalReaction
 from app.models.user import User
-from app.models.user_favorite import UserFavorite
 from app.models.user_follow import UserFollow
 from app.services.player_service import get_player_metric_series, get_player_signals
 from app.services.signal_inspection_service import inspect_signal
@@ -137,7 +137,7 @@ class SignalAPIContractTests(unittest.TestCase):
             signal_type=None,
             limit=1,
         ).items[0]
-        self.session.add(UserFavorite(user_id=user.id, signal_id=signal.id))
+        self.session.add(SignalReaction(user_id=user.id, signal_id=signal.id, type="agree"))
         self.session.commit()
 
         page = list_signals(
@@ -169,7 +169,7 @@ class SignalAPIContractTests(unittest.TestCase):
         )
         target = next(signal for signal in all_page.items if signal.player_id is not None)
         other = next(signal for signal in all_page.items if signal.player_id != target.player_id)
-        self.session.add(UserFavorite(user_id=user.id, signal_id=other.id))
+        self.session.add(SignalReaction(user_id=user.id, signal_id=other.id, type="agree"))
         self.session.add(UserFollow(user_id=user.id, entity_type="player", entity_id=target.player_id))
         self.session.commit()
 

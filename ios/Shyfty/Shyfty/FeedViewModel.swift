@@ -174,8 +174,7 @@ final class FeedViewModel: ObservableObject {
             : profile.follows.players + [id]
         self.profile = UserProfile(
             preferences: profile.preferences,
-            follows: UserProfile.Follows(players: nextPlayers, teams: profile.follows.teams),
-            savedViews: profile.savedViews
+            follows: UserProfile.Follows(players: nextPlayers, teams: profile.follows.teams)
         )
         do {
             if wasFollowed {
@@ -195,8 +194,7 @@ final class FeedViewModel: ObservableObject {
             : profile.follows.teams + [id]
         self.profile = UserProfile(
             preferences: profile.preferences,
-            follows: UserProfile.Follows(players: profile.follows.players, teams: nextTeams),
-            savedViews: profile.savedViews
+            follows: UserProfile.Follows(players: profile.follows.players, teams: nextTeams)
         )
         do {
             if wasFollowed {
@@ -224,17 +222,4 @@ final class FeedViewModel: ObservableObject {
         }
     }
 
-    func toggleFavorite(signalId: Int) async {
-        guard let signal = signals.first(where: { $0.id == signalId }) else { return }
-        do {
-            if signal.isFavorited {
-                try await APIClient.shared.removeFavorite(signalId: signalId)
-            } else {
-                try await APIClient.shared.addFavorite(signalId: signalId)
-            }
-            await loadSignals()
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
 }

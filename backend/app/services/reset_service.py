@@ -20,7 +20,6 @@ from app.models.signal_reaction import SignalReaction
 from app.models.sync_checkpoint import SyncCheckpoint
 from app.models.team import Team
 from app.models.team_game_stat import TeamGameStat
-from app.models.user_favorite import UserFavorite
 from app.models.user_follow import UserFollow
 
 
@@ -39,7 +38,6 @@ class ResetResult:
     reactions_deleted: int = 0
     comments_deleted: int = 0
     reports_deleted: int = 0
-    favorites_deleted: int = 0
     follows_deleted: int = 0
     raw_events_deleted: int = 0
     ingest_runs_deleted: int = 0
@@ -82,7 +80,6 @@ def reset_legacy_seeded_nfl(db: Session, *, dry_run: bool = False) -> ResetResul
         "reactions_deleted": _count_scalar(db, select(func.count()).select_from(SignalReaction).where(SignalReaction.signal_id.in_(seeded_signal_ids))),
         "comments_deleted": _count_scalar(db, select(func.count()).select_from(SignalComment).where(SignalComment.id.in_(seeded_comment_ids))),
         "reports_deleted": _count_scalar(db, select(func.count()).select_from(CommentReport).where(CommentReport.comment_id.in_(seeded_comment_ids))),
-        "favorites_deleted": _count_scalar(db, select(func.count()).select_from(UserFavorite).where(UserFavorite.signal_id.in_(seeded_signal_ids))),
         "follows_deleted": _count_scalar(
             db,
             select(func.count()).select_from(UserFollow).where(
@@ -94,7 +91,6 @@ def reset_legacy_seeded_nfl(db: Session, *, dry_run: bool = False) -> ResetResul
 
     if not dry_run:
         db.execute(delete(CommentReport).where(CommentReport.comment_id.in_(seeded_comment_ids)))
-        db.execute(delete(UserFavorite).where(UserFavorite.signal_id.in_(seeded_signal_ids)))
         db.execute(delete(SignalReaction).where(SignalReaction.signal_id.in_(seeded_signal_ids)))
         db.execute(
             delete(UserFollow).where(
@@ -139,7 +135,6 @@ def reset_sports_data(db: Session, *, dry_run: bool = False) -> ResetResult:
         "reactions_deleted": _count_scalar(db, select(func.count()).select_from(SignalReaction)),
         "comments_deleted": _count_scalar(db, select(func.count()).select_from(SignalComment)),
         "reports_deleted": _count_scalar(db, select(func.count()).select_from(CommentReport)),
-        "favorites_deleted": _count_scalar(db, select(func.count()).select_from(UserFavorite)),
         "follows_deleted": _count_scalar(
             db,
             select(func.count()).select_from(UserFollow).where(
@@ -154,7 +149,6 @@ def reset_sports_data(db: Session, *, dry_run: bool = False) -> ResetResult:
 
     if not dry_run:
         db.execute(delete(CommentReport).where(CommentReport.comment_id.in_(comment_ids)))
-        db.execute(delete(UserFavorite).where(UserFavorite.signal_id.in_(signal_ids)))
         db.execute(delete(SignalReaction).where(SignalReaction.signal_id.in_(signal_ids)))
         db.execute(
             delete(UserFollow).where(

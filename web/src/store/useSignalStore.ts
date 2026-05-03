@@ -8,7 +8,6 @@ import type {
   Player,
   ProfilePreferences,
   ReactionType,
-  SavedView,
   Signal,
   SignalFilters,
   Team,
@@ -38,15 +37,12 @@ interface SignalStore {
   fetchTeams: () => Promise<void>;
   reactToSignal: (signalId: number, reactionType: ReactionType) => Promise<void>;
   setSignalCommentCount: (signalId: number, count: number) => void;
-  toggleFavorite: (signalId: number) => Promise<void>;
   fetchIngestStatus: () => Promise<void>;
   triggerIngest: () => Promise<void>;
   fetchProfile: () => Promise<void>;
   toggleFollowPlayer: (playerId: number, currentlyFollowed: boolean) => Promise<void>;
   toggleFollowTeam: (teamId: number, currentlyFollowed: boolean) => Promise<void>;
   updatePreferences: (payload: Partial<ProfilePreferences>) => Promise<void>;
-  saveView: (name: string) => Promise<void>;
-  deleteSavedView: (savedViewId: number) => Promise<void>;
 }
 
 function normalizeReactions(signal: Signal): ReactionEntry[] {
@@ -242,7 +238,6 @@ export const useSignalStore = create<SignalStore>((set, get) => ({
             reactions: metaTarget.reactions,
             user_reactions: metaTarget.user_reactions,
             comment_count: metaTarget.comment_count,
-            is_favorited: false,
             created_at: new Date(0).toISOString(),
           }
         : null;
@@ -299,32 +294,6 @@ export const useSignalStore = create<SignalStore>((set, get) => ({
     });
   },
 
-  toggleFavorite: async (signalId) => {
-    const previousSignals = get().signals;
-    const target = previousSignals.find((s): s is Signal => isSignal(s) && s.id === signalId);
-    if (!target) return;
-
-    const optimisticSignals = previousSignals.map((s) =>
-      isSignal(s) && s.id === signalId ? { ...s, is_favorited: !s.is_favorited } : s,
-    );
-    set({ signals: optimisticSignals });
-
-    try {
-      if (target.is_favorited) {
-        await api.removeFavorite(signalId);
-      } else {
-        await api.addFavorite(signalId);
-      }
-      if (get().profile) {
-        await get().fetchProfile();
-      }
-    } catch (error) {
-      set({
-        signals: previousSignals,
-        error: error instanceof Error ? error.message : 'Favorite update failed.',
-      });
-    }
-  },
 
   fetchIngestStatus: async () => {
     try {
@@ -442,32 +411,4 @@ export const useSignalStore = create<SignalStore>((set, get) => ({
     set({ profile: { ...profile, preferences } });
   },
 
-  saveView: async (name) => {
-    const { filters, profile } = get();
-    const savedView = await api.createSavedView({
-      name,
-      league: filters.league,
-      signal_type: filters.signal_type,
-      player: filters.player,
-      sort_mode: filters.sort ?? 'newest',
-      feed_mode: filters.feed ?? 'all',
-    });
-    set({
-      profile: profile
-        ? { ...profile, saved_views: [savedView, ...profile.saved_views] as SavedView[] }
-        : profile,
-    });
-  },
-
-  deleteSavedView: async (savedViewId) => {
-    const profile = get().profile;
-    if (!profile) return;
-    await api.deleteSavedView(savedViewId);
-    set({
-      profile: {
-        ...profile,
-        saved_views: profile.saved_views.filter((view) => view.id !== savedViewId),
-      },
-    });
-  },
 }));

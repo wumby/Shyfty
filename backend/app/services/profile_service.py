@@ -5,13 +5,10 @@ from sqlalchemy.orm import Session
 
 from app.models.user_follow import UserFollow
 from app.models.user_preference import UserPreference
-from app.models.user_saved_view import UserSavedView
 from app.schemas.profile import (
     FollowSummaryRead,
     ProfilePreferencesRead,
     ProfilePreferencesUpdate,
-    SavedViewCreate,
-    SavedViewRead,
     UserProfileRead,
 )
 
@@ -26,26 +23,9 @@ def _get_or_create_preferences(db: Session, user_id: int) -> UserPreference:
     return prefs
 
 
-def _saved_view_read(view: UserSavedView) -> SavedViewRead:
-    return SavedViewRead(
-        id=view.id,
-        name=view.name,
-        league=view.league,
-        signal_type=view.signal_type,
-        player=view.player,
-        sort_mode=view.sort_mode,
-        feed_mode=view.feed_mode,
-        created_at=view.created_at,
-        updated_at=view.updated_at,
-    )
-
-
 def get_profile(db: Session, user_id: int) -> UserProfileRead:
     prefs = _get_or_create_preferences(db, user_id)
     follows = db.execute(select(UserFollow).where(UserFollow.user_id == user_id)).scalars().all()
-    saved_views = db.execute(
-        select(UserSavedView).where(UserSavedView.user_id == user_id).order_by(UserSavedView.updated_at.desc())
-    ).scalars().all()
     return UserProfileRead(
         preferences=ProfilePreferencesRead(
             preferred_league=prefs.preferred_league,
@@ -59,7 +39,6 @@ def get_profile(db: Session, user_id: int) -> UserProfileRead:
             players=[follow.entity_id for follow in follows if follow.entity_type == "player"],
             teams=[follow.entity_id for follow in follows if follow.entity_type == "team"],
         ),
-        saved_views=[_saved_view_read(view) for view in saved_views],
     )
 
 
@@ -104,17 +83,3 @@ def remove_follow(db: Session, user_id: int, entity_type: str, entity_id: int) -
     )
     db.commit()
 
-
-def add_saved_view(db: Session, user_id: int, payload: SavedViewCreate) -> SavedViewRead:
-    view = UserSavedView(user_id=user_id, **payload.model_dump())
-    db.add(view)
-    db.commit()
-    db.refresh(view)
-    return _saved_view_read(view)
-
-
-def delete_saved_view(db: Session, user_id: int, saved_view_id: int) -> None:
-    db.execute(
-        delete(UserSavedView).where(UserSavedView.user_id == user_id, UserSavedView.id == saved_view_id)
-    )
-    db.commit()

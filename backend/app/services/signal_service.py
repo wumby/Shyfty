@@ -34,7 +34,6 @@ from app.models.signal_comment import SignalComment
 from app.models.signal_reaction import SignalReaction
 from app.models.team import Team
 from app.models.team_game_stat import TeamGameStat
-from app.models.user_favorite import UserFavorite
 from app.models.user_follow import UserFollow
 from app.schemas.reaction import ReactionAggregateRead, ReactionSummaryRead
 from app.schemas.signal import (
@@ -49,7 +48,6 @@ from app.schemas.signal import (
     SignalRead,
     SignalSummaryTemplateInputs,
 )
-from app.services.favorite_service import get_favorited_signal_ids
 from app.services.reaction_service import get_reaction_summaries, get_user_reactions
 
 SORT_MODE_NEWEST = "newest"
@@ -156,7 +154,6 @@ def build_signal_read(
     user_reaction: Optional[str] = None,
     user_reactions: Optional[list[str]] = None,
     comment_count: int = 0,
-    is_favorited: bool = False,
     opponent: Optional[str] = None,
     home_away: Optional[str] = None,
     game_result: Optional[str] = None,
@@ -239,7 +236,6 @@ def build_signal_read(
         reactions=reaction_entries,
         user_reactions=user_reactions_value,
         comment_count=comment_count,
-        is_favorited=is_favorited,
         created_at=signal.created_at,
     )
 
@@ -324,11 +320,6 @@ def _get_engagement_context(db: Session, user_id: int) -> dict[str, object]:
     followed_players = {entity_id for entity_type, entity_id in followed_rows if entity_type == "player"}
     followed_teams = {entity_id for entity_type, entity_id in followed_rows if entity_type == "team"}
 
-    favorite_rows = db.execute(
-        select(Signal.player_id, Signal.team_id, Signal.metric_name)
-        .join(UserFavorite, UserFavorite.signal_id == Signal.id)
-        .where(UserFavorite.user_id == user_id)
-    ).all()
     reaction_rows = db.execute(
         select(Signal.player_id, Signal.team_id, Signal.metric_name)
         .join(SignalReaction, SignalReaction.signal_id == Signal.id)
@@ -339,9 +330,9 @@ def _get_engagement_context(db: Session, user_id: int) -> dict[str, object]:
         .join(SignalComment, SignalComment.signal_id == Signal.id)
         .where(SignalComment.user_id == user_id)
     ).all()
-    metric_names = {metric_name for *_, metric_name in [*favorite_rows, *reaction_rows, *comment_rows]}
-    engaged_players = {player_id for player_id, *_ in [*favorite_rows, *reaction_rows, *comment_rows]}
-    engaged_teams = {team_id for _, team_id, _ in [*favorite_rows, *reaction_rows, *comment_rows]}
+    metric_names = {metric_name for *_, metric_name in [*reaction_rows, *comment_rows]}
+    engaged_players = {player_id for player_id, *_ in [*reaction_rows, *comment_rows]}
+    engaged_teams = {team_id for _, team_id, _ in [*reaction_rows, *comment_rows]}
 
     return {
         "followed_players": followed_players | engaged_players,
@@ -420,7 +411,6 @@ def _build_signal_items(rows, db: Session, current_user_id: Optional[int]) -> li
     signal_ids = [signal.id for signal, *_ in rows]
     reaction_summaries = get_reaction_summaries(db, signal_ids)
     user_reactions = get_user_reactions(db, user_id=current_user_id, signal_ids=signal_ids)
-    favorited_ids = get_favorited_signal_ids(db, user_id=current_user_id, signal_ids=signal_ids)
 
     signal_info = [
         (signal.id, signal.player_id, signal.metric_name, signal.signal_type, event_date)
@@ -481,7 +471,6 @@ def _build_signal_items(rows, db: Session, current_user_id: Optional[int]) -> li
                     next(iter(user_reactions.get(signal.id, set())), None),
                 ),
                 comment_count=comment_count,
-                is_favorited=signal.id in favorited_ids,
                 opponent=opponent,
                 home_away=home_away,
                 game_result=game_result,
@@ -663,7 +652,7 @@ def _personalized_reason(feed_mode: str, current_user_id: Optional[int], items: 
     if feed_mode == FEED_MODE_FOLLOWING and current_user_id is None:
         return "Sign in to build a following feed."
     if feed_mode == FEED_MODE_FOR_YOU and current_user_id is None:
-        return "Sign in to get a feed ranked from your saved signals, follows, and board activity."
+        return "Sign in to get a feed ranked from your follows and board activity."
     if feed_mode == FEED_MODE_FOLLOWING and not items:
         return "This view will fill in as you follow players or teams."
     if not items:
@@ -671,7 +660,7 @@ def _personalized_reason(feed_mode: str, current_user_id: Optional[int], items: 
     if feed_mode == FEED_MODE_FOLLOWING:
         return "Signals from players and teams you follow."
     if feed_mode == FEED_MODE_FOR_YOU:
-        return "Ranked from your follows, saved signals, comments, and reaction history."
+        return "Ranked from your follows, comments, and reaction history."
     return None
 
 
@@ -684,7 +673,6 @@ def list_signals(
     limit: int = 24,
     before_id: Optional[int] = None,
     current_user_id: Optional[int] = None,
-    favorited_only: bool = False,
     sort_mode: str = SORT_MODE_NEWEST,
     feed_mode: str = FEED_MODE_ALL,
     date_from: Optional[date] = None,
@@ -706,12 +694,6 @@ def list_signals(
         query = query.where(Game.game_date <= date_to)
     if before_id is not None and sort_mode == SORT_MODE_NEWEST and feed_mode == FEED_MODE_ALL:
         query = query.where(Signal.id < before_id)
-
-    if favorited_only and current_user_id is not None:
-        query = query.join(
-            UserFavorite,
-            and_(UserFavorite.signal_id == Signal.id, UserFavorite.user_id == current_user_id),
-        )
 
     if feed_mode == FEED_MODE_FOLLOWING:
         if current_user_id is None:
@@ -779,7 +761,7 @@ def list_signals(
             ),
         )
 
-    paginated = sort_mode == SORT_MODE_NEWEST and feed_mode == FEED_MODE_ALL and not favorited_only
+    paginated = sort_mode == SORT_MODE_NEWEST and feed_mode == FEED_MODE_ALL
     query_limit = (limit + 1) if paginated else (max(limit * 5, 120) if sort_mode == SORT_MODE_DISCUSSED else limit)
     rows = db.execute(_apply_sort(query, sort_mode).limit(query_limit)).all()
 

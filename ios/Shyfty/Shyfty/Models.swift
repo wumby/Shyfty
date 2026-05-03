@@ -183,7 +183,6 @@ struct Signal: Identifiable, Decodable, Hashable {
     let reactionSummary: ReactionSummary
     let userReaction: String?
     let commentCount: Int
-    let isFavorited: Bool
     let opponent: String?
     let homeAway: String?
     let gameResult: String?
@@ -217,7 +216,6 @@ struct Signal: Identifiable, Decodable, Hashable {
         case reactionSummary = "reaction_summary"
         case userReaction = "user_reaction"
         case commentCount = "comment_count"
-        case isFavorited = "is_favorited"
         case opponent
         case homeAway = "home_away"
         case gameResult = "game_result"
@@ -430,26 +428,6 @@ struct Comment: Decodable, Identifiable, Hashable {
     }
 }
 
-struct SavedView: Decodable, Identifiable, Hashable {
-    let id: Int
-    let name: String
-    let league: String?
-    let signalType: String?
-    let player: String?
-    let sortMode: String
-    let feedMode: String
-
-    enum CodingKeys: String, CodingKey {
-        case id
-        case name
-        case league
-        case signalType = "signal_type"
-        case player
-        case sortMode = "sort_mode"
-        case feedMode = "feed_mode"
-    }
-}
-
 struct ProfilePreferences: Decodable, Hashable {
     let preferredLeague: String?
     let preferredSignalType: String?
@@ -476,12 +454,10 @@ struct UserProfile: Decodable {
 
     let preferences: ProfilePreferences
     let follows: Follows
-    let savedViews: [SavedView]
 
     enum CodingKeys: String, CodingKey {
         case preferences
         case follows
-        case savedViews = "saved_views"
     }
 }
 

@@ -109,7 +109,6 @@ class SignalRead(BaseModel):
     reactions: list[ReactionAggregateRead] = []
     user_reactions: list[ReactionType] = []
     comment_count: int = 0
-    is_favorited: bool = False
     created_at: datetime
 
 

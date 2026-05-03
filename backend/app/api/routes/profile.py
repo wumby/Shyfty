@@ -8,13 +8,9 @@ from app.models.user import User
 from app.schemas.profile import (
     ProfilePreferencesRead,
     ProfilePreferencesUpdate,
-    SavedViewCreate,
-    SavedViewRead,
     UserProfileRead,
 )
 from app.services.profile_service import (
-    add_saved_view,
-    delete_saved_view,
     get_profile,
     remove_follow,
     set_follow,
@@ -47,27 +43,6 @@ def update_preferences_route(
 ) -> ProfilePreferencesRead:
     user = _require_user(current_user)
     return update_preferences(db, user.id, payload)
-
-
-@router.post("/profile/saved-views", response_model=SavedViewRead, status_code=status.HTTP_201_CREATED)
-def create_saved_view(
-    payload: SavedViewCreate,
-    db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user),
-) -> SavedViewRead:
-    user = _require_user(current_user)
-    return add_saved_view(db, user.id, payload)
-
-
-@router.delete("/profile/saved-views/{saved_view_id}", status_code=status.HTTP_204_NO_CONTENT)
-def remove_saved_view(
-    saved_view_id: int,
-    db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user),
-) -> Response:
-    user = _require_user(current_user)
-    delete_saved_view(db, user.id, saved_view_id)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/players/{player_id}/follow", status_code=status.HTTP_204_NO_CONTENT)

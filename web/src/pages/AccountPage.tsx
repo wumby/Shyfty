@@ -18,8 +18,6 @@ export function AccountPage() {
     fetchTeams,
     toggleFollowPlayer,
     toggleFollowTeam,
-    deleteSavedView,
-    setFilters,
   } = useSignalStore();
 
   useEffect(() => {
@@ -32,7 +30,7 @@ export function AccountPage() {
   if (!currentUser) {
     return (
       <div className="panel-surface px-6 py-8 text-center">
-        <p className="text-sm text-muted">Sign in to manage follows, saved views, and account settings.</p>
+        <p className="text-sm text-muted">Sign in to manage follows and account settings.</p>
         <button
           type="button"
           onClick={() => openAuth('signin')}
@@ -47,7 +45,6 @@ export function AccountPage() {
   const followedPlayers = players.filter((p) => profile?.follows.players.includes(p.id));
   const followedTeams = teams.filter((t) => profile?.follows.teams.includes(t.id));
   const hasFollows = followedPlayers.length > 0 || followedTeams.length > 0;
-  const hasSavedViews = (profile?.saved_views.length ?? 0) > 0;
 
   return (
     <div className="space-y-4">
@@ -112,42 +109,6 @@ export function AccountPage() {
         )}
       </section>
 
-      {hasSavedViews ? (
-        <section className="panel-surface px-5 py-5">
-          <h2 className="mb-4 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted">Saved Views</h2>
-          <div className="space-y-2">
-            {profile!.saved_views.map((view) => (
-              <div key={view.id} className="flex items-center justify-between gap-4 rounded-[18px] border border-border bg-white/[0.025] px-4 py-3">
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-semibold text-ink">{view.name}</div>
-                  <div className="mt-0.5 text-xs text-muted">{[view.league, view.signal_type].filter(Boolean).join(' · ') || 'All signals'}</div>
-                </div>
-                <div className="flex shrink-0 items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFilters({
-                        league: view.league ?? undefined,
-                        signal_type: view.signal_type ?? undefined,
-                        player: view.player ?? undefined,
-                        sort: view.sort_mode,
-                        feed: view.feed_mode,
-                      });
-                      navigate('/');
-                    }}
-                    className="text-[11px] font-semibold text-accent transition hover:brightness-110"
-                  >
-                    Open
-                  </button>
-                  <button type="button" onClick={() => void deleteSavedView(view.id)} className="text-[11px] font-semibold text-muted transition hover:text-danger">
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
     </div>
   );
 }

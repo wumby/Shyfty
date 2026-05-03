@@ -81,7 +81,6 @@ export interface Signal {
   reactions?: ReactionEntry[];
   user_reactions?: string[];
   comment_count: number;
-  is_favorited: boolean;
   created_at: string;
 }
 
@@ -336,18 +335,6 @@ export interface IngestStatus {
   recent_runs: IngestRun[];
 }
 
-export interface SavedView {
-  id: number;
-  name: string;
-  league: string | null;
-  signal_type: string | null;
-  player: string | null;
-  sort_mode: SortMode;
-  feed_mode: FeedMode;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface ProfilePreferences {
   preferred_league: string | null;
   preferred_signal_type: string | null;
@@ -363,5 +350,4 @@ export interface UserProfile {
     players: number[];
     teams: number[];
   };
-  saved_views: SavedView[];
 }

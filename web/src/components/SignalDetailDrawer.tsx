@@ -51,8 +51,6 @@ export function SignalDetailDrawer({ signalId, onClose, onCommentCountChange }: 
   const [showAllComments, setShowAllComments] = useState(false);
   const drawerRef = useRef<HTMLDivElement>(null);
   const currentUser = useAuthStore((s) => s.currentUser);
-  const openAuth = useAuthStore((s) => s.openAuth);
-  const toggleFavorite = useSignalStore((s) => s.toggleFavorite);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -74,15 +72,6 @@ export function SignalDetailDrawer({ signalId, onClose, onCommentCountChange }: 
     return () => window.removeEventListener('keydown', handleKey);
   }, [onClose]);
 
-  async function handleFavoriteToggle() {
-    if (!currentUser) { openAuth('signin'); return; }
-    if (!trace) return;
-    await toggleFavorite(signalId);
-    setTrace((prev) =>
-      prev ? { ...prev, signal: { ...prev.signal, is_favorited: !prev.signal.is_favorited } } : prev,
-    );
-  }
-
   const signal = trace?.signal;
 
   return createPortal(
@@ -96,16 +85,6 @@ export function SignalDetailDrawer({ signalId, onClose, onCommentCountChange }: 
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <div className="eyebrow">Signal Analysis</div>
           <div className="flex items-center gap-3">
-            {signal && (
-              <button
-                type="button"
-                onClick={() => void handleFavoriteToggle()}
-                title={signal.is_favorited ? 'Remove from saved' : 'Save signal'}
-                className={`text-base transition ${signal.is_favorited ? 'text-amber-300' : 'text-muted/60 hover:text-amber-300'}`}
-              >
-                {signal.is_favorited ? '★' : '☆'}
-              </button>
-            )}
             <button type="button" onClick={onClose} className="text-xs text-muted transition hover:text-ink">
               Close ✕
             </button>

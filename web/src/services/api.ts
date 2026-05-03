@@ -9,7 +9,6 @@ import type {
   PlayerDetail,
   ProfilePreferences,
   ReactionType,
-  SavedView,
   SeasonAveragesRow,
   Signal,
   SignalFilters,
@@ -41,10 +40,25 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     }
     throw new Error(detail);
   }
+
   if (response.status === 204) {
     return undefined as T;
   }
-  return response.json() as Promise<T>;
+
+  const contentType = response.headers.get('content-type') ?? '';
+  if (!contentType.toLowerCase().includes('application/json')) {
+    const raw = await response.text();
+    if (raw.trim().length === 0) {
+      return undefined as T;
+    }
+    return raw as T;
+  }
+
+  const raw = await response.text();
+  if (raw.trim().length === 0) {
+    return undefined as T;
+  }
+  return JSON.parse(raw) as T;
 }
 
 interface AuthSession {
@@ -52,7 +66,7 @@ interface AuthSession {
 }
 
 export const api = {
-  getSignals(filters: SignalFilters = {}, beforeId?: number, favorited?: boolean) {
+  getSignals(filters: SignalFilters = {}, beforeId?: number) {
     const query = new URLSearchParams();
     if (filters.league) query.set('league', filters.league);
     if (filters.signal_type) query.set('signal_type', filters.signal_type);
@@ -62,7 +76,6 @@ export const api = {
     if (filters.date_from) query.set('date_from', filters.date_from);
     if (filters.date_to) query.set('date_to', filters.date_to);
     if (beforeId != null) query.set('before_id', String(beforeId));
-    if (favorited) query.set('favorited', 'true');
     query.set('limit', '24');
     return request<PaginatedSignals>(`/signals?${query.toString()}`);
   },
@@ -186,15 +199,6 @@ export const api = {
   triggerIngest() {
     return request<{ message: string }>('/ingest/trigger', { method: 'POST' });
   },
-  addFavorite(signalId: number) {
-    return request<{ signal_id: number; is_favorited: boolean }>(`/favorites/${signalId}`, { method: 'POST' });
-  },
-  removeFavorite(signalId: number) {
-    return request<void>(`/favorites/${signalId}`, { method: 'DELETE' });
-  },
-  getFavorites() {
-    return request<PaginatedSignals>('/favorites');
-  },
   getProfile() {
     return request<UserProfile>('/profile');
   },
@@ -203,21 +207,5 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(payload),
     });
-  },
-  createSavedView(payload: {
-    name: string;
-    league?: string;
-    signal_type?: string;
-    player?: string;
-    sort_mode: SignalFilters['sort'];
-    feed_mode: FeedMode;
-  }) {
-    return request<SavedView>('/profile/saved-views', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-  },
-  deleteSavedView(savedViewId: number) {
-    return request<void>(`/profile/saved-views/${savedViewId}`, { method: 'DELETE' });
   },
 };

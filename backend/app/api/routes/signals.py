@@ -8,7 +8,6 @@ from app.api.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.signal import FeedContextRead, PaginatedSignals, SignalRead, SignalTraceRead
 from app.services.comment_service import list_discussion_preview
-from app.services.favorite_service import get_favorited_signal_ids
 from app.services.signal_inspection_service import inspect_signal
 from app.services.signal_service import (
     FEED_MODE_ALL,
@@ -44,7 +43,6 @@ def get_signals(
     feed: str = Query(default=FEED_MODE_ALL),
     limit: int = 24,
     before_id: Optional[int] = Query(default=None, alias="before_id"),
-    favorited: bool = False,
     date_from: Optional[date] = Query(default=None, alias="date_from"),
     date_to: Optional[date] = Query(default=None, alias="date_to"),
     db: Session = Depends(get_db),
@@ -59,7 +57,6 @@ def get_signals(
         limit=limit,
         before_id=before_id,
         current_user_id=current_user.id if current_user is not None else None,
-        favorited_only=favorited,
         sort_mode=sort,
         feed_mode=feed,
         date_from=date_from,
@@ -98,10 +95,6 @@ def get_signal_detail(
     trace = inspect_signal(db, signal_id)
     if trace is None:
         raise HTTPException(status_code=404, detail="Signal not found")
-    # Annotate is_favorited on the nested signal
-    if current_user is not None:
-        favorited = get_favorited_signal_ids(db, user_id=current_user.id, signal_ids=[signal_id])
-        trace.signal.is_favorited = signal_id in favorited
     trace.discussion_preview = list_discussion_preview(
         db,
         signal_id=signal_id,

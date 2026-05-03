@@ -140,24 +140,6 @@ final class APIClient {
         _ = try validateResponse(response, data: Data())
     }
 
-    // MARK: - Favorites
-
-    func addFavorite(signalId: Int) async throws {
-        let _: EmptyResponse = try await post(baseURL.appendingPathComponent("favorites/\(signalId)"), body: EmptyBody())
-    }
-
-    func removeFavorite(signalId: Int) async throws {
-        var request = URLRequest(url: baseURL.appendingPathComponent("favorites/\(signalId)"))
-        request.httpMethod = "DELETE"
-        let (_, response) = try await session.data(for: request)
-        _ = try validateResponse(response, data: Data())
-    }
-
-    func fetchFavorites() async throws -> [Signal] {
-        let paginated: PaginatedSignals = try await get(baseURL.appendingPathComponent("favorites"))
-        return paginated.signalItems
-    }
-
     // MARK: - Comments
 
     func fetchComments(signalId: Int) async throws -> [Comment] {

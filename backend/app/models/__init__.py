@@ -14,10 +14,8 @@ from app.models.sync_checkpoint import SyncCheckpoint
 from app.models.team import Team
 from app.models.team_game_stat import TeamGameStat
 from app.models.user import User
-from app.models.user_favorite import UserFavorite
 from app.models.user_follow import UserFollow
 from app.models.user_preference import UserPreference
-from app.models.user_saved_view import UserSavedView
 from app.models.user_session import UserSession
 
 __all__ = [
@@ -37,9 +35,7 @@ __all__ = [
     "Team",
     "TeamGameStat",
     "User",
-    "UserFavorite",
     "UserFollow",
     "UserPreference",
-    "UserSavedView",
     "UserSession",
 ]
