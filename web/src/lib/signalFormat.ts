@@ -139,7 +139,7 @@ export function formatRelativeTime(value: string): string {
 }
 
 export function getSignalMomentum(signal: Signal, tracked = false, sortMode?: string | null): number {
-  const totalReactions = signal.reaction_summary.strong + signal.reaction_summary.agree + signal.reaction_summary.risky;
+  const totalReactions = signal.reaction_summary.shyft_up + signal.reaction_summary.shyft_down + signal.reaction_summary.shyft_eye;
   const hoursSincePost = Math.max(0, (Date.now() - new Date(signal.created_at).getTime()) / 3600000);
   const recencyBoost = Math.max(0, 2.2 - hoursSincePost / 10);
   const engagementBoost = Math.min(3, totalReactions * 0.25 + signal.comment_count * 0.55);

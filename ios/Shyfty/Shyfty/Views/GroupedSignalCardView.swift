@@ -188,75 +188,66 @@ struct GroupedSignalCardView: View {
 
     @ViewBuilder
     private func engagementControls(_ signal: Signal) -> some View {
-        VStack(alignment: .leading, spacing: 9) {
-            HStack(spacing: 8) {
-                reactionButton(signal: signal, type: "strong", label: "Strong", count: signal.reactionSummary.strong, color: ShyftyTheme.success)
-                reactionButton(signal: signal, type: "agree", label: "Agree", count: signal.reactionSummary.agree, color: ShyftyTheme.accent)
-                reactionButton(signal: signal, type: "risky", label: "Risky", count: signal.reactionSummary.risky, color: ShyftyTheme.warning)
-
-                Spacer(minLength: 8)
-
-                Button {
-                    selectedCommentSignal = signal
-                } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: "bubble.left")
-                            .font(.system(size: 11, weight: .semibold))
-                        Text(signal.commentCount > 0 ? "\(signal.commentCount)" : "Comment")
-                            .font(.system(size: 11, weight: .semibold))
-                            .lineLimit(1)
+        HStack(spacing: 0) {
+            HStack(spacing: 16) {
+                ForEach(ShyftReaction.allCases, id: \.self) { reaction in
+                    let count = signal.reactionSummary.count(for: reaction)
+                    let isActive = signal.userReaction == reaction
+                    Button {
+                        Task { await react(signal: signal, type: reaction) }
+                    } label: {
+                        HStack(spacing: 4) {
+                            ShyftReactionIcon(reaction: reaction, size: 14)
+                            if count > 0 {
+                                Text("\(count)")
+                                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                            }
+                        }
+                        .foregroundStyle(isActive ? Color(red: 1, green: 0.847, blue: 0.741) : ShyftyTheme.muted.opacity(0.35))
+                        .scaleEffect(isActive ? 1.1 : 1.0)
+                        .shadow(color: isActive ? Color(red: 1, green: 0.847, blue: 0.741).opacity(0.45) : .clear, radius: 4)
+                        .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isActive)
                     }
-                    .padding(.horizontal, 11)
-                    .padding(.vertical, 7)
-                    .foregroundStyle(ShyftyTheme.muted)
-                    .background(Color.white.opacity(0.03))
-                    .overlay(Capsule().strokeBorder(ShyftyTheme.border, lineWidth: 1))
-                    .clipShape(Capsule())
+                    .disabled(isMutatingReaction)
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
+
+            Spacer(minLength: 8)
+
+            Button {
+                selectedCommentSignal = signal
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "bubble.left")
+                        .font(.system(size: 11, weight: .semibold))
+                    Text(signal.commentCount > 0 ? "\(signal.commentCount)" : "Comment")
+                        .font(.system(size: 11, weight: .semibold))
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, 11)
+                .padding(.vertical, 7)
+                .foregroundStyle(ShyftyTheme.muted)
+                .background(Color.white.opacity(0.03))
+                .overlay(Capsule().strokeBorder(ShyftyTheme.border, lineWidth: 1))
+                .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 11)
     }
 
-    private func reactionButton(signal: Signal, type: String, label: String, count: Int, color: Color) -> some View {
-        let active = signal.userReaction == type
-        let disabled = isMutatingReaction || (signal.userReaction != nil && !active)
-        return Button {
-            Task { await react(signal: signal, type: type) }
-        } label: {
-            HStack(spacing: 5) {
-                Text(label)
-                    .font(.system(size: 10, weight: .semibold))
-                    .tracking(0.7)
-                    .textCase(.uppercase)
-                if count > 0 {
-                    Text("\(count)")
-                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                }
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .foregroundStyle(active ? color : ShyftyTheme.muted)
-            .background(active ? color.opacity(0.13) : Color.white.opacity(0.03))
-            .overlay(Capsule().strokeBorder(active ? color.opacity(0.35) : ShyftyTheme.border, lineWidth: 1))
-            .clipShape(Capsule())
-            .opacity(disabled ? 0.42 : 1)
-        }
-        .disabled(disabled)
-        .buttonStyle(.plain)
-    }
-
     @MainActor
-    private func react(signal: Signal, type: String) async {
+    private func react(signal: Signal, type: ShyftReaction) async {
         guard auth.currentUser != nil else {
             auth.showAuthSheet = true
             return
         }
         guard !isMutatingReaction else { return }
 
-        let nextUserReaction = signal.userReaction == type ? nil : type
+        let isTogglingOff = signal.userReaction == type
+        let nextUserReaction: ShyftReaction? = isTogglingOff ? nil : type
         let nextSignal = signal.withReaction(
             reactionSummary: updatedReactionSummary(from: signal, nextUserReaction: nextUserReaction),
             userReaction: nextUserReaction
@@ -265,7 +256,7 @@ struct GroupedSignalCardView: View {
         isMutatingReaction = true
         postEngagementChange(nextSignal)
         do {
-            if signal.userReaction == type {
+            if isTogglingOff {
                 try await APIClient.shared.clearReaction(signalId: signal.id)
             } else {
                 try await APIClient.shared.setReaction(signalId: signal.id, type: type)
@@ -276,18 +267,18 @@ struct GroupedSignalCardView: View {
         isMutatingReaction = false
     }
 
-    private func updatedReactionSummary(from signal: Signal, nextUserReaction: String?) -> ReactionSummary {
+    private func updatedReactionSummary(from signal: Signal, nextUserReaction: ShyftReaction?) -> ReactionSummary {
         let current = signal.reactionSummary
-        func adjusted(_ label: String, _ value: Int) -> Int {
+        func adjusted(_ reaction: ShyftReaction, _ value: Int) -> Int {
             var next = value
-            if signal.userReaction == label { next -= 1 }
-            if nextUserReaction == label { next += 1 }
+            if signal.userReaction == reaction { next -= 1 }
+            if nextUserReaction == reaction { next += 1 }
             return max(0, next)
         }
         return ReactionSummary(
-            strong: adjusted("strong", current.strong),
-            agree: adjusted("agree", current.agree),
-            risky: adjusted("risky", current.risky)
+            shyftUp: adjusted(.shyftUp, current.shyftUp),
+            shyftDown: adjusted(.shyftDown, current.shyftDown),
+            shyftEye: adjusted(.shyftEye, current.shyftEye)
         )
     }
 
@@ -298,7 +289,7 @@ struct GroupedSignalCardView: View {
             userInfo: [
                 "signalId": signal.id,
                 "reactionSummary": signal.reactionSummary,
-                "userReaction": signal.userReaction ?? NSNull(),
+                "userReaction": signal.userReaction?.rawValue ?? NSNull(),
                 "commentCount": signal.commentCount,
             ]
         )

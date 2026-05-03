@@ -8,12 +8,14 @@ import type {
   Player,
   ProfilePreferences,
   ReactionType,
+  ShyftReaction,
   Signal,
   SignalFilters,
   Team,
   UserProfile,
   ReactionEntry,
 } from '../types';
+import { SHYFT_REACTION_ORDER } from '../types';
 
 interface SignalStore {
   filters: SignalFilters;
@@ -30,6 +32,7 @@ interface SignalStore {
   feedContext: FeedContext | null;
   profile: UserProfile | null;
   signalMetaById: Record<number, Pick<Signal, 'comment_count' | 'reaction_summary' | 'user_reaction' | 'reactions' | 'user_reactions'>>;
+
   setFilters: (filters: SignalFilters) => void;
   fetchSignals: () => Promise<void>;
   loadMore: () => Promise<void>;
@@ -48,53 +51,58 @@ interface SignalStore {
 }
 
 function normalizeReactions(signal: Signal): ReactionEntry[] {
+  const userSet = new Set<ShyftReaction>(signal.user_reactions ?? (signal.user_reaction ? [signal.user_reaction] : []));
+
   if (signal.reactions && signal.reactions.length > 0) {
-    return signal.reactions.map((item) => ({
-      emoji: item.emoji,
-      count: item.count,
-      reactedByCurrentUser:
-        item.reactedByCurrentUser ??
-        (item as unknown as { reacted_by_current_user?: boolean }).reacted_by_current_user ??
-        false,
-    }));
+    const byType = new Map(signal.reactions.map((r) => [r.type, r]));
+    return SHYFT_REACTION_ORDER.map((type) => {
+      const entry = byType.get(type);
+      return {
+        type,
+        count: entry?.count ?? 0,
+        reactedByCurrentUser: entry?.reactedByCurrentUser ?? userSet.has(type),
+      };
+    });
   }
-  const userSet = new Set<string>(signal.user_reactions ?? []);
-  const legacyMap: Array<[string, number]> = [
-    ['👍', signal.reaction_summary.agree ?? 0],
-    ['🔥', signal.reaction_summary.strong ?? 0],
-    ['👎', signal.reaction_summary.risky ?? 0],
-  ];
-  return legacyMap
-    .filter(([, count]) => count > 0)
-    .map(([emoji, count]) => ({ emoji, count, reactedByCurrentUser: userSet.has(emoji) }));
+
+  return SHYFT_REACTION_ORDER.map((type) => {
+    const summaryKey = type === 'SHYFT_UP' ? 'shyft_up' : type === 'SHYFT_DOWN' ? 'shyft_down' : 'shyft_eye';
+    return {
+      type,
+      count: signal.reaction_summary[summaryKey] ?? 0,
+      reactedByCurrentUser: userSet.has(type),
+    };
+  });
 }
 
-function applyReactionChange(signal: Signal, emoji: ReactionType) {
+function applyReactionChange(signal: Signal, reactionType: ReactionType) {
   const reactions = normalizeReactions(signal);
-  const existing = reactions.find((item) => item.emoji === emoji);
-  const nextReactions = reactions
-    .map((item) => {
-      if (item.emoji !== emoji) return item;
-      if (item.reactedByCurrentUser) {
-        return { ...item, count: Math.max(0, item.count - 1), reactedByCurrentUser: false };
-      }
-      return { ...item, count: item.count + 1, reactedByCurrentUser: true };
-    })
-    .filter((item) => item.count > 0);
-  if (!existing) {
-    nextReactions.push({ emoji, count: 1, reactedByCurrentUser: true });
-  }
+  const isTogglingOff = reactions.find((r) => r.type === reactionType)?.reactedByCurrentUser ?? false;
 
-  const isLegacyEmoji = emoji === '👍' || emoji === '🔥' || emoji === '👎';
+  const nextReactions: ReactionEntry[] = SHYFT_REACTION_ORDER.map((type) => {
+    const current = reactions.find((r) => r.type === type) ?? { type, count: 0, reactedByCurrentUser: false };
+    if (type === reactionType) {
+      return isTogglingOff
+        ? { ...current, count: Math.max(0, current.count - 1), reactedByCurrentUser: false }
+        : { ...current, count: current.count + 1, reactedByCurrentUser: true };
+    }
+    // Switching from another reaction: remove it
+    if (current.reactedByCurrentUser) {
+      return { ...current, count: Math.max(0, current.count - 1), reactedByCurrentUser: false };
+    }
+    return current;
+  });
+
+  const nextUserReaction = isTogglingOff ? null : reactionType;
   return {
     ...signal,
     reactions: nextReactions,
-    user_reactions: nextReactions.filter((item) => item.reactedByCurrentUser).map((item) => item.emoji),
-    user_reaction: isLegacyEmoji ? emoji : signal.user_reaction,
+    user_reactions: nextUserReaction ? [nextUserReaction] : [],
+    user_reaction: nextUserReaction,
     reaction_summary: {
-      agree: nextReactions.find((item) => item.emoji === '👍')?.count ?? 0,
-      strong: nextReactions.find((item) => item.emoji === '🔥')?.count ?? 0,
-      risky: nextReactions.find((item) => item.emoji === '👎')?.count ?? 0,
+      shyft_up: nextReactions.find((r) => r.type === 'SHYFT_UP')?.count ?? 0,
+      shyft_down: nextReactions.find((r) => r.type === 'SHYFT_DOWN')?.count ?? 0,
+      shyft_eye: nextReactions.find((r) => r.type === 'SHYFT_EYE')?.count ?? 0,
     },
   };
 }
@@ -125,7 +133,7 @@ function extractSignalMeta(signal: Signal): Pick<Signal, 'comment_count' | 'reac
     reaction_summary: signal.reaction_summary,
     user_reaction: signal.user_reaction ?? null,
     reactions,
-    user_reactions: reactions.filter((item) => item.reactedByCurrentUser).map((item) => item.emoji),
+    user_reactions: reactions.filter((item) => item.reactedByCurrentUser).map((item) => item.type),
   };
 }
 
@@ -270,10 +278,10 @@ export const useSignalStore = create<SignalStore>((set, get) => ({
       },
     });
 
-    const wasReacted = normalizeReactions(sourceSignal).some((item) => item.emoji === reactionType && item.reactedByCurrentUser);
+    const wasReacted = normalizeReactions(sourceSignal).some((item) => item.type === reactionType && item.reactedByCurrentUser);
     try {
       if (wasReacted) {
-        await api.clearSignalReaction(signalId, reactionType);
+        await api.clearSignalReaction(signalId);
       } else {
         await api.setSignalReaction(signalId, reactionType);
       }
@@ -301,7 +309,7 @@ export const useSignalStore = create<SignalStore>((set, get) => ({
       const existing = prevMeta[signalId];
       nextMeta[signalId] = {
         comment_count: count,
-        reaction_summary: existing?.reaction_summary ?? { agree: 0, strong: 0, risky: 0 },
+        reaction_summary: existing?.reaction_summary ?? { shyft_up: 0, shyft_down: 0, shyft_eye: 0 },
         user_reaction: existing?.user_reaction ?? null,
         reactions: existing?.reactions ?? [],
         user_reactions: existing?.user_reactions ?? [],

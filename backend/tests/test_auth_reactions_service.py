@@ -16,8 +16,6 @@ from app.services.auth_service import (
 )
 from app.services.profile_service import get_profile, remove_follow, set_follow
 from app.services.reaction_service import (
-    MAX_REACTIONS_PER_USER_PER_SIGNAL,
-    ReactionLimitError,
     remove_signal_reaction,
     set_signal_reaction,
 )
@@ -77,11 +75,14 @@ class AuthReactionServiceTests(unittest.TestCase):
         self.assertEqual(first_page.next_cursor, first_page.items[0].id)
 
         signal = first_page.items[0]
-        self.assertEqual(signal.reaction_summary.model_dump(mode="json"), {"strong": 0, "agree": 0, "risky": 0})
+        self.assertEqual(
+            signal.reaction_summary.model_dump(mode="json"),
+            {"shyft_up": 0, "shyft_down": 0, "shyft_eye": 0},
+        )
         self.assertIsNone(signal.user_reaction)
 
-        set_signal_reaction(self.session, signal_id=signal.id, user_id=user.id, reaction_type="agree")
-        agreed_page = list_signals(
+        set_signal_reaction(self.session, signal_id=signal.id, user_id=user.id, reaction_type="SHYFT_UP")
+        up_page = list_signals(
             db=self.session,
             league=None,
             team=None,
@@ -90,13 +91,13 @@ class AuthReactionServiceTests(unittest.TestCase):
             limit=1,
             current_user_id=user.id,
         )
-        self.assertEqual(len(agreed_page.items), 1)
-        agreed = agreed_page.items[0]
-        self.assertEqual(agreed.reaction_summary.agree, 1)
-        self.assertEqual(agreed.user_reaction, "agree")
+        self.assertEqual(len(up_page.items), 1)
+        upped = up_page.items[0]
+        self.assertEqual(upped.reaction_summary.shyft_up, 1)
+        self.assertEqual(upped.user_reaction, "SHYFT_UP")
 
-        set_signal_reaction(self.session, signal_id=signal.id, user_id=user.id, reaction_type="risky")
-        risky_page = list_signals(
+        set_signal_reaction(self.session, signal_id=signal.id, user_id=user.id, reaction_type="SHYFT_DOWN")
+        down_page = list_signals(
             db=self.session,
             league=None,
             team=None,
@@ -105,11 +106,11 @@ class AuthReactionServiceTests(unittest.TestCase):
             limit=1,
             current_user_id=user.id,
         )
-        self.assertEqual(len(risky_page.items), 1)
-        risky = risky_page.items[0]
-        self.assertEqual(risky.reaction_summary.agree, 0)
-        self.assertEqual(risky.reaction_summary.risky, 1)
-        self.assertEqual(risky.user_reaction, "risky")
+        self.assertEqual(len(down_page.items), 1)
+        downed = down_page.items[0]
+        self.assertEqual(downed.reaction_summary.shyft_up, 0)
+        self.assertEqual(downed.reaction_summary.shyft_down, 1)
+        self.assertEqual(downed.user_reaction, "SHYFT_DOWN")
 
         remove_signal_reaction(self.session, signal_id=signal.id, user_id=user.id)
         cleared_page = list_signals(
@@ -123,14 +124,17 @@ class AuthReactionServiceTests(unittest.TestCase):
         )
         self.assertEqual(len(cleared_page.items), 1)
         cleared = cleared_page.items[0]
-        self.assertEqual(cleared.reaction_summary.model_dump(mode="json"), {"strong": 0, "agree": 0, "risky": 0})
+        self.assertEqual(
+            cleared.reaction_summary.model_dump(mode="json"),
+            {"shyft_up": 0, "shyft_down": 0, "shyft_eye": 0},
+        )
         self.assertIsNone(cleared.user_reaction)
 
         revoke_session(self.session, session_token)
         self.assertIsNone(get_user_by_session_token(self.session, session_token))
 
-    def test_reaction_limit_is_enforced_per_user_signal(self) -> None:
-        user = create_user(self.session, email="limit@example.com", password="password123")
+    def test_reaction_switches_replace_previous(self) -> None:
+        user = create_user(self.session, email="switch@example.com", password="password123")
         signal = list_signals(
             db=self.session,
             league=None,
@@ -141,14 +145,21 @@ class AuthReactionServiceTests(unittest.TestCase):
             current_user_id=user.id,
         ).items[0]
 
-        for index in range(MAX_REACTIONS_PER_USER_PER_SIGNAL):
-            set_signal_reaction(self.session, signal_id=signal.id, user_id=user.id, emoji=f"e{index}")
+        set_signal_reaction(self.session, signal_id=signal.id, user_id=user.id, reaction_type="SHYFT_UP")
+        set_signal_reaction(self.session, signal_id=signal.id, user_id=user.id, reaction_type="SHYFT_EYE")
 
-        with self.assertRaises(ReactionLimitError):
-            set_signal_reaction(self.session, signal_id=signal.id, user_id=user.id, emoji="one-too-many")
-
-        remove_signal_reaction(self.session, signal_id=signal.id, user_id=user.id, emoji="e0")
-        set_signal_reaction(self.session, signal_id=signal.id, user_id=user.id, emoji="replacement")
+        result = list_signals(
+            db=self.session,
+            league=None,
+            team=None,
+            player=None,
+            signal_type=None,
+            limit=1,
+            current_user_id=user.id,
+        ).items[0]
+        self.assertEqual(result.reaction_summary.shyft_up, 0)
+        self.assertEqual(result.reaction_summary.shyft_eye, 1)
+        self.assertEqual(result.user_reaction, "SHYFT_EYE")
 
     def test_follow_round_trip_updates_profile_and_following_feed(self) -> None:
         user = create_user(self.session, email="follower@example.com", password="password123")

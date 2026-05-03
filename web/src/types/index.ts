@@ -1,17 +1,20 @@
 export type SignalSeverity = 'SHIFT' | 'SWING' | 'OUTLIER';
 export type SignalType = SignalSeverity;
-export type ReactionType = string;
+export type ShyftReaction = 'SHYFT_UP' | 'SHYFT_DOWN' | 'SHYFT_EYE';
+export type ReactionType = ShyftReaction;
 export type SortMode = 'newest' | 'most_important' | 'biggest_deviation' | 'most_discussed';
 export type FeedMode = 'all' | 'following' | 'for_you';
 
+export const SHYFT_REACTION_ORDER: ShyftReaction[] = ['SHYFT_UP', 'SHYFT_DOWN', 'SHYFT_EYE'];
+
 export interface ReactionSummary {
-  strong: number;
-  agree: number;
-  risky: number;
+  shyft_up: number;
+  shyft_down: number;
+  shyft_eye: number;
 }
 
 export interface ReactionEntry {
-  emoji: string;
+  type: ShyftReaction;
   count: number;
   reactedByCurrentUser: boolean;
 }
@@ -77,9 +80,9 @@ export interface Signal {
   narrative_summary?: string;
   streak: number;
   reaction_summary: ReactionSummary;
-  user_reaction: ReactionType | null;
+  user_reaction: ShyftReaction | null;
   reactions?: ReactionEntry[];
-  user_reactions?: string[];
+  user_reactions?: ShyftReaction[];
   comment_count: number;
   created_at: string;
 }

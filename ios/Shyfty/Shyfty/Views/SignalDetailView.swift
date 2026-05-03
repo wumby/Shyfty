@@ -29,16 +29,17 @@ final class SignalDetailViewModel: ObservableObject {
         isLoading = false
     }
 
-    func react(type: String) async {
+    func react(type: ShyftReaction) async {
         guard let signal = trace?.signal else { return }
         let previousTrace = trace
-        let nextUserReaction = signal.userReaction == type ? nil : type
+        let isTogglingOff = signal.userReaction == type
+        let nextUserReaction: ShyftReaction? = isTogglingOff ? nil : type
         let nextSummary = updatedReactionSummary(from: signal, nextUserReaction: nextUserReaction)
         patchSignal(signal.withReaction(reactionSummary: nextSummary, userReaction: nextUserReaction))
         isMutatingReaction = true
         errorMessage = nil
         do {
-            if signal.userReaction == type {
+            if isTogglingOff {
                 try await APIClient.shared.clearReaction(signalId: signalId)
             } else {
                 try await APIClient.shared.setReaction(signalId: signalId, type: type)
@@ -68,18 +69,18 @@ final class SignalDetailViewModel: ObservableObject {
         isPostingComment = false
     }
 
-    private func updatedReactionSummary(from signal: Signal, nextUserReaction: String?) -> ReactionSummary {
+    private func updatedReactionSummary(from signal: Signal, nextUserReaction: ShyftReaction?) -> ReactionSummary {
         let current = signal.reactionSummary
-        func adjusted(_ label: String, _ value: Int) -> Int {
+        func adjusted(_ reaction: ShyftReaction, _ value: Int) -> Int {
             var next = value
-            if signal.userReaction == label { next -= 1 }
-            if nextUserReaction == label { next += 1 }
+            if signal.userReaction == reaction { next -= 1 }
+            if nextUserReaction == reaction { next += 1 }
             return max(0, next)
         }
         return ReactionSummary(
-            strong: adjusted("strong", current.strong),
-            agree: adjusted("agree", current.agree),
-            risky: adjusted("risky", current.risky)
+            shyftUp: adjusted(.shyftUp, current.shyftUp),
+            shyftDown: adjusted(.shyftDown, current.shyftDown),
+            shyftEye: adjusted(.shyftEye, current.shyftEye)
         )
     }
 
@@ -99,7 +100,7 @@ final class SignalDetailViewModel: ObservableObject {
             userInfo: [
                 "signalId": signal.id,
                 "reactionSummary": signal.reactionSummary,
-                "userReaction": signal.userReaction ?? NSNull(),
+                "userReaction": signal.userReaction?.rawValue ?? NSNull(),
                 "commentCount": signal.commentCount,
             ]
         )
@@ -277,29 +278,32 @@ struct SignalDetailView: View {
 
     @ViewBuilder
     private func reactionSection(signal: Signal) -> some View {
-        let hasUserReaction = signal.userReaction != nil
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Reactions")
-                .shyftyEyebrow()
-
-            HStack(spacing: 10) {
-                reactionPill(label: "Strong", count: signal.reactionSummary.strong, active: signal.userReaction == "strong", disabled: hasUserReaction && signal.userReaction != "strong", color: ShyftyTheme.success) {
-                    Task { await viewModel.react(type: "strong") }
+        HStack(spacing: 20) {
+            ForEach(ShyftReaction.allCases, id: \.self) { reaction in
+                let count = signal.reactionSummary.count(for: reaction)
+                let isActive = signal.userReaction == reaction
+                Button {
+                    Task { await viewModel.react(type: reaction) }
+                } label: {
+                    HStack(spacing: 5) {
+                        ShyftReactionIcon(reaction: reaction, size: 16)
+                        if count > 0 {
+                            Text("\(count)")
+                                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        }
+                    }
+                    .foregroundStyle(isActive ? Color(red: 1, green: 0.847, blue: 0.741) : ShyftyTheme.muted.opacity(0.4))
+                    .scaleEffect(isActive ? 1.1 : 1.0)
+                    .shadow(color: isActive ? Color(red: 1, green: 0.847, blue: 0.741).opacity(0.5) : .clear, radius: 4)
+                    .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isActive)
                 }
-                reactionPill(label: "Agree", count: signal.reactionSummary.agree, active: signal.userReaction == "agree", disabled: hasUserReaction && signal.userReaction != "agree", color: ShyftyTheme.accent) {
-                    Task { await viewModel.react(type: "agree") }
-                }
-                reactionPill(label: "Risky", count: signal.reactionSummary.risky, active: signal.userReaction == "risky", disabled: hasUserReaction && signal.userReaction != "risky", color: ShyftyTheme.warning) {
-                    Task { await viewModel.react(type: "risky") }
-                }
+                .disabled(viewModel.isMutatingReaction)
+                .buttonStyle(.plain)
             }
-            Text(signal.userReaction == nil ? "Choose one reaction" : "Tap your reaction to remove it")
-                .font(.system(size: 10, weight: .semibold))
-                .tracking(1.2)
-                .textCase(.uppercase)
-                .foregroundStyle(ShyftyTheme.muted.opacity(0.75))
+            Spacer()
         }
-        .padding(18)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
         .shyftyPanel()
     }
 
@@ -352,30 +356,6 @@ struct SignalDetailView: View {
         }
         .padding(18)
         .shyftyPanel()
-    }
-
-    private func reactionPill(label: String, count: Int, active: Bool, disabled: Bool, color: Color, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                Text(label)
-                    .font(.system(size: 11, weight: .semibold))
-                    .tracking(1.4)
-                    .textCase(.uppercase)
-                if count > 0 {
-                    Text("\(count)")
-                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                }
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 9)
-            .foregroundStyle(active ? color : ShyftyTheme.muted)
-            .background(active ? color.opacity(0.12) : Color.white.opacity(0.03))
-            .overlay(Capsule().strokeBorder(active ? color.opacity(0.3) : ShyftyTheme.border, lineWidth: 1))
-            .clipShape(Capsule())
-            .opacity(disabled ? 0.42 : 1)
-        }
-        .disabled(viewModel.isMutatingReaction || disabled)
-        .buttonStyle(.plain)
     }
 
     private func metricCell(label: String, value: String, color: Color) -> some View {

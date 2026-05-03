@@ -12,7 +12,7 @@ from app.models.signal import Signal
 from app.models.team import Team
 from app.models.user_follow import UserFollow
 from app.schemas.player import GameLogRow, MetricSeriesPoint, PlayerBoxScore, PlayerDetail, PlayerRead, SeasonAveragesRow
-from app.services.signal_service import build_signal_read
+from app.services.signal_service import _comment_count_subquery, build_signal_read
 
 
 def list_players(db: Session, current_user_id: Optional[int] = None) -> list[PlayerRead]:
@@ -142,8 +142,12 @@ def get_player_box_scores(db: Session, player_id: int, limit: int = 5) -> list[P
 
 
 def get_player_signals(db: Session, player_id: int):
+    comment_count_subq = _comment_count_subquery()
     rows = db.execute(
-        select(Signal, Player.name, Team.name, League.name, Game.game_date, RollingMetric)
+        select(
+            Signal, Player.name, Team.name, League.name, Game.game_date, RollingMetric,
+            func.coalesce(comment_count_subq.c.comment_count, 0).label("comment_count"),
+        )
         .join(Player, Signal.player_id == Player.id)
         .join(Team, Signal.team_id == Team.id)
         .join(League, Signal.league_id == League.id)
@@ -156,12 +160,14 @@ def get_player_signals(db: Session, player_id: int):
                 RollingMetric.metric_name == Signal.metric_name,
             ),
         )
+        .outerjoin(comment_count_subq, comment_count_subq.c.signal_id == Signal.id)
         .where(Player.id == player_id)
         .order_by(Signal.created_at.desc())
     ).all()
     return [
-        build_signal_read(signal, player_name, team_name, league_name, event_date, rolling_metric)
-        for signal, player_name, team_name, league_name, event_date, rolling_metric in rows
+        build_signal_read(signal, player_name, team_name, league_name, event_date, rolling_metric,
+                          comment_count=comment_count)
+        for signal, player_name, team_name, league_name, event_date, rolling_metric, comment_count in rows
     ]
 
 

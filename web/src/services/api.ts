@@ -159,31 +159,14 @@ export const api = {
   signOut() {
     return request<void>('/auth/signout', { method: 'POST' });
   },
-  async setSignalReaction(signalId: number, emoji: ReactionType) {
-    try {
-      return await request(`/signals/${signalId}/reactions`, {
-        method: 'POST',
-        body: JSON.stringify({ emoji }),
-      });
-    } catch {
-      const legacyMap: Record<string, string> = { '👍': 'agree', '🔥': 'strong', '👎': 'risky' };
-      const legacyType = legacyMap[emoji];
-      if (!legacyType) throw new Error('This server only supports legacy reactions.');
-      return request(`/signals/${signalId}/reaction`, {
-        method: 'PUT',
-        body: JSON.stringify({ type: legacyType }),
-      });
-    }
+  setSignalReaction(signalId: number, type: ReactionType) {
+    return request(`/signals/${signalId}/reaction`, {
+      method: 'PUT',
+      body: JSON.stringify({ type }),
+    });
   },
-  async clearSignalReaction(signalId: number, emoji: ReactionType) {
-    try {
-      return await request<void>(`/signals/${signalId}/reactions/${encodeURIComponent(emoji)}`, { method: 'DELETE' });
-    } catch {
-      const legacyMap: Record<string, string> = { '👍': 'agree', '🔥': 'strong', '👎': 'risky' };
-      const legacyType = legacyMap[emoji];
-      if (!legacyType) throw new Error('This server only supports legacy reactions.');
-      return request<void>(`/signals/${signalId}/reaction`, { method: 'DELETE' });
-    }
+  clearSignalReaction(signalId: number) {
+    return request<void>(`/signals/${signalId}/reaction`, { method: 'DELETE' });
   },
   getTrendingSignals(limit = 12) {
     return request<Signal[]>(`/signals/trending?limit=${limit}`);

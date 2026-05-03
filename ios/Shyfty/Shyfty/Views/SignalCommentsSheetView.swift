@@ -197,7 +197,7 @@ struct SignalCommentsSheetView: View {
             userInfo: [
                 "signalId": patched.id,
                 "reactionSummary": patched.reactionSummary,
-                "userReaction": patched.userReaction ?? NSNull(),
+                "userReaction": patched.userReaction?.rawValue ?? NSNull(),
                 "commentCount": patched.commentCount,
             ]
         )

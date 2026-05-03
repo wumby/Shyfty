@@ -13,7 +13,7 @@ from app.models.team_game_stat import TeamGameStat
 from app.models.user_follow import UserFollow
 from app.schemas.player import PlayerRead
 from app.schemas.team import TeamBoxScore, TeamDetail, TeamRead
-from app.services.signal_service import EMOJI_TO_LEGACY_REACTION, build_signal_read
+from app.services.signal_service import _comment_count_subquery, build_signal_read
 from app.services.reaction_service import get_reaction_summaries, get_user_reactions
 
 
@@ -93,8 +93,13 @@ def get_team_detail(
         for pid, pname, position, tname, lname in player_rows
     ]
 
+    comment_count_subq = _comment_count_subquery()
     signal_rows = db.execute(
-        select(Signal, Player.name, Team.name, League.name, Game.game_date, RollingMetric, TeamGameStat.opponent_name, TeamGameStat.home_away)
+        select(
+            Signal, Player.name, Team.name, League.name, Game.game_date, RollingMetric,
+            TeamGameStat.opponent_name, TeamGameStat.home_away,
+            func.coalesce(comment_count_subq.c.comment_count, 0).label("comment_count"),
+        )
         .outerjoin(Player, Signal.player_id == Player.id)
         .join(Team, Signal.team_id == Team.id)
         .join(League, Signal.league_id == League.id)
@@ -108,6 +113,7 @@ def get_team_detail(
             ),
         )
         .outerjoin(TeamGameStat, TeamGameStat.id == Signal.source_team_stat_id)
+        .outerjoin(comment_count_subq, comment_count_subq.c.signal_id == Signal.id)
         .where(Signal.team_id == team_id)
         .order_by(Signal.created_at.desc())
         .limit(20)
@@ -118,19 +124,16 @@ def get_team_detail(
     user_reactions = get_user_reactions(db, user_id=current_user_id, signal_ids=signal_ids)
 
     recent_signals = [
-        # Keep legacy user_reaction compatible while also returning user_reactions.
         build_signal_read(
             sig, pname, tname, lname, event_date, rolling_metric,
             reactions=reaction_summaries.get(sig.id),
             user_reactions=sorted(user_reactions.get(sig.id, set())),
-            user_reaction=EMOJI_TO_LEGACY_REACTION.get(
-                next(iter(user_reactions.get(sig.id, set())), ""),
-                next(iter(user_reactions.get(sig.id, set())), None),
-            ),
+            user_reaction=next(iter(user_reactions.get(sig.id, set())), None),
             opponent=opponent_name,
             home_away=home_away,
+            comment_count=comment_count,
         )
-        for sig, pname, tname, lname, event_date, rolling_metric, opponent_name, home_away in signal_rows
+        for sig, pname, tname, lname, event_date, rolling_metric, opponent_name, home_away, comment_count in signal_rows
     ]
 
     return TeamDetail(

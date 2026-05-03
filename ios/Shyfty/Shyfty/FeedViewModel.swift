@@ -144,7 +144,7 @@ final class FeedViewModel: ObservableObject {
         guard let signalId = notification.userInfo?["signalId"] as? Int else { return }
         let reactionSummary = notification.userInfo?["reactionSummary"] as? ReactionSummary
         let rawUserReaction = notification.userInfo?["userReaction"]
-        let userReaction = rawUserReaction is NSNull ? nil : rawUserReaction as? String
+        let userReaction: ShyftReaction? = (rawUserReaction is NSNull) ? nil : (rawUserReaction as? String).flatMap(ShyftReaction.init(rawValue:))
         let commentCount = notification.userInfo?["commentCount"] as? Int
         let sourceSignal = signals.first { $0.id == signalId }
 
@@ -173,7 +173,7 @@ final class FeedViewModel: ObservableObject {
         }
     }
 
-    private func patchSignal(_ signal: Signal, id: Int, sourceSignal: Signal?, reactionSummary: ReactionSummary?, userReaction: String?, commentCount: Int?) -> Signal {
+    private func patchSignal(_ signal: Signal, id: Int, sourceSignal: Signal?, reactionSummary: ReactionSummary?, userReaction: ShyftReaction?, commentCount: Int?) -> Signal {
         let isExactSignal = signal.id == id
         let isSameCommentGroup = sourceSignal.map { signal.isInSameDisplayGroup(as: $0) } ?? isExactSignal
         guard isExactSignal || (commentCount != nil && isSameCommentGroup) else { return signal }

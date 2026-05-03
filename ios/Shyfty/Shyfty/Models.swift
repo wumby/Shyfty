@@ -136,10 +136,32 @@ struct CascadeSignal: Identifiable, Decodable, Hashable {
     }
 }
 
+enum ShyftReaction: String, Codable, Hashable, CaseIterable {
+    case shyftUp = "SHYFT_UP"
+    case shyftDown = "SHYFT_DOWN"
+    case shyftEye = "SHYFT_EYE"
+}
+
 struct ReactionSummary: Decodable, Hashable {
-    let strong: Int
-    let agree: Int
-    let risky: Int
+    let shyftUp: Int
+    let shyftDown: Int
+    let shyftEye: Int
+
+    enum CodingKeys: String, CodingKey {
+        case shyftUp = "shyft_up"
+        case shyftDown = "shyft_down"
+        case shyftEye = "shyft_eye"
+    }
+
+    func count(for reaction: ShyftReaction) -> Int {
+        switch reaction {
+        case .shyftUp: return shyftUp
+        case .shyftDown: return shyftDown
+        case .shyftEye: return shyftEye
+        }
+    }
+
+    var total: Int { shyftUp + shyftDown + shyftEye }
 }
 
 struct Signal: Identifiable, Decodable, Hashable {
@@ -181,7 +203,7 @@ struct Signal: Identifiable, Decodable, Hashable {
     let summaryTemplate: String
     let summaryTemplateInputs: SummaryTemplateInputs
     var reactionSummary: ReactionSummary
-    var userReaction: String?
+    var userReaction: ShyftReaction?
     var commentCount: Int
     let opponent: String?
     let homeAway: String?
@@ -239,7 +261,7 @@ extension Signal {
         return playerID == nil && other.playerID == nil && teamID == other.teamID
     }
 
-    func withReaction(reactionSummary: ReactionSummary, userReaction: String?) -> Signal {
+    func withReaction(reactionSummary: ReactionSummary, userReaction: ShyftReaction?) -> Signal {
         var signal = self
         signal.reactionSummary = reactionSummary
         signal.userReaction = userReaction

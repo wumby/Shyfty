@@ -35,7 +35,7 @@ from app.models.signal_reaction import SignalReaction
 from app.models.team import Team
 from app.models.team_game_stat import TeamGameStat
 from app.models.user_follow import UserFollow
-from app.schemas.reaction import ReactionAggregateRead, ReactionSummaryRead
+from app.schemas.reaction import ReactionAggregateRead, ReactionSummaryRead, ShyftReaction
 from app.schemas.signal import (
     CascadeContributorRead,
     CascadePlayerRead,
@@ -74,8 +74,6 @@ CASCADE_ALLOWED_CONTRIBUTOR_STATS = {
 CASCADE_MIN_TRIGGER_DROP_PCT = -50.0
 CASCADE_MAX_CONTRIBUTORS = 5
 CASCADE_MIN_CONTRIBUTOR_SCORE = 5.0
-
-EMOJI_TO_LEGACY_REACTION = {"👍": "agree", "🔥": "strong", "👎": "risky"}
 
 
 def _deviation_expr():
@@ -177,9 +175,9 @@ def build_signal_read(
     )
     reaction_entries = reactions or []
     reaction_summary_value = reaction_summary or ReactionSummaryRead(
-        agree=sum(item.count for item in reaction_entries if item.emoji == "👍"),
-        strong=sum(item.count for item in reaction_entries if item.emoji == "🔥"),
-        risky=sum(item.count for item in reaction_entries if item.emoji == "👎"),
+        shyft_up=sum(item.count for item in reaction_entries if item.type == ShyftReaction.SHYFT_UP),
+        shyft_down=sum(item.count for item in reaction_entries if item.type == ShyftReaction.SHYFT_DOWN),
+        shyft_eye=sum(item.count for item in reaction_entries if item.type == ShyftReaction.SHYFT_EYE),
     )
     user_reactions_value = user_reactions or ([user_reaction] if user_reaction else [])
 
@@ -483,10 +481,7 @@ def _build_signal_items(rows, db: Session, current_user_id: Optional[int]) -> li
                 rolling_metric,
                 reactions=reaction_summaries.get(signal.id),
                 user_reactions=current_user_reactions,
-                user_reaction=EMOJI_TO_LEGACY_REACTION.get(
-                    next(iter(user_reactions.get(signal.id, set())), ""),
-                    next(iter(user_reactions.get(signal.id, set())), None),
-                ),
+                user_reaction=next(iter(user_reactions.get(signal.id, set())), None),
                 comment_count=comment_count,
                 opponent=opponent,
                 home_away=home_away,

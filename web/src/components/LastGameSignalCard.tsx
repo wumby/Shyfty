@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 
-import type { ReactionEntry, ReactionType, Signal } from '../types';
+import type { ReactionEntry, ShyftReaction, Signal } from '../types';
+import { SHYFT_REACTION_ORDER } from '../types';
 import { formatDelta, formatEventDate, getMetricLabel, getSignalDirection } from '../lib/signalFormat';
 import { useAuthStore } from '../store/useAuthStore';
 import { useSignalStore } from '../store/useSignalStore';
@@ -25,13 +26,13 @@ function getSignalSeverity(signal: Signal): Signal['severity'] {
 function getSeverityTone(severity: Signal['severity']): string {
   if (severity === 'OUTLIER') return 'border-red-400/35 bg-red-400/10 text-red-200';
   if (severity === 'SWING') return 'border-amber-300/35 bg-amber-400/10 text-amber-200';
-  return 'border-white/10 bg-white/[0.04] text-white/50'; // SHIFT - gray
+  return 'border-white/10 bg-white/[0.04] text-white/50';
 }
 
 function getSeverityRail(severity: Signal['severity']): string {
   if (severity === 'OUTLIER') return 'bg-red-400/80';
   if (severity === 'SWING') return 'bg-amber-400/80';
-  return 'bg-white/25'; // SHIFT - gray
+  return 'bg-white/25';
 }
 
 function formatStatValue(signal: Signal, value: number): string {
@@ -68,36 +69,84 @@ function getMatchupLabel(signal: Signal): string | null {
   return `${signal.team_name} ${homeAway} ${opponent}`;
 }
 
-const QUICK_EMOJIS = [
-  '👍', '👎', '🔥', '💯', '👏', '🙌', '🙏', '✅',
-  '😂', '🤣', '😅', '😬', '😮', '🤯', '😍', '😭',
-  '😤', '😎', '🤔', '🤝', '🎯', '📈', '📉', '🚀',
-  '🏀', '🏈', '💪', '🧠', '⚡', '🍿', '👀', '❤️',
-  '💥', '🫡', '🫠', '😴', '🥶', '🥵', '🧯', '🛡️',
-  '🐐', '🧱', '🪄', '🎲', '🔒', '🧨', '🪙', '🧩',
-  '⭐', '🌪️', '🛰️', '🕹️', '📊', '📝', '⏱️', '🏆',
-];
+// Custom SVG icons — thin stroke, slightly angled for a dynamic feel.
+function ShyftUpIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M5 17 L12 6 L19 17"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        transform="rotate(-8 12 12)"
+      />
+    </svg>
+  );
+}
+
+function ShyftDownIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M5 7 L12 18 L19 7"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        transform="rotate(8 12 12)"
+      />
+    </svg>
+  );
+}
+
+function ShyftEyeIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M3 12 C6 6.5, 18 6.5, 21 12 C18 17.5, 6 17.5, 3 12 Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        transform="rotate(-6 12 12)"
+      />
+      <circle cx="12" cy="12" r="2.2" fill="currentColor" opacity="0.85" />
+    </svg>
+  );
+}
+
+function ReactionIcon({ type, size }: { type: ShyftReaction; size?: number }) {
+  if (type === 'SHYFT_UP') return <ShyftUpIcon size={size} />;
+  if (type === 'SHYFT_DOWN') return <ShyftDownIcon size={size} />;
+  return <ShyftEyeIcon size={size} />;
+}
 
 function normalizeReactionEntries(signal: Signal): ReactionEntry[] {
+  const userSet = new Set<ShyftReaction>(
+    signal.user_reactions ?? (signal.user_reaction ? [signal.user_reaction as ShyftReaction] : [])
+  );
+
   if (signal.reactions && signal.reactions.length > 0) {
-    return signal.reactions
-      .map((item) => ({
-        emoji: item.emoji,
-        count: item.count,
-        reactedByCurrentUser:
-          item.reactedByCurrentUser ??
-          (item as unknown as { reacted_by_current_user?: boolean }).reacted_by_current_user ??
-          false,
-      }))
-      .filter((item) => item.count > 0);
+    const byType = new Map(signal.reactions.map((r) => [r.type, r]));
+    return SHYFT_REACTION_ORDER.map((type) => {
+      const entry = byType.get(type);
+      return {
+        type,
+        count: entry?.count ?? 0,
+        reactedByCurrentUser: entry?.reactedByCurrentUser ?? userSet.has(type),
+      };
+    });
   }
-  const userSet = new Set<string>(signal.user_reactions ?? []);
-  const legacyEntries: ReactionEntry[] = [
-    { emoji: '👍', count: signal.reaction_summary.agree ?? 0, reactedByCurrentUser: userSet.has('👍') },
-    { emoji: '🔥', count: signal.reaction_summary.strong ?? 0, reactedByCurrentUser: userSet.has('🔥') },
-    { emoji: '👎', count: signal.reaction_summary.risky ?? 0, reactedByCurrentUser: userSet.has('👎') },
-  ];
-  return legacyEntries.filter((item) => item.count > 0);
+
+  return SHYFT_REACTION_ORDER.map((type) => {
+    const summaryKey = type === 'SHYFT_UP' ? 'shyft_up' : type === 'SHYFT_DOWN' ? 'shyft_down' : 'shyft_eye';
+    return {
+      type,
+      count: signal.reaction_summary[summaryKey] ?? 0,
+      reactedByCurrentUser: userSet.has(type),
+    };
+  });
 }
 
 export function LastGameSignalCard({ signals, onOpenDetail, onOpenComments }: LastGameSignalCardProps) {
@@ -107,8 +156,6 @@ export function LastGameSignalCard({ signals, onOpenDetail, onOpenComments }: La
   const toggleFollowTeam = useSignalStore((state) => state.toggleFollowTeam);
   const reactToSignal = useSignalStore((state) => state.reactToSignal);
   const profile = useSignalStore((state) => state.profile);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [showAllReactions, setShowAllReactions] = useState(false);
 
   if (!signals[0]) return null;
 
@@ -160,44 +207,24 @@ export function LastGameSignalCard({ signals, onOpenDetail, onOpenComments }: La
   const subjectPath = primarySignal.subject_type === 'team'
     ? `/teams/${primarySignal.team_id}`
     : `/players/${primarySignal.player_id}`;
+
   const reactions = useMemo(
-    () =>
-      normalizeReactionEntries(primarySignal).sort((a, b) => {
-        if (b.count !== a.count) return b.count - a.count;
-        return a.emoji.localeCompare(b.emoji);
-      }),
+    () => normalizeReactionEntries(primarySignal),
     [primarySignal],
   );
-  const userReactions = reactions.filter((item) => item.reactedByCurrentUser);
-  const userReactionCount = userReactions.length;
-  const hasUserReaction = userReactionCount > 0;
-  const topThree = reactions.slice(0, 3);
-  const inlineReactions = [...topThree];
-  for (const reaction of userReactions) {
-    if (!inlineReactions.some((item) => item.emoji === reaction.emoji)) {
-      inlineReactions.push(reaction);
-    }
-  }
-  const inlineReactionKeys = new Set(inlineReactions.map((item) => item.emoji));
-  const overflowReactions = reactions.filter((item) => !inlineReactionKeys.has(item.emoji));
-  const hasAnyReactions = reactions.length > 0;
 
-  async function handleReactionClick(e: React.MouseEvent, reactionType: ReactionType) {
+  const userReaction = reactions.find((r) => r.reactedByCurrentUser)?.type ?? null;
+  const hasAnyCount = reactions.some((r) => r.count > 0);
+
+  async function handleReactionClick(e: React.MouseEvent, type: ShyftReaction) {
     e.stopPropagation();
     if (!currentUser) { openAuth('signin'); return; }
-    const alreadyReacted = reactions.some((item) => item.emoji === reactionType && item.reactedByCurrentUser);
-    if (hasUserReaction && !alreadyReacted) return;
-    await reactToSignal(primarySignal.id, reactionType);
-  }
-
-  function reactionButtonClass(isActive: boolean): string {
-    if (isActive) return 'bg-accentSoft text-[#ffd8bd]';
-    return 'bg-white/[0.02] text-muted/70 hover:text-ink';
+    await reactToSignal(primarySignal.id, type);
   }
 
   return (
     <article
-      className={`panel-surface relative overflow-visible select-none px-5 py-5 transition-all duration-200 hover:bg-white/[0.035] sm:px-6 sm:py-6 ${borderTone} ${showEmojiPicker || showAllReactions ? 'z-[125]' : 'z-0'}`}
+      className={`panel-surface relative overflow-visible select-none px-5 py-5 transition-all duration-200 hover:bg-white/[0.035] sm:px-6 sm:py-6 ${borderTone}`}
     >
       <div className="px-3 pb-2 pt-3">
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
@@ -288,89 +315,36 @@ export function LastGameSignalCard({ signals, onOpenDetail, onOpenComments }: La
           );
         })}
       </div>
-      <div className="mt-2 flex flex-wrap items-center justify-end gap-2 border-t border-white/[0.06] px-3 pb-1 pt-3">
-        {hasAnyReactions ? (
-          <>
-            {inlineReactions.map((reaction) => (
-              <button
-                key={reaction.emoji}
-                type="button"
-                disabled={hasUserReaction && !reaction.reactedByCurrentUser}
-                onClick={(e) => void handleReactionClick(e, reaction.emoji)}
-                className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${hasUserReaction && !reaction.reactedByCurrentUser ? 'cursor-not-allowed opacity-45' : reactionButtonClass(reaction.reactedByCurrentUser)}`}
-                aria-label={`${reaction.reactedByCurrentUser ? 'Remove' : 'React with'} ${reaction.emoji}`}
-              >
-                <span className="inline-flex items-center gap-1.5">
-                  <span>{reaction.emoji}</span>
-                  <span className="tabular-nums">{reaction.count}</span>
-                </span>
-              </button>
-            ))}
-            {overflowReactions.length > 0 ? (
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setShowAllReactions((value) => !value)}
-                  className="rounded-full bg-white/[0.02] px-2.5 py-1 text-[11px] font-semibold text-muted/80 transition hover:text-ink"
-                  aria-label="Show all reactions"
-                >
-                  +{overflowReactions.length}
-                </button>
-                {showAllReactions ? (
-                  <div className="absolute right-0 top-[calc(100%+0.4rem)] z-[130] min-w-[160px] rounded-2xl border border-border bg-[#091422] p-2 shadow-xl">
-                    <div className="max-h-48 space-y-1 overflow-y-auto">
-                      {reactions.map((reaction) => (
-                        <button
-                          key={`all-${reaction.emoji}`}
-                          type="button"
-                          disabled={hasUserReaction && !reaction.reactedByCurrentUser}
-                          onClick={(e) => void handleReactionClick(e, reaction.emoji)}
-                          className={`flex w-full items-center justify-between rounded-xl px-2.5 py-1.5 text-left text-[12px] transition ${hasUserReaction && !reaction.reactedByCurrentUser ? 'cursor-not-allowed text-muted/35' : reaction.reactedByCurrentUser ? 'bg-accentSoft text-[#ffd8bd]' : 'text-muted hover:bg-white/[0.05] hover:text-ink'}`}
-                        >
-                          <span>{reaction.emoji}</span>
-                          <span className="tabular-nums">{reaction.count}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-          </>
-        ) : null}
-        {!hasUserReaction ? (
-          <div className="relative">
+
+      {/* Engagement bar */}
+      <div className="mt-2 flex items-center gap-5 border-t border-white/[0.06] px-3 pb-1.5 pt-3">
+        {reactions.map((reaction) => {
+          const isActive = reaction.type === userReaction;
+          return (
             <button
+              key={reaction.type}
               type="button"
-              onClick={() => setShowEmojiPicker((value) => !value)}
-              className="rounded-full bg-white/[0.02] px-2.5 py-1 text-[11px] font-semibold text-muted/80 transition hover:text-ink"
-              aria-label="Add reaction"
-              title="Add reaction"
+              onClick={(e) => void handleReactionClick(e, reaction.type)}
+              aria-label={isActive ? `Remove ${reaction.type}` : reaction.type}
+              className={`flex items-center gap-2 transition-all duration-150 ${
+                isActive
+                  ? 'text-[#ffd8bd] drop-shadow-[0_0_8px_rgba(255,216,189,0.5)]'
+                  : 'text-white/50 hover:text-white/75'
+              }`}
+              style={{ transform: isActive ? 'scale(1.1)' : 'scale(1)' }}
             >
-              {hasAnyReactions ? '＋' : 'Add Reaction'}
+              <ReactionIcon type={reaction.type} size={18} />
+              {reaction.count > 0 ? (
+                <span className="text-[12px] font-semibold tabular-nums leading-none">
+                  {reaction.count}
+                </span>
+              ) : null}
             </button>
-            {showEmojiPicker ? (
-              <div className="absolute right-0 top-[calc(100%+0.4rem)] z-[130] w-[280px] rounded-2xl border border-border bg-[#091422] p-2 shadow-xl">
-                <div className="grid grid-cols-8 gap-1">
-                  {QUICK_EMOJIS.map((emoji) => (
-                    <button
-                      key={emoji}
-                      type="button"
-                      onClick={(e) => {
-                        void handleReactionClick(e, emoji);
-                        setShowEmojiPicker(false);
-                      }}
-                      className="rounded-lg px-2 py-1.5 text-lg transition hover:bg-white/[0.06]"
-                      aria-label={`Add ${emoji} reaction`}
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
+          );
+        })}
+
+        <div className="mx-0.5 h-4 w-px bg-white/10" />
+
         <button
           type="button"
           onClick={() =>
@@ -381,10 +355,17 @@ export function LastGameSignalCard({ signals, onOpenDetail, onOpenComments }: La
               sorted.map((signal) => signal.id),
             )
           }
-          className="rounded-full bg-white/[0.02] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted/70 transition hover:text-ink"
+          className="flex items-center gap-2 text-white/50 transition hover:text-white/75"
           aria-label="Open comments"
         >
-          <span>{primarySignal.comment_count > 0 ? `💬 ${primarySignal.comment_count}` : 'Comment'}</span>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M2 3.5C2 2.67 2.67 2 3.5 2h9C13.33 2 14 2.67 14 3.5v6C14 10.33 13.33 11 12.5 11H9l-3 3v-3H3.5C2.67 11 2 10.33 2 9.5v-6Z" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          {primarySignal.comment_count > 0 ? (
+            <span className="text-[12px] font-semibold tabular-nums leading-none">
+              {primarySignal.comment_count}
+            </span>
+          ) : null}
         </button>
       </div>
     </article>

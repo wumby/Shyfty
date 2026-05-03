@@ -132,8 +132,8 @@ final class APIClient {
 
     // MARK: - Reactions
 
-    func setReaction(signalId: Int, type: String) async throws {
-        let body = ["type": type]
+    func setReaction(signalId: Int, type: ShyftReaction) async throws {
+        let body = ["type": type.rawValue]
         let _: EmptyResponse = try await put(baseURL.appendingPathComponent("signals/\(signalId)/reaction"), body: body)
     }
 
