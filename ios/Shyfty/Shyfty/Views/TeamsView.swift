@@ -97,34 +97,45 @@ struct TeamsView: View {
     }
 
     private func teamCell(_ team: Team) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            VStack(alignment: .leading, spacing: 3) {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(team.name)
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(ShyftyTheme.ink)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text(team.leagueName)
-                    .font(.system(size: 11, weight: .medium))
+                    .lineLimit(1)
+
+                HStack(spacing: 5) {
+                    Text(team.leagueName)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(ShyftyTheme.muted)
+                        .lineLimit(1)
+                    if let count = team.signalCount, count > 0 {
+                        Text("•")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(Color.white.opacity(0.2))
+                        Text("\(count) signal\(count == 1 ? "" : "s")")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(ShyftyTheme.muted)
+                            .lineLimit(1)
+                    }
+                }
+            }
+            Spacer(minLength: 0)
+            ZStack {
+                Circle()
+                    .fill(Color.white.opacity(0.03))
+                    .overlay(
+                        Circle()
+                            .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+                    )
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(ShyftyTheme.muted)
             }
-            HStack {
-                if let count = team.signalCount, count > 0 {
-                    Text("\(count)")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(ShyftyTheme.accent)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 3)
-                        .background(ShyftyTheme.accentSoft)
-                        .clipShape(Capsule())
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(ShyftyTheme.muted.opacity(0.5))
-            }
+            .frame(width: 26, height: 26)
         }
-        .padding(14)
+        .padding(.horizontal, 13)
+        .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .shyftyPanel(strong: true)
     }

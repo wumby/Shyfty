@@ -6,6 +6,8 @@ struct FeedView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     @State private var showFilterSheet = false
+    @State private var hasLoadedInitially = false
+    @SceneStorage("feed_scroll_position_id") private var scrollPositionID: String?
 
     private let leagues = ["ALL", "NBA", "NFL"]
     private let signalTypes = ["ALL", "SPIKE", "DROP", "SHIFT", "OUTLIER"]
@@ -25,6 +27,9 @@ struct FeedView: View {
                 .navigationDestination(for: Int.self) { playerID in
                     PlayerDetailView(playerID: playerID)
                 }
+                .navigationDestination(for: TeamNavigationTarget.self) { target in
+                    TeamDetailViewIOS(teamID: target.teamID)
+                }
                 .navigationDestination(for: Signal.self) { signal in
                     SignalDetailView(signalId: signal.id, signal: signal)
                 }
@@ -36,6 +41,8 @@ struct FeedView: View {
                 .toolbar { toolbarContent }
                 .toolbarBackground(.hidden, for: .navigationBar)
                 .task {
+                    guard !hasLoadedInitially else { return }
+                    hasLoadedInitially = true
                     await viewModel.loadSignals()
                     await viewModel.loadProfile()
                 }
@@ -47,6 +54,9 @@ struct FeedView: View {
                 }
                 .onChange(of: viewModel.feedMode) { _, _ in
                     Task { await viewModel.loadSignals() }
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .signalEngagementDidChange)) { notification in
+                    viewModel.applySignalEngagementChange(notification)
                 }
                 .sheet(isPresented: $auth.showAuthSheet) {
                     AuthView()
@@ -67,6 +77,7 @@ struct FeedView: View {
                     .padding(.horizontal, 14)
                     .padding(.vertical, 12)
             }
+            .scrollPosition(id: $scrollPositionID, anchor: .top)
         }
     }
 
@@ -203,6 +214,7 @@ struct FeedView: View {
                 LazyVStack(spacing: 12) {
                     ForEach(Array(grouped.enumerated()), id: \.element.id) { index, item in
                         feedDisplayItemView(item)
+                            .id(item.id)
                             .onAppear {
                                 if index == grouped.count - 1 {
                                     Task { await viewModel.loadMore() }
@@ -216,6 +228,7 @@ struct FeedView: View {
                             .padding(.vertical, 12)
                     }
                 }
+                .scrollTargetLayout()
             }
         }
         .padding(12)

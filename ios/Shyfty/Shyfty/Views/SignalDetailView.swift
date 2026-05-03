@@ -5,6 +5,8 @@ final class SignalDetailViewModel: ObservableObject {
     @Published var trace: SignalTrace?
     @Published var comments: [Comment] = []
     @Published var isLoading = false
+    @Published var isMutatingReaction = false
+    @Published var isPostingComment = false
     @Published var errorMessage: String?
     @Published var draftComment = ""
 
@@ -29,28 +31,78 @@ final class SignalDetailViewModel: ObservableObject {
 
     func react(type: String) async {
         guard let signal = trace?.signal else { return }
+        let previousTrace = trace
+        let nextUserReaction = signal.userReaction == type ? nil : type
+        let nextSummary = updatedReactionSummary(from: signal, nextUserReaction: nextUserReaction)
+        patchSignal(signal.withReaction(reactionSummary: nextSummary, userReaction: nextUserReaction))
+        isMutatingReaction = true
+        errorMessage = nil
         do {
             if signal.userReaction == type {
                 try await APIClient.shared.clearReaction(signalId: signalId)
             } else {
                 try await APIClient.shared.setReaction(signalId: signalId, type: type)
             }
-            await load()
         } catch {
+            trace = previousTrace
             errorMessage = error.localizedDescription
         }
+        isMutatingReaction = false
     }
 
     func postComment() async {
         let body = draftComment.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !body.isEmpty else { return }
+        isPostingComment = true
+        errorMessage = nil
         do {
             let comment = try await APIClient.shared.postComment(signalId: signalId, body: body)
             comments.append(comment)
             draftComment = ""
+            if let signal = trace?.signal {
+                patchSignal(signal.withCommentCount(signal.commentCount + 1))
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
+        isPostingComment = false
+    }
+
+    private func updatedReactionSummary(from signal: Signal, nextUserReaction: String?) -> ReactionSummary {
+        let current = signal.reactionSummary
+        func adjusted(_ label: String, _ value: Int) -> Int {
+            var next = value
+            if signal.userReaction == label { next -= 1 }
+            if nextUserReaction == label { next += 1 }
+            return max(0, next)
+        }
+        return ReactionSummary(
+            strong: adjusted("strong", current.strong),
+            agree: adjusted("agree", current.agree),
+            risky: adjusted("risky", current.risky)
+        )
+    }
+
+    private func patchSignal(_ signal: Signal) {
+        guard let trace else { return }
+        self.trace = SignalTrace(
+            signal: signal,
+            rollingMetric: trace.rollingMetric,
+            sourceStat: trace.sourceStat,
+            baselineSamples: trace.baselineSamples,
+            discussionPreview: trace.discussionPreview,
+            feedContext: trace.feedContext
+        )
+        NotificationCenter.default.post(
+            name: .signalEngagementDidChange,
+            object: nil,
+            userInfo: [
+                "signalId": signal.id,
+                "reactionSummary": signal.reactionSummary,
+                "userReaction": signal.userReaction ?? NSNull(),
+                "commentCount": signal.commentCount,
+            ]
+        )
     }
 }
 
@@ -225,21 +277,27 @@ struct SignalDetailView: View {
 
     @ViewBuilder
     private func reactionSection(signal: Signal) -> some View {
+        let hasUserReaction = signal.userReaction != nil
         VStack(alignment: .leading, spacing: 12) {
             Text("Reactions")
                 .shyftyEyebrow()
 
             HStack(spacing: 10) {
-                reactionPill(label: "Strong", count: signal.reactionSummary.strong, active: signal.userReaction == "strong", color: ShyftyTheme.success) {
+                reactionPill(label: "Strong", count: signal.reactionSummary.strong, active: signal.userReaction == "strong", disabled: hasUserReaction && signal.userReaction != "strong", color: ShyftyTheme.success) {
                     Task { await viewModel.react(type: "strong") }
                 }
-                reactionPill(label: "Agree", count: signal.reactionSummary.agree, active: signal.userReaction == "agree", color: ShyftyTheme.accent) {
+                reactionPill(label: "Agree", count: signal.reactionSummary.agree, active: signal.userReaction == "agree", disabled: hasUserReaction && signal.userReaction != "agree", color: ShyftyTheme.accent) {
                     Task { await viewModel.react(type: "agree") }
                 }
-                reactionPill(label: "Risky", count: signal.reactionSummary.risky, active: signal.userReaction == "risky", color: ShyftyTheme.warning) {
+                reactionPill(label: "Risky", count: signal.reactionSummary.risky, active: signal.userReaction == "risky", disabled: hasUserReaction && signal.userReaction != "risky", color: ShyftyTheme.warning) {
                     Task { await viewModel.react(type: "risky") }
                 }
             }
+            Text(signal.userReaction == nil ? "Choose one reaction" : "Tap your reaction to remove it")
+                .font(.system(size: 10, weight: .semibold))
+                .tracking(1.2)
+                .textCase(.uppercase)
+                .foregroundStyle(ShyftyTheme.muted.opacity(0.75))
         }
         .padding(18)
         .shyftyPanel()
@@ -288,6 +346,7 @@ struct SignalDetailView: View {
                 Button("Post") {
                     Task { await viewModel.postComment() }
                 }
+                .disabled(viewModel.isPostingComment || viewModel.draftComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 .foregroundStyle(ShyftyTheme.ink)
             }
         }
@@ -295,7 +354,7 @@ struct SignalDetailView: View {
         .shyftyPanel()
     }
 
-    private func reactionPill(label: String, count: Int, active: Bool, color: Color, action: @escaping () -> Void) -> some View {
+    private func reactionPill(label: String, count: Int, active: Bool, disabled: Bool, color: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 6) {
                 Text(label)
@@ -313,7 +372,9 @@ struct SignalDetailView: View {
             .background(active ? color.opacity(0.12) : Color.white.opacity(0.03))
             .overlay(Capsule().strokeBorder(active ? color.opacity(0.3) : ShyftyTheme.border, lineWidth: 1))
             .clipShape(Capsule())
+            .opacity(disabled ? 0.42 : 1)
         }
+        .disabled(viewModel.isMutatingReaction || disabled)
         .buttonStyle(.plain)
     }
 

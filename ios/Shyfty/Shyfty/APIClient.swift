@@ -14,6 +14,8 @@ enum APIError: LocalizedError {
 
 final class APIClient {
     static let shared = APIClient()
+    private static let csrfCookieName = "shyfty_csrf"
+    private static let csrfHeaderName = "X-CSRF-Token"
 
     private let decoder: JSONDecoder
     private let baseURL: URL
@@ -39,7 +41,7 @@ final class APIClient {
             signalType.map { URLQueryItem(name: "signal_type", value: $0) },
             player.map { URLQueryItem(name: "player", value: $0) },
             feed.map { URLQueryItem(name: "feed", value: $0) },
-            cursor.map { URLQueryItem(name: "cursor", value: String($0)) },
+            cursor.map { URLQueryItem(name: "before_id", value: String($0)) },
             URLQueryItem(name: "limit", value: "30"),
         ].compactMap { $0 }
         return try await get(components.url!)
@@ -73,8 +75,9 @@ final class APIClient {
     func unfollowPlayer(id: Int) async throws {
         var request = URLRequest(url: baseURL.appendingPathComponent("players/\(id)/follow"))
         request.httpMethod = "DELETE"
-        let (_, response) = try await session.data(for: request)
-        _ = try validateResponse(response, data: Data())
+        try attachCSRFToken(to: &request)
+        let (data, response) = try await session.data(for: request)
+        _ = try validateResponse(response, data: data)
     }
 
     func fetchPlayerSignals(id: Int) async throws -> [Signal] {
@@ -98,8 +101,9 @@ final class APIClient {
     func unfollowTeam(id: Int) async throws {
         var request = URLRequest(url: baseURL.appendingPathComponent("teams/\(id)/follow"))
         request.httpMethod = "DELETE"
-        let (_, response) = try await session.data(for: request)
-        _ = try validateResponse(response, data: Data())
+        try attachCSRFToken(to: &request)
+        let (data, response) = try await session.data(for: request)
+        _ = try validateResponse(response, data: data)
     }
 
     func fetchTeam(id: Int) async throws -> TeamDetail {
@@ -136,8 +140,9 @@ final class APIClient {
     func clearReaction(signalId: Int) async throws {
         var request = URLRequest(url: baseURL.appendingPathComponent("signals/\(signalId)/reaction"))
         request.httpMethod = "DELETE"
-        let (_, response) = try await session.data(for: request)
-        _ = try validateResponse(response, data: Data())
+        try attachCSRFToken(to: &request)
+        let (data, response) = try await session.data(for: request)
+        _ = try validateResponse(response, data: data)
     }
 
     // MARK: - Comments
@@ -157,8 +162,9 @@ final class APIClient {
     func deleteComment(commentId: Int) async throws {
         var request = URLRequest(url: baseURL.appendingPathComponent("comments/\(commentId)"))
         request.httpMethod = "DELETE"
-        let (_, response) = try await session.data(for: request)
-        _ = try validateResponse(response, data: Data())
+        try attachCSRFToken(to: &request)
+        let (data, response) = try await session.data(for: request)
+        _ = try validateResponse(response, data: data)
     }
 
     func reportComment(commentId: Int) async throws {
@@ -207,6 +213,7 @@ final class APIClient {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        try attachCSRFToken(to: &request)
         request.httpBody = try JSONEncoder().encode(body)
         let (data, response) = try await session.data(for: request)
         _ = try validateResponse(response, data: data)
@@ -218,11 +225,20 @@ final class APIClient {
         var request = URLRequest(url: url)
         request.httpMethod = "PUT"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        try attachCSRFToken(to: &request)
         request.httpBody = try JSONEncoder().encode(body)
         let (data, response) = try await session.data(for: request)
         _ = try validateResponse(response, data: data)
         if data.isEmpty { return EmptyResponse() as! T }
         return try decoder.decode(T.self, from: data)
+    }
+
+    private func attachCSRFToken(to request: inout URLRequest) throws {
+        guard let url = request.url else { return }
+        let cookies = session.configuration.httpCookieStorage?.cookies(for: url) ?? HTTPCookieStorage.shared.cookies(for: url) ?? []
+        if let token = cookies.first(where: { $0.name == Self.csrfCookieName })?.value {
+            request.setValue(token, forHTTPHeaderField: Self.csrfHeaderName)
+        }
     }
 
     @discardableResult

@@ -29,6 +29,7 @@ final class FeedViewModel: ObservableObject {
     @Published var nextCursor: Int? = nil
     @Published var errorMessage: String?
     @Published var profile: UserProfile?
+    private var lastLoadMoreCursor: Int?
 
     init(initialFeedMode: FeedMode = .all) {
         self.feedMode = initialFeedMode
@@ -91,6 +92,7 @@ final class FeedViewModel: ObservableObject {
         errorMessage = nil
         hasMore = false
         nextCursor = nil
+        lastLoadMoreCursor = nil
         do {
             let page = try await APIClient.shared.fetchSignals(
                 league: selectedLeague == "ALL" ? nil : selectedLeague,
@@ -108,7 +110,9 @@ final class FeedViewModel: ObservableObject {
 
     func loadMore() async {
         guard hasMore, !isLoadingMore, let cursor = nextCursor else { return }
+        guard lastLoadMoreCursor != cursor else { return }
         isLoadingMore = true
+        lastLoadMoreCursor = cursor
         do {
             let page = try await APIClient.shared.fetchSignals(
                 league: selectedLeague == "ALL" ? nil : selectedLeague,
@@ -121,7 +125,10 @@ final class FeedViewModel: ObservableObject {
             feedItems += newItems
             hasMore = page.hasMore
             nextCursor = page.nextCursor
-        } catch { }
+        } catch {
+            errorMessage = error.localizedDescription
+            lastLoadMoreCursor = nil
+        }
         isLoadingMore = false
     }
 
@@ -131,6 +138,53 @@ final class FeedViewModel: ObservableObject {
         } catch {
             profile = nil
         }
+    }
+
+    func applySignalEngagementChange(_ notification: Notification) {
+        guard let signalId = notification.userInfo?["signalId"] as? Int else { return }
+        let reactionSummary = notification.userInfo?["reactionSummary"] as? ReactionSummary
+        let rawUserReaction = notification.userInfo?["userReaction"]
+        let userReaction = rawUserReaction is NSNull ? nil : rawUserReaction as? String
+        let commentCount = notification.userInfo?["commentCount"] as? Int
+        let sourceSignal = signals.first { $0.id == signalId }
+
+        feedItems = feedItems.map { item in
+            switch item {
+            case .signal(let signal):
+                return .signal(patchSignal(signal, id: signalId, sourceSignal: sourceSignal, reactionSummary: reactionSummary, userReaction: userReaction, commentCount: commentCount))
+            case .cascade(let cascade):
+                let signals = cascade.underlyingSignals.map {
+                    patchSignal($0, id: signalId, sourceSignal: sourceSignal, reactionSummary: reactionSummary, userReaction: userReaction, commentCount: commentCount)
+                }
+                return .cascade(CascadeSignal(
+                    id: cascade.id,
+                    gameID: cascade.gameID,
+                    teamID: cascade.teamID,
+                    team: cascade.team,
+                    leagueName: cascade.leagueName,
+                    gameDate: cascade.gameDate,
+                    createdAt: cascade.createdAt,
+                    trigger: cascade.trigger,
+                    contributors: cascade.contributors,
+                    underlyingSignals: signals,
+                    narrativeSummary: cascade.narrativeSummary
+                ))
+            }
+        }
+    }
+
+    private func patchSignal(_ signal: Signal, id: Int, sourceSignal: Signal?, reactionSummary: ReactionSummary?, userReaction: String?, commentCount: Int?) -> Signal {
+        let isExactSignal = signal.id == id
+        let isSameCommentGroup = sourceSignal.map { signal.isInSameDisplayGroup(as: $0) } ?? isExactSignal
+        guard isExactSignal || (commentCount != nil && isSameCommentGroup) else { return signal }
+        var next = signal
+        if isExactSignal, let reactionSummary {
+            next = next.withReaction(reactionSummary: reactionSummary, userReaction: userReaction)
+        }
+        if isSameCommentGroup, let commentCount {
+            next = next.withCommentCount(commentCount)
+        }
+        return next
     }
 
     func isFollowed(signal: Signal) -> Bool {

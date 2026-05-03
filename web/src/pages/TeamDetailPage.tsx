@@ -12,6 +12,8 @@ import { useSignalStore } from '../store/useSignalStore';
 import { api } from '../services/api';
 import type { Signal, TeamBoxScore, TeamDetail } from '../types';
 
+type CommentThread = { signalId: number; signalIds: number[]; title: string; subtitle?: string };
+
 function groupSignalsByPlayerGame(signals: Signal[]): Signal[][] {
   const grouped = new Map<string, Signal[]>();
   for (const signal of signals) {
@@ -111,14 +113,15 @@ export function TeamDetailPage() {
   const openAuth = useAuthStore((state) => state.openAuth);
   const fetchProfile = useSignalStore((state) => state.fetchProfile);
   const toggleFollowTeam = useSignalStore((state) => state.toggleFollowTeam);
-  const setSignalCommentCount = useSignalStore((state) => state.setSignalCommentCount);
+  const setSignalGroupCommentCount = useSignalStore((state) => state.setSignalGroupCommentCount);
+  const mergeSignalMeta = useSignalStore((state) => state.mergeSignalMeta);
   const profile = useSignalStore((state) => state.profile);
   const signalMetaById = useSignalStore((state) => state.signalMetaById);
   const [team, setTeam] = useState<TeamDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [detailSignalId, setDetailSignalId] = useState<number | null>(null);
-  const [commentThread, setCommentThread] = useState<{ signalId: number; title: string; subtitle?: string } | null>(null);
+  const [commentThread, setCommentThread] = useState<CommentThread | null>(null);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -130,7 +133,9 @@ export function TeamDetailPage() {
       setLoading(true);
       setError(null);
       try {
-        setTeam(await api.getTeam(id));
+        const loadedTeam = await api.getTeam(id);
+        setTeam(loadedTeam);
+        loadedTeam.recent_signals.forEach(mergeSignalMeta);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error');
       } finally {
@@ -139,7 +144,7 @@ export function TeamDetailPage() {
     }
 
     void load();
-  }, [id]);
+  }, [id, mergeSignalMeta]);
 
   useEffect(() => {
     setTeam((prev) => {
@@ -241,7 +246,9 @@ export function TeamDetailPage() {
                 key={`${group[0]?.player_id ?? group[0]?.team_id ?? 'unknown'}-${group[0]?.game_id ?? group[0]?.event_date ?? 'game'}`}
                 signals={group}
                 onOpenDetail={(signalId) => setDetailSignalId(signalId)}
-                onOpenComments={(signalId, title, subtitle) => setCommentThread({ signalId, title, subtitle })}
+                onOpenComments={(signalId, title, subtitle, signalIds) =>
+                  setCommentThread({ signalId, title, subtitle, signalIds: signalIds?.length ? signalIds : [signalId] })
+                }
               />
             ))
           )}
@@ -280,13 +287,14 @@ export function TeamDetailPage() {
           title={commentThread.title}
           subtitle={commentThread.subtitle}
           onCountChange={(count) => {
-            setSignalCommentCount(commentThread.signalId, count);
+            const ids = new Set(commentThread.signalIds);
+            setSignalGroupCommentCount(commentThread.signalIds, count);
             setTeam((prev) => {
               if (!prev) return prev;
               return {
                 ...prev,
                 recent_signals: prev.recent_signals.map((signal) =>
-                  signal.id === commentThread.signalId ? { ...signal, comment_count: count } : signal,
+                  ids.has(signal.id) ? { ...signal, comment_count: count } : signal,
                 ),
               };
             });

@@ -51,8 +51,8 @@ struct TeamDetailViewIOS: View {
                             .shyftyPanel(strong: true)
                     } else if let team {
                         header(team)
-                        recentSignals(team)
                         teamBoxScores(team.recentBoxScores)
+                        recentSignals(team)
                         roster(team)
                     }
                 }
@@ -70,6 +70,9 @@ struct TeamDetailViewIOS: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
         .task { await load() }
+        .onReceive(NotificationCenter.default.publisher(for: .signalEngagementDidChange)) { notification in
+            applySignalEngagementChange(notification)
+        }
     }
 
     private func header(_ team: TeamDetail) -> some View {
@@ -149,63 +152,101 @@ struct TeamDetailViewIOS: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .shyftyPanel(strong: true)
             } else {
-                ForEach(rows) { row in
-                    HStack(alignment: .center, spacing: 12) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("\(row.homeAway == "Away" ? "@" : "vs") \(row.opponent)")
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(ShyftyTheme.ink)
-                                .lineLimit(1)
-                            Text("\(SignalFormatting.eventDateText(row.gameDate))\(row.season.map { " · \($0)" } ?? "")")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(ShyftyTheme.muted)
-                                .lineLimit(1)
-                        }
-                        .frame(width: 112, alignment: .leading)
-
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                ForEach(teamStats(row), id: \.label) { stat in
-                                    boxScoreCell(label: stat.label, value: stat.value)
-                                }
-                            }
+                VStack(spacing: 0) {
+                    ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                        compactTeamGameRow(row)
+                        if index < rows.count - 1 {
+                            Divider()
+                                .overlay(Color.white.opacity(0.08))
+                                .padding(.leading, 10)
                         }
                     }
-                    .padding(12)
-                    .shyftyPanel(strong: true)
                 }
+                .padding(.vertical, 4)
+                .shyftyPanel(strong: true)
             }
         }
     }
 
-    private func boxScoreCell(label: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(label)
-                .font(.system(size: 9, weight: .semibold))
-                .tracking(1.1)
-                .foregroundStyle(ShyftyTheme.muted)
-            Text(value)
-                .font(.system(size: 14, weight: .semibold, design: .monospaced))
-                .foregroundStyle(ShyftyTheme.ink)
+    private func compactTeamGameRow(_ row: TeamBoxScore) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("\(row.homeAway == "Away" ? "@" : "vs") \(compactTeamName(row.opponent)) • \(shortDate(row.gameDate))")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(ShyftyTheme.ink.opacity(0.9))
+                .lineLimit(1)
+
+            statLine(primaryTeamStats(row), primary: true)
+            if !secondaryTeamStats(row).isEmpty {
+                statLine(secondaryTeamStats(row), primary: false)
+            }
         }
-        .frame(width: 72, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
-        .background(Color.white.opacity(0.035))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .contentShape(Rectangle())
     }
 
-    private func teamStats(_ row: TeamBoxScore) -> [(label: String, value: String)] {
+    private func statLine(_ stats: [(label: String, value: String)], primary: Bool) -> some View {
+        HStack(spacing: 6) {
+            ForEach(Array(stats.enumerated()), id: \.offset) { index, stat in
+                HStack(spacing: 3) {
+                    Text(stat.label)
+                        .font(.system(size: primary ? 10 : 9, weight: .semibold))
+                        .foregroundStyle(primary ? ShyftyTheme.muted.opacity(0.9) : ShyftyTheme.muted.opacity(0.7))
+                    Text(stat.value)
+                        .font(.system(size: stat.label == "PTS" ? 13 : (primary ? 11 : 10), weight: stat.label == "PTS" ? .bold : .semibold, design: .monospaced))
+                        .foregroundStyle(primary ? ShyftyTheme.ink : ShyftyTheme.muted.opacity(0.95))
+                        .frame(minWidth: stat.label == "PTS" ? 24 : 20, alignment: .trailing)
+                }
+                if index < stats.count - 1 {
+                    Text("•")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(ShyftyTheme.muted.opacity(primary ? 0.5 : 0.35))
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .lineLimit(1)
+    }
+
+    private func primaryTeamStats(_ row: TeamBoxScore) -> [(label: String, value: String)] {
         var stats: [(String, String)] = []
         appendInt(&stats, "PTS", row.points)
         appendInt(&stats, "REB", row.rebounds)
         appendInt(&stats, "AST", row.assists)
         appendInt(&stats, "TO", row.turnovers)
-        appendPercent(&stats, "FG%", row.fgPct)
-        appendPercent(&stats, "3P%", row.fg3Pct)
         appendDouble(&stats, "PACE", row.pace)
         appendDouble(&stats, "OFF RTG", row.offRating)
-        return stats.map { (label: $0.0, value: $0.1) }
+        return stats
+    }
+
+    private func secondaryTeamStats(_ row: TeamBoxScore) -> [(label: String, value: String)] {
+        var stats: [(String, String)] = []
+        appendPercent(&stats, "FG%", row.fgPct)
+        appendPercent(&stats, "3P%", row.fg3Pct)
+        return stats
+    }
+
+    private func compactTeamName(_ team: String) -> String {
+        let words = team
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+        guard words.count > 1 else { return team }
+        let abbr = words.prefix(3).compactMap(\.first).map { String($0).uppercased() }.joined()
+        return abbr.count >= 2 ? abbr : team
+    }
+
+    private func shortDate(_ isoDate: String) -> String {
+        let parser = DateFormatter()
+        parser.locale = Locale(identifier: "en_US_POSIX")
+        parser.dateFormat = "yyyy-MM-dd"
+        if let date = parser.date(from: isoDate) {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.dateFormat = "MMM d"
+            return formatter.string(from: date)
+        }
+        return SignalFormatting.eventDateText(isoDate)
     }
 
     private func appendInt(_ stats: inout [(String, String)], _ label: String, _ value: Int?) {
@@ -232,5 +273,40 @@ struct TeamDetailViewIOS: View {
             errorMessage = error.localizedDescription
         }
         isLoading = false
+    }
+
+    private func applySignalEngagementChange(_ notification: Notification) {
+        guard let team, let signalId = notification.userInfo?["signalId"] as? Int else { return }
+        let reactionSummary = notification.userInfo?["reactionSummary"] as? ReactionSummary
+        let rawUserReaction = notification.userInfo?["userReaction"]
+        let userReaction = rawUserReaction is NSNull ? nil : rawUserReaction as? String
+        let commentCount = notification.userInfo?["commentCount"] as? Int
+        let sourceSignal = team.recentSignals.first { $0.id == signalId }
+
+        let nextSignals = team.recentSignals.map { signal in
+            let isExactSignal = signal.id == signalId
+            let isSameCommentGroup = sourceSignal.map { signal.isInSameDisplayGroup(as: $0) } ?? isExactSignal
+            guard isExactSignal || (commentCount != nil && isSameCommentGroup) else { return signal }
+            var next = signal
+            if isExactSignal, let reactionSummary {
+                next = next.withReaction(reactionSummary: reactionSummary, userReaction: userReaction)
+            }
+            if isSameCommentGroup, let commentCount {
+                next = next.withCommentCount(commentCount)
+            }
+            return next
+        }
+
+        self.team = TeamDetail(
+            id: team.id,
+            name: team.name,
+            leagueName: team.leagueName,
+            playerCount: team.playerCount,
+            signalCount: team.signalCount,
+            isFollowed: team.isFollowed,
+            players: team.players,
+            recentSignals: nextSignals,
+            recentBoxScores: team.recentBoxScores
+        )
     }
 }

@@ -13,6 +13,11 @@ LEGACY_TO_EMOJI = {
     "strong": "🔥",
     "risky": "👎",
 }
+MAX_REACTIONS_PER_USER_PER_SIGNAL = 6
+
+
+class ReactionLimitError(ValueError):
+    pass
 
 
 def normalize_emoji(raw: str) -> str:
@@ -70,6 +75,7 @@ def set_signal_reaction(
 
     is_legacy_single_choice = emoji is None and reaction_type is not None
     normalized = normalize_emoji(emoji or reaction_type or "")
+    removed_other_reactions = False
 
     if is_legacy_single_choice:
         existing_rows = db.execute(
@@ -81,7 +87,9 @@ def set_signal_reaction(
         for existing in existing_rows:
             if existing.type != normalized:
                 db.delete(existing)
+                removed_other_reactions = True
         db.flush()
+
     reaction = db.execute(
         select(SignalReaction).where(
             SignalReaction.signal_id == signal_id,
@@ -90,10 +98,20 @@ def set_signal_reaction(
         )
     ).scalar_one_or_none()
     if reaction is None:
+        own_count = db.execute(
+            select(func.count(SignalReaction.id)).where(
+                SignalReaction.signal_id == signal_id,
+                SignalReaction.user_id == user_id,
+            )
+        ).scalar_one()
+        if own_count >= MAX_REACTIONS_PER_USER_PER_SIGNAL:
+            raise ReactionLimitError(f"Reaction limit reached ({MAX_REACTIONS_PER_USER_PER_SIGNAL} per signal).")
         reaction = SignalReaction(signal_id=signal_id, user_id=user_id, type=normalized)
         db.add(reaction)
         db.commit()
         db.refresh(reaction)
+    elif removed_other_reactions:
+        db.commit()
     return reaction
 
 

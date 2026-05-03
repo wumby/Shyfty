@@ -15,7 +15,12 @@ from app.services.auth_service import (
     revoke_session,
 )
 from app.services.profile_service import get_profile, remove_follow, set_follow
-from app.services.reaction_service import remove_signal_reaction, set_signal_reaction
+from app.services.reaction_service import (
+    MAX_REACTIONS_PER_USER_PER_SIGNAL,
+    ReactionLimitError,
+    remove_signal_reaction,
+    set_signal_reaction,
+)
 from app.services.signal_generation_service import generate_signals
 from app.services.signal_service import FEED_MODE_FOLLOWING, list_signals
 from tests.support_fixtures import load_sample_signal_dataset
@@ -123,6 +128,27 @@ class AuthReactionServiceTests(unittest.TestCase):
 
         revoke_session(self.session, session_token)
         self.assertIsNone(get_user_by_session_token(self.session, session_token))
+
+    def test_reaction_limit_is_enforced_per_user_signal(self) -> None:
+        user = create_user(self.session, email="limit@example.com", password="password123")
+        signal = list_signals(
+            db=self.session,
+            league=None,
+            team=None,
+            player=None,
+            signal_type=None,
+            limit=1,
+            current_user_id=user.id,
+        ).items[0]
+
+        for index in range(MAX_REACTIONS_PER_USER_PER_SIGNAL):
+            set_signal_reaction(self.session, signal_id=signal.id, user_id=user.id, emoji=f"e{index}")
+
+        with self.assertRaises(ReactionLimitError):
+            set_signal_reaction(self.session, signal_id=signal.id, user_id=user.id, emoji="one-too-many")
+
+        remove_signal_reaction(self.session, signal_id=signal.id, user_id=user.id, emoji="e0")
+        set_signal_reaction(self.session, signal_id=signal.id, user_id=user.id, emoji="replacement")
 
     def test_follow_round_trip_updates_profile_and_following_feed(self) -> None:
         user = create_user(self.session, email="follower@example.com", password="password123")

@@ -180,9 +180,9 @@ struct Signal: Identifiable, Decodable, Hashable {
     let trendDirection: String
     let summaryTemplate: String
     let summaryTemplateInputs: SummaryTemplateInputs
-    let reactionSummary: ReactionSummary
-    let userReaction: String?
-    let commentCount: Int
+    var reactionSummary: ReactionSummary
+    var userReaction: String?
+    var commentCount: Int
     let opponent: String?
     let homeAway: String?
     let gameResult: String?
@@ -223,6 +223,33 @@ struct Signal: Identifiable, Decodable, Hashable {
         case streak
         case classificationReason = "classification_reason"
         case createdAt = "created_at"
+    }
+}
+
+extension Notification.Name {
+    static let signalEngagementDidChange = Notification.Name("signalEngagementDidChange")
+}
+
+extension Signal {
+    func isInSameDisplayGroup(as other: Signal) -> Bool {
+        guard eventDate == other.eventDate else { return false }
+        if let playerID, let otherPlayerID = other.playerID {
+            return playerID == otherPlayerID
+        }
+        return playerID == nil && other.playerID == nil && teamID == other.teamID
+    }
+
+    func withReaction(reactionSummary: ReactionSummary, userReaction: String?) -> Signal {
+        var signal = self
+        signal.reactionSummary = reactionSummary
+        signal.userReaction = userReaction
+        return signal
+    }
+
+    func withCommentCount(_ commentCount: Int) -> Signal {
+        var signal = self
+        signal.commentCount = commentCount
+        return signal
     }
 }
 

@@ -25,6 +25,7 @@ const SIGNAL_TYPE_FILTERS = [
 
 type SignalTypeFilterValue = (typeof SIGNAL_TYPE_FILTERS)[number]['value'];
 type FeedTab = 'forYou' | 'following';
+type CommentThread = { signalId: number; signalIds: number[]; title: string; subtitle?: string };
 
 function getSignalPriority(signal: Signal): number {
   if (typeof signal.signal_score === 'number') return signal.signal_score;
@@ -103,10 +104,10 @@ function CascadeSignalCard({ cascade, onOpenDetail }: { cascade: CascadeSignal; 
 
 export function SignalFeedPage() {
   const { filters, signals, loadingInitial, loadingMore, hasMore, ingestStatus, setFilters, fetchSignals, loadMore, fetchProfile, profile } = useSignalStore();
-  const setSignalCommentCount = useSignalStore((state) => state.setSignalCommentCount);
+  const setSignalGroupCommentCount = useSignalStore((state) => state.setSignalGroupCommentCount);
   const currentUser = useAuthStore((state) => state.currentUser);
   const [detailSignalId, setDetailSignalId] = useState<number | null>(null);
-  const [commentThread, setCommentThread] = useState<{ signalId: number; title: string; subtitle?: string } | null>(null);
+  const [commentThread, setCommentThread] = useState<CommentThread | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -276,7 +277,9 @@ export function SignalFeedPage() {
                       key={`${item.signals[0]?.player_id ?? item.signals[0]?.team_id ?? 'unknown'}-${item.signals[0]?.game_id ?? 'game'}`}
                       signals={item.signals}
                       onOpenDetail={(signalId) => setDetailSignalId(signalId)}
-                      onOpenComments={(signalId, title, subtitle) => setCommentThread({ signalId, title, subtitle })}
+                      onOpenComments={(signalId, title, subtitle, signalIds) =>
+                        setCommentThread({ signalId, title, subtitle, signalIds: signalIds?.length ? signalIds : [signalId] })
+                      }
                     />
                   )
                 ))}
@@ -303,7 +306,7 @@ export function SignalFeedPage() {
           signalId={commentThread.signalId}
           title={commentThread.title}
           subtitle={commentThread.subtitle}
-          onCountChange={(count) => setSignalCommentCount(commentThread.signalId, count)}
+          onCountChange={(count) => setSignalGroupCommentCount(commentThread.signalIds, count)}
           onClose={() => setCommentThread(null)}
         />
       ) : null}

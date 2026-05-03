@@ -18,7 +18,8 @@ def _require_user(user: Optional[User]) -> User:
 
 
 @router.get("/ingest/status", response_model=IngestStatusRead)
-def get_ingest_status() -> IngestStatusRead:
+def get_ingest_status(current_user: Optional[User] = Depends(get_current_user)) -> IngestStatusRead:
+    _require_user(current_user)
     return IngestStatusRead(**get_ingest_state())
 
 

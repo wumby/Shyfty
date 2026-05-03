@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from app.models.comment_report import CommentReport
@@ -28,11 +28,37 @@ def _comment_read(comment: SignalComment, email: str, current_user_id: Optional[
     )
 
 
+def _signal_group_ids(db: Session, signal_id: int) -> list[int]:
+    signal = db.execute(select(Signal).where(Signal.id == signal_id)).scalar_one_or_none()
+    if signal is None:
+        return []
+
+    same_group = [
+        Signal.game_id == signal.game_id,
+        Signal.subject_type == signal.subject_type,
+    ]
+    if signal.player_id is not None:
+        same_group.append(Signal.player_id == signal.player_id)
+    else:
+        same_group.extend([Signal.player_id.is_(None), Signal.team_id == signal.team_id])
+
+    return list(
+        db.execute(
+            select(Signal.id)
+            .where(and_(*same_group))
+            .order_by(func.coalesce(Signal.signal_score, 0).desc(), Signal.id.asc())
+        ).scalars()
+    )
+
+
 def list_comments(db: Session, signal_id: int, current_user_id: Optional[int] = None) -> list[CommentRead]:
+    signal_ids = _signal_group_ids(db, signal_id)
+    if not signal_ids:
+        return []
     rows = db.execute(
         select(SignalComment, User.email)
         .join(User, SignalComment.user_id == User.id)
-        .where(SignalComment.signal_id == signal_id)
+        .where(SignalComment.signal_id.in_(signal_ids))
         .order_by(SignalComment.created_at.asc())
     ).all()
     return [_comment_read(comment, email, current_user_id) for comment, email in rows]
@@ -44,10 +70,13 @@ def list_discussion_preview(
     current_user_id: Optional[int] = None,
     limit: int = 3,
 ) -> list[CommentRead]:
+    signal_ids = _signal_group_ids(db, signal_id)
+    if not signal_ids:
+        return []
     rows = db.execute(
         select(SignalComment, User.email)
         .join(User, SignalComment.user_id == User.id)
-        .where(SignalComment.signal_id == signal_id)
+        .where(SignalComment.signal_id.in_(signal_ids))
         .order_by(SignalComment.created_at.desc())
         .limit(limit)
     ).all()
@@ -55,11 +84,11 @@ def list_discussion_preview(
 
 
 def create_comment(db: Session, *, signal_id: int, user_id: int, body: str) -> CommentRead:
-    signal_exists = db.execute(select(Signal.id).where(Signal.id == signal_id)).scalar_one_or_none()
-    if signal_exists is None:
+    signal_ids = _signal_group_ids(db, signal_id)
+    if not signal_ids:
         raise LookupError("Signal not found.")
 
-    comment = SignalComment(signal_id=signal_id, user_id=user_id, body=body.strip())
+    comment = SignalComment(signal_id=signal_ids[0], user_id=user_id, body=body.strip())
     db.add(comment)
     db.commit()
     db.refresh(comment)

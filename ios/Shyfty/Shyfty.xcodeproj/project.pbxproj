@@ -35,6 +35,7 @@
 		A10000000000000000000031 /* PlayersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000031 /* PlayersView.swift */; };
 		A10000000000000000000032 /* TeamsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000032 /* TeamsView.swift */; };
 		A10000000000000000000033 /* TeamDetailViewIOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000033 /* TeamDetailViewIOS.swift */; };
+		A10000000000000000000034 /* SignalCommentsSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000034 /* SignalCommentsSheetView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -69,6 +70,7 @@
 		A20000000000000000000031 /* PlayersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayersView.swift; sourceTree = "<group>"; };
 		A20000000000000000000032 /* TeamsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamsView.swift; sourceTree = "<group>"; };
 		A20000000000000000000033 /* TeamDetailViewIOS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamDetailViewIOS.swift; sourceTree = "<group>"; };
+		A20000000000000000000034 /* SignalCommentsSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignalCommentsSheetView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -139,6 +141,7 @@
 				A20000000000000000000010 /* FilterChipsView.swift */,
 				A20000000000000000000024 /* SignalFilterSheetView.swift */,
 				A20000000000000000000026 /* SignalDetailView.swift */,
+				A20000000000000000000034 /* SignalCommentsSheetView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -231,6 +234,7 @@
 				A10000000000000000000031 /* PlayersView.swift in Sources */,
 				A10000000000000000000009 /* SignalCardView.swift in Sources */,
 				A10000000000000000000024 /* SignalFilterSheetView.swift in Sources */,
+				A10000000000000000000034 /* SignalCommentsSheetView.swift in Sources */,
 				A10000000000000000000011 /* SignalFormatting.swift in Sources */,
 				A10000000000000000000029 /* SearchSheetView.swift in Sources */,
 				A10000000000000000000018 /* ShyftyTheme.swift in Sources */,

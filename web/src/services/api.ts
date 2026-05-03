@@ -20,15 +20,34 @@ import type {
 } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8001/api';
+const CSRF_COOKIE_NAME = 'shyfty_csrf';
+
+function getCookie(name: string): string | null {
+  const encodedName = `${encodeURIComponent(name)}=`;
+  for (const entry of document.cookie.split(';')) {
+    const cookie = entry.trim();
+    if (cookie.startsWith(encodedName)) {
+      return decodeURIComponent(cookie.slice(encodedName.length));
+    }
+  }
+  return null;
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const method = (init?.method ?? 'GET').toUpperCase();
+  const headers = new Headers(init?.headers ?? {});
+  headers.set('Content-Type', 'application/json');
+  if (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE') {
+    const csrfToken = getCookie(CSRF_COOKIE_NAME);
+    if (csrfToken) {
+      headers.set('X-CSRF-Token', csrfToken);
+    }
+  }
+
   const response = await fetch(`${API_BASE}${path}`, {
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
     ...init,
+    credentials: 'include',
+    headers,
   });
   if (!response.ok) {
     let detail = `API request failed: ${response.status}`;

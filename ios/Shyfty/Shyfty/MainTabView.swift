@@ -14,7 +14,7 @@ struct MainTabView: View {
             AccountView()
                 .tag(3)
         }
-        .tabViewStyle(.page(indexDisplayMode: .never))
+        .toolbar(.hidden, for: .tabBar)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             customTabBar
         }
@@ -39,22 +39,22 @@ struct MainTabView: View {
     }
 
     private func tabBarButton(icon: String, label: String, page: Int) -> some View {
-        Button {
-            withAnimation(.easeInOut(duration: 0.25)) {
-                currentPage = page
-            }
+        let isActive = currentPage == page
+        return Button {
+            currentPage = page
         } label: {
             VStack(spacing: 3) {
-                Image(systemName: currentPage == page ? "\(icon).fill" : icon)
+                Image(systemName: isActive ? "\(icon).fill" : icon)
                     .font(.system(size: 22))
-                    .foregroundStyle(currentPage == page ? ShyftyTheme.accent : ShyftyTheme.muted)
+                    .foregroundStyle(isActive ? ShyftyTheme.accent : ShyftyTheme.muted)
                 Text(label)
                     .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(currentPage == page ? ShyftyTheme.accent : ShyftyTheme.muted)
+                    .foregroundStyle(isActive ? ShyftyTheme.accent : ShyftyTheme.muted.opacity(0.95))
             }
             .frame(maxWidth: .infinity)
+            .frame(height: 41)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PlainButtonStyle())
     }
 }

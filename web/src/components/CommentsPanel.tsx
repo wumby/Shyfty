@@ -68,15 +68,40 @@ export function CommentsPanel({ signalId, initialComments, onCountChange }: Prop
     if (!body) return;
     setSubmitting(true);
     setError(null);
+    const tempId = -Date.now();
+    const optimisticComment: Comment = {
+      id: tempId,
+      signal_id: signalId,
+      user_id: currentUser.id,
+      user_email: currentUser.email,
+      body,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      is_edited: false,
+      can_edit: true,
+      can_delete: true,
+      can_report: false,
+    };
+    setComments((prev) => {
+      const next = [...prev, optimisticComment];
+      onCountChangeRef.current?.(next.length);
+      return next;
+    });
+    setDraft('');
     try {
       const newComment = await api.postComment(signalId, body);
       setComments((prev) => {
-        const next = [...prev, newComment];
+        const next = prev.map((comment) => (comment.id === tempId ? newComment : comment));
         onCountChangeRef.current?.(next.length);
         return next;
       });
-      setDraft('');
     } catch (err) {
+      setComments((prev) => {
+        const next = prev.filter((comment) => comment.id !== tempId);
+        onCountChangeRef.current?.(next.length);
+        return next;
+      });
+      setDraft(body);
       setError(err instanceof Error ? err.message : 'Failed to post comment');
     } finally {
       setSubmitting(false);
@@ -84,14 +109,17 @@ export function CommentsPanel({ signalId, initialComments, onCountChange }: Prop
   }
 
   async function handleDelete(commentId: number) {
+    const previous = comments;
+    setComments((prev) => {
+      const next = prev.filter((c) => c.id !== commentId);
+      onCountChangeRef.current?.(next.length);
+      return next;
+    });
     try {
       await api.deleteComment(commentId);
-      setComments((prev) => {
-        const next = prev.filter((c) => c.id !== commentId);
-        onCountChangeRef.current?.(next.length);
-        return next;
-      });
     } catch (err) {
+      setComments(previous);
+      onCountChangeRef.current?.(previous.length);
       setError(err instanceof Error ? err.message : 'Delete failed');
     }
   }

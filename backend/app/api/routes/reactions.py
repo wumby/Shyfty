@@ -7,7 +7,7 @@ from app.api.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.reaction import EmojiReactionWrite, ReactionRead, ReactionWrite
 from app.services.abuse_service import enforce_rate_limit
-from app.services.reaction_service import remove_signal_reaction, set_signal_reaction
+from app.services.reaction_service import ReactionLimitError, remove_signal_reaction, set_signal_reaction
 
 router = APIRouter()
 
@@ -28,9 +28,11 @@ def put_signal_reaction(
     user = _require_user(current_user)
     enforce_rate_limit(f"user:{user.id}", "reaction_write", limit=60, per_seconds=300)
     try:
-        reaction = set_signal_reaction(db, signal_id=signal_id, user_id=user.id, emoji=payload.type)
+        reaction = set_signal_reaction(db, signal_id=signal_id, user_id=user.id, reaction_type=payload.type)
     except LookupError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ReactionLimitError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
@@ -71,6 +73,8 @@ def post_signal_reaction(
         reaction = set_signal_reaction(db, signal_id=signal_id, user_id=user.id, emoji=payload.emoji)
     except LookupError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ReactionLimitError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 

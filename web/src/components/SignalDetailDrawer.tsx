@@ -5,14 +5,11 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import type { SignalTrace } from '../types';
 import { formatEventDate, formatSignalLabel, getMetricLabel } from '../lib/signalFormat';
-import { useAuthStore } from '../store/useAuthStore';
 import { useSignalStore } from '../store/useSignalStore';
-import { CommentsPanel } from './CommentsPanel';
 
 interface Props {
   signalId: number;
   onClose: () => void;
-  onCommentCountChange?: (signalId: number, count: number) => void;
 }
 
 const signalTypeColor: Record<string, string> = {
@@ -44,13 +41,12 @@ const gateLabels: Record<string, string> = {
   minutes_guard: 'Minutes guard',
 };
 
-export function SignalDetailDrawer({ signalId, onClose, onCommentCountChange }: Props) {
+export function SignalDetailDrawer({ signalId, onClose }: Props) {
   const [trace, setTrace] = useState<SignalTrace | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showAllComments, setShowAllComments] = useState(false);
   const drawerRef = useRef<HTMLDivElement>(null);
-  const currentUser = useAuthStore((s) => s.currentUser);
+  const mergeSignalMeta = useSignalStore((s) => s.mergeSignalMeta);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -59,10 +55,13 @@ export function SignalDetailDrawer({ signalId, onClose, onCommentCountChange }: 
     setTrace(null);
     api
       .getSignal(signalId)
-      .then(setTrace)
+      .then((loadedTrace) => {
+        setTrace(loadedTrace);
+        mergeSignalMeta(loadedTrace.signal);
+      })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load'))
       .finally(() => setLoading(false));
-  }, [signalId]);
+  }, [mergeSignalMeta, signalId]);
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -198,47 +197,6 @@ export function SignalDetailDrawer({ signalId, onClose, onCommentCountChange }: 
                 <div className="eyebrow mb-2">What This Means</div>
                 <p className="text-sm leading-relaxed text-[#d9e3f1]">{signal.explanation}</p>
                 {signal.classification_reason ? <p className="mt-3 text-xs leading-5 text-muted">{signal.classification_reason}</p> : null}
-              </div>
-
-              <div className="rounded-[22px] border border-border bg-white/[0.03] px-4 py-3">
-                <div className="mb-3 flex items-center justify-between">
-                  <div>
-                    <div className="eyebrow">Discussion</div>
-                    <p className="mt-1 text-xs text-muted">Recent comments surface directly in detail before users open the full thread.</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowAllComments((value) => !value)}
-                    className="rounded-full border border-border px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] text-muted transition hover:text-ink"
-                  >
-                    {showAllComments ? 'Hide Thread' : 'Open Thread'}
-                  </button>
-                </div>
-                {showAllComments ? (
-                  <CommentsPanel
-                    signalId={signal.id}
-                    onCountChange={(count) => {
-                      setTrace((prev) =>
-                        prev ? { ...prev, signal: { ...prev.signal, comment_count: count } } : prev,
-                      );
-                      onCommentCountChange?.(signal.id, count);
-                    }}
-                  />
-                ) : trace.discussion_preview.length > 0 ? (
-                  <div className="space-y-2">
-                    {trace.discussion_preview.map((comment, index) => (
-                      <div key={comment.id} className="rounded-2xl border border-border bg-white/[0.02] px-3 py-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="text-[11px] font-semibold text-[#d9e3f1]">{comment.user_email.split('@')[0]}</div>
-                          {index === 0 ? <div className="text-[10px] uppercase tracking-[0.16em] text-[#ffd8bd]">Top comment</div> : null}
-                        </div>
-                        <p className="mt-1 text-sm text-muted">{comment.body}</p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted">Set the tone on this signal.</p>
-                )}
               </div>
 
               {trace.baseline_samples.length > 0 && (

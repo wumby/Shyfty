@@ -37,6 +37,8 @@ interface SignalStore {
   fetchTeams: () => Promise<void>;
   reactToSignal: (signalId: number, reactionType: ReactionType) => Promise<void>;
   setSignalCommentCount: (signalId: number, count: number) => void;
+  setSignalGroupCommentCount: (signalIds: number[], count: number) => void;
+  mergeSignalMeta: (signal: Signal) => void;
   fetchIngestStatus: () => Promise<void>;
   triggerIngest: () => Promise<void>;
   fetchProfile: () => Promise<void>;
@@ -101,15 +103,29 @@ function isSignal(item: FeedItem): item is Signal {
   return item.type !== 'cascade';
 }
 
+function patchFeedItemSignal(item: FeedItem, signalId: number, patch: Partial<Pick<Signal, 'comment_count' | 'reaction_summary' | 'user_reaction' | 'reactions' | 'user_reactions'>>): FeedItem {
+  if (isSignal(item)) {
+    return item.id === signalId ? { ...item, ...patch } : item;
+  }
+
+  return {
+    ...item,
+    underlying_signals: item.underlying_signals.map((signal) =>
+      signal.id === signalId ? { ...signal, ...patch } : signal,
+    ),
+  };
+}
+
 let fetchSeq = 0;
 
 function extractSignalMeta(signal: Signal): Pick<Signal, 'comment_count' | 'reaction_summary' | 'user_reaction' | 'reactions' | 'user_reactions'> {
+  const reactions = normalizeReactions(signal);
   return {
     comment_count: signal.comment_count ?? 0,
     reaction_summary: signal.reaction_summary,
     user_reaction: signal.user_reaction ?? null,
-    reactions: normalizeReactions(signal),
-    user_reactions: signal.user_reactions ?? [],
+    reactions,
+    user_reactions: reactions.filter((item) => item.reactedByCurrentUser).map((item) => item.emoji),
   };
 }
 
@@ -244,14 +260,13 @@ export const useSignalStore = create<SignalStore>((set, get) => ({
     if (!sourceSignal) return;
 
     const optimisticSignal = applyReactionChange(sourceSignal, reactionType);
-    const optimisticSignals = previousSignals.map((signal) =>
-      isSignal(signal) && signal.id === signalId ? optimisticSignal : signal,
-    );
+    const optimisticMeta = extractSignalMeta(optimisticSignal);
+    const optimisticSignals = previousSignals.map((signal) => patchFeedItemSignal(signal, signalId, optimisticMeta));
     set({
       signals: optimisticSignals,
       signalMetaById: {
         ...previousMeta,
-        [signalId]: extractSignalMeta(optimisticSignal),
+        [signalId]: optimisticMeta,
       },
     });
 
@@ -273,23 +288,38 @@ export const useSignalStore = create<SignalStore>((set, get) => ({
   },
 
   setSignalCommentCount: (signalId, count) => {
+    get().setSignalGroupCommentCount([signalId], count);
+  },
+
+  setSignalGroupCommentCount: (signalIds, count) => {
+    const ids = [...new Set(signalIds)].filter((id) => Number.isFinite(id));
+    if (ids.length === 0) return;
     const prevMeta = get().signalMetaById;
-    const existing = prevMeta[signalId];
+    const patch = { comment_count: count };
+    const nextMeta = { ...prevMeta };
+    for (const signalId of ids) {
+      const existing = prevMeta[signalId];
+      nextMeta[signalId] = {
+        comment_count: count,
+        reaction_summary: existing?.reaction_summary ?? { agree: 0, strong: 0, risky: 0 },
+        user_reaction: existing?.user_reaction ?? null,
+        reactions: existing?.reactions ?? [],
+        user_reactions: existing?.user_reactions ?? [],
+      };
+    }
     set({
-      signals: get().signals.map((item) =>
-        isSignal(item) && item.id === signalId
-          ? { ...item, comment_count: count }
-          : item,
-      ),
+      signals: get().signals.map((item) => ids.reduce((nextItem, signalId) => patchFeedItemSignal(nextItem, signalId, patch), item)),
+      signalMetaById: nextMeta,
+    });
+  },
+
+  mergeSignalMeta: (signal) => {
+    const meta = extractSignalMeta(signal);
+    set({
+      signals: get().signals.map((item) => patchFeedItemSignal(item, signal.id, meta)),
       signalMetaById: {
-        ...prevMeta,
-        [signalId]: {
-          comment_count: count,
-          reaction_summary: existing?.reaction_summary ?? { agree: 0, strong: 0, risky: 0 },
-          user_reaction: existing?.user_reaction ?? null,
-          reactions: existing?.reactions ?? [],
-          user_reactions: existing?.user_reactions ?? [],
-        },
+        ...get().signalMetaById,
+        [signal.id]: meta,
       },
     });
   },

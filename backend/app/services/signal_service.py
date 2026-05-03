@@ -241,9 +241,26 @@ def build_signal_read(
 
 
 def _comment_count_subquery():
+    base_signal = aliased(Signal)
+    comment_signal = aliased(Signal)
+    same_signal_group = and_(
+        comment_signal.game_id == base_signal.game_id,
+        comment_signal.subject_type == base_signal.subject_type,
+        or_(
+            and_(base_signal.player_id.is_not(None), comment_signal.player_id == base_signal.player_id),
+            and_(
+                base_signal.player_id.is_(None),
+                comment_signal.player_id.is_(None),
+                comment_signal.team_id == base_signal.team_id,
+            ),
+        ),
+    )
     return (
-        select(SignalComment.signal_id, func.count(SignalComment.id).label("comment_count"))
-        .group_by(SignalComment.signal_id)
+        select(base_signal.id.label("signal_id"), func.count(SignalComment.id).label("comment_count"))
+        .select_from(base_signal)
+        .outerjoin(comment_signal, same_signal_group)
+        .outerjoin(SignalComment, SignalComment.signal_id == comment_signal.id)
+        .group_by(base_signal.id)
         .subquery()
     )
 

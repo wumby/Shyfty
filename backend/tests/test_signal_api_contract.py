@@ -9,6 +9,7 @@ from app.db.base import Base
 from app.models.signal_reaction import SignalReaction
 from app.models.user import User
 from app.models.user_follow import UserFollow
+from app.services.comment_service import create_comment, list_comments
 from app.services.player_service import get_player_metric_series, get_player_signals
 from app.services.signal_inspection_service import inspect_signal
 from app.services.signal_generation_service import generate_signals
@@ -123,6 +124,41 @@ class SignalAPIContractTests(unittest.TestCase):
         self.assertIsNone(second_page.next_cursor)
         self.assertTrue(all(signal.id < first_page.next_cursor for signal in second_page.items))
         self.assertTrue(set(signal.id for signal in first_page.items).isdisjoint(signal.id for signal in second_page.items))
+
+    def test_comments_are_counted_across_signal_card_group(self) -> None:
+        user = User(email="commenter@example.com", password_hash="hash")
+        self.session.add(user)
+        self.session.flush()
+
+        page = list_signals(
+            db=self.session,
+            league=None,
+            team=None,
+            player=None,
+            signal_type=None,
+            limit=20,
+        )
+        grouped: dict[tuple[str, int, int], list] = {}
+        for signal in page.items:
+            key = (signal.subject_type or "player", signal.player_id or signal.team_id, signal.game_id)
+            grouped.setdefault(key, []).append(signal)
+        group = next((signals for signals in grouped.values() if len(signals) > 1), None)
+        if group is None:
+            self.skipTest("Sample dataset did not generate multiple signals for one card group.")
+
+        create_comment(self.session, signal_id=group[-1].id, user_id=user.id, body="group-level comment")
+
+        refreshed = list_signals(
+            db=self.session,
+            league=None,
+            team=None,
+            player=None,
+            signal_type=None,
+            limit=20,
+        )
+        refreshed_by_id = {signal.id: signal for signal in refreshed.items}
+        self.assertTrue(all(refreshed_by_id[signal.id].comment_count == 1 for signal in group))
+        self.assertEqual(len(list_comments(self.session, signal_id=group[0].id, current_user_id=user.id)), 1)
 
     def test_following_feed_ignores_engagement_when_user_has_no_follows(self) -> None:
         user = User(email="viewer@example.com", password_hash="hash")

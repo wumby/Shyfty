@@ -9,7 +9,7 @@ import { useSignalStore } from '../store/useSignalStore';
 interface LastGameSignalCardProps {
   signals: Signal[];
   onOpenDetail?: (signalId: number) => void;
-  onOpenComments?: (signalId: number, title: string, subtitle?: string) => void;
+  onOpenComments?: (signalId: number, title: string, subtitle?: string, signalIds?: number[]) => void;
 }
 
 function getSignalPriority(signal: Signal): number {
@@ -109,7 +109,6 @@ export function LastGameSignalCard({ signals, onOpenDetail, onOpenComments }: La
   const profile = useSignalStore((state) => state.profile);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showAllReactions, setShowAllReactions] = useState(false);
-  const singleReactionPerUser = (import.meta.env.VITE_REACTION_MODE ?? 'multi') === 'single';
 
   if (!signals[0]) return null;
 
@@ -170,6 +169,8 @@ export function LastGameSignalCard({ signals, onOpenDetail, onOpenComments }: La
     [primarySignal],
   );
   const userReactions = reactions.filter((item) => item.reactedByCurrentUser);
+  const userReactionCount = userReactions.length;
+  const hasUserReaction = userReactionCount > 0;
   const topThree = reactions.slice(0, 3);
   const inlineReactions = [...topThree];
   for (const reaction of userReactions) {
@@ -184,6 +185,8 @@ export function LastGameSignalCard({ signals, onOpenDetail, onOpenComments }: La
   async function handleReactionClick(e: React.MouseEvent, reactionType: ReactionType) {
     e.stopPropagation();
     if (!currentUser) { openAuth('signin'); return; }
+    const alreadyReacted = reactions.some((item) => item.emoji === reactionType && item.reactedByCurrentUser);
+    if (hasUserReaction && !alreadyReacted) return;
     await reactToSignal(primarySignal.id, reactionType);
   }
 
@@ -292,9 +295,10 @@ export function LastGameSignalCard({ signals, onOpenDetail, onOpenComments }: La
               <button
                 key={reaction.emoji}
                 type="button"
+                disabled={hasUserReaction && !reaction.reactedByCurrentUser}
                 onClick={(e) => void handleReactionClick(e, reaction.emoji)}
-                className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${reactionButtonClass(reaction.reactedByCurrentUser)}`}
-                aria-label={`React with ${reaction.emoji}`}
+                className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${hasUserReaction && !reaction.reactedByCurrentUser ? 'cursor-not-allowed opacity-45' : reactionButtonClass(reaction.reactedByCurrentUser)}`}
+                aria-label={`${reaction.reactedByCurrentUser ? 'Remove' : 'React with'} ${reaction.emoji}`}
               >
                 <span className="inline-flex items-center gap-1.5">
                   <span>{reaction.emoji}</span>
@@ -319,8 +323,9 @@ export function LastGameSignalCard({ signals, onOpenDetail, onOpenComments }: La
                         <button
                           key={`all-${reaction.emoji}`}
                           type="button"
+                          disabled={hasUserReaction && !reaction.reactedByCurrentUser}
                           onClick={(e) => void handleReactionClick(e, reaction.emoji)}
-                          className={`flex w-full items-center justify-between rounded-xl px-2.5 py-1.5 text-left text-[12px] transition ${reaction.reactedByCurrentUser ? 'bg-accentSoft text-[#ffd8bd]' : 'text-muted hover:bg-white/[0.05] hover:text-ink'}`}
+                          className={`flex w-full items-center justify-between rounded-xl px-2.5 py-1.5 text-left text-[12px] transition ${hasUserReaction && !reaction.reactedByCurrentUser ? 'cursor-not-allowed text-muted/35' : reaction.reactedByCurrentUser ? 'bg-accentSoft text-[#ffd8bd]' : 'text-muted hover:bg-white/[0.05] hover:text-ink'}`}
                         >
                           <span>{reaction.emoji}</span>
                           <span className="tabular-nums">{reaction.count}</span>
@@ -333,36 +338,39 @@ export function LastGameSignalCard({ signals, onOpenDetail, onOpenComments }: La
             ) : null}
           </>
         ) : null}
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => setShowEmojiPicker((value) => !value)}
-            className="rounded-full bg-white/[0.02] px-2.5 py-1 text-[11px] font-semibold text-muted/80 transition hover:text-ink"
-            aria-label="Add reaction"
-          >
-            {hasAnyReactions ? '＋' : 'Add Reaction'}
-          </button>
-          {showEmojiPicker ? (
-            <div className="absolute right-0 top-[calc(100%+0.4rem)] z-[130] w-[280px] rounded-2xl border border-border bg-[#091422] p-2 shadow-xl">
-              <div className="grid grid-cols-8 gap-1">
-                {QUICK_EMOJIS.map((emoji) => (
-                  <button
-                    key={emoji}
-                    type="button"
-                    onClick={(e) => {
-                      void handleReactionClick(e, emoji);
-                      setShowEmojiPicker(false);
-                    }}
-                    className="rounded-lg px-2 py-1.5 text-lg transition hover:bg-white/[0.06]"
-                    aria-label={`Add ${emoji} reaction`}
-                  >
-                    {emoji}
-                  </button>
-                ))}
+        {!hasUserReaction ? (
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowEmojiPicker((value) => !value)}
+              className="rounded-full bg-white/[0.02] px-2.5 py-1 text-[11px] font-semibold text-muted/80 transition hover:text-ink"
+              aria-label="Add reaction"
+              title="Add reaction"
+            >
+              {hasAnyReactions ? '＋' : 'Add Reaction'}
+            </button>
+            {showEmojiPicker ? (
+              <div className="absolute right-0 top-[calc(100%+0.4rem)] z-[130] w-[280px] rounded-2xl border border-border bg-[#091422] p-2 shadow-xl">
+                <div className="grid grid-cols-8 gap-1">
+                  {QUICK_EMOJIS.map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={(e) => {
+                        void handleReactionClick(e, emoji);
+                        setShowEmojiPicker(false);
+                      }}
+                      className="rounded-lg px-2 py-1.5 text-lg transition hover:bg-white/[0.06]"
+                      aria-label={`Add ${emoji} reaction`}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          ) : null}
-        </div>
+            ) : null}
+          </div>
+        ) : null}
         <button
           type="button"
           onClick={() =>
@@ -370,6 +378,7 @@ export function LastGameSignalCard({ signals, onOpenDetail, onOpenComments }: La
               primarySignal.id,
               primarySignal.subject_type === 'team' ? primarySignal.team_name : primarySignal.player_name,
               matchupLabel ?? undefined,
+              sorted.map((signal) => signal.id),
             )
           }
           className="rounded-full bg-white/[0.02] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted/70 transition hover:text-ink"
@@ -377,9 +386,6 @@ export function LastGameSignalCard({ signals, onOpenDetail, onOpenComments }: La
         >
           <span>{primarySignal.comment_count > 0 ? `💬 ${primarySignal.comment_count}` : 'Comment'}</span>
         </button>
-        <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-muted/60">
-          {singleReactionPerUser ? '1 reaction/user' : 'multi-reaction'}
-        </span>
       </div>
     </article>
   );

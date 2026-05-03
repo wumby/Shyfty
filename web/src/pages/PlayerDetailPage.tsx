@@ -13,6 +13,8 @@ import { useSignalStore } from '../store/useSignalStore';
 import type { PlayerBoxScore, PlayerDetail, Signal } from '../types';
 import { formatGameContext, formatSignalLabel } from '../lib/signalFormat';
 
+type CommentThread = { signalId: number; signalIds: number[]; title: string; subtitle?: string };
+
 function groupSignalsByGame(signals: Signal[]): Signal[][] {
   const grouped = new Map<string | number, Signal[]>();
   for (const signal of signals) {
@@ -122,14 +124,15 @@ export function PlayerDetailPage() {
   const profile = useSignalStore((s) => s.profile);
   const fetchProfile = useSignalStore((s) => s.fetchProfile);
   const signalMetaById = useSignalStore((s) => s.signalMetaById);
-  const setSignalCommentCount = useSignalStore((s) => s.setSignalCommentCount);
+  const setSignalGroupCommentCount = useSignalStore((s) => s.setSignalGroupCommentCount);
+  const mergeSignalMeta = useSignalStore((s) => s.mergeSignalMeta);
 
   const [player, setPlayer] = useState<PlayerDetail | null>(null);
   const [signals, setSignals] = useState<Signal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [detailSignalId, setDetailSignalId] = useState<number | null>(null);
-  const [commentThread, setCommentThread] = useState<{ signalId: number; title: string; subtitle?: string } | null>(null);
+  const [commentThread, setCommentThread] = useState<CommentThread | null>(null);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -147,6 +150,7 @@ export function PlayerDetailPage() {
         ]);
         setPlayer(playerRes);
         setSignals(signalRes);
+        signalRes.forEach(mergeSignalMeta);
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : 'Unknown error');
       } finally {
@@ -155,7 +159,7 @@ export function PlayerDetailPage() {
     }
 
     void load();
-  }, [id]);
+  }, [id, mergeSignalMeta]);
 
   useEffect(() => {
     setSignals((prev) =>
@@ -300,7 +304,9 @@ export function PlayerDetailPage() {
                   key={`${group[0]?.player_id ?? group[0]?.team_id ?? 'unknown'}-${group[0]?.game_id ?? group[0]?.event_date ?? 'game'}`}
                   signals={group}
                   onOpenDetail={(signalId) => setDetailSignalId(signalId)}
-                  onOpenComments={(signalId, title, subtitle) => setCommentThread({ signalId, title, subtitle })}
+                  onOpenComments={(signalId, title, subtitle, signalIds) =>
+                    setCommentThread({ signalId, title, subtitle, signalIds: signalIds?.length ? signalIds : [signalId] })
+                  }
                 />
               ))
             )}
@@ -317,10 +323,11 @@ export function PlayerDetailPage() {
           title={commentThread.title}
           subtitle={commentThread.subtitle}
           onCountChange={(count) => {
-            setSignalCommentCount(commentThread.signalId, count);
+            const ids = new Set(commentThread.signalIds);
+            setSignalGroupCommentCount(commentThread.signalIds, count);
             setSignals((prev) =>
               prev.map((signal) =>
-                signal.id === commentThread.signalId ? { ...signal, comment_count: count } : signal,
+                ids.has(signal.id) ? { ...signal, comment_count: count } : signal,
               ),
             );
           }}

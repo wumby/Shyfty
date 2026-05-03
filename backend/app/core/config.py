@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     app_name: str = "Shyfty"
+    app_env: str = "development"
     database_url: str = _default_database_url()
     cors_origins: list[str] = [
         "http://127.0.0.1:5175",
@@ -25,6 +26,28 @@ class Settings(BaseSettings):
     espn_nfl_incremental_weeks: int = 2
     sync_poll_interval_minutes: int = 30
     sync_run_on_startup: bool = True
+    auth_cookie_secure: bool = False
+    auth_cookie_samesite: str = "lax"
+    auth_cookie_max_age_seconds: int = 60 * 60 * 24 * 30
+    auth_rate_limit_window_seconds: int = 300
+    auth_rate_limit_max_attempts: int = 10
+    csrf_cookie_name: str = "shyfty_csrf"
+    csrf_header_name: str = "X-CSRF-Token"
+    csrf_cookie_secure: bool = False
+    csrf_cookie_samesite: str = "lax"
+    csrf_cookie_max_age_seconds: int = 60 * 60 * 24 * 30
+
+    @property
+    def is_production(self) -> bool:
+        return self.app_env.strip().lower() == "production"
+
+    @property
+    def auth_cookie_secure_effective(self) -> bool:
+        return self.auth_cookie_secure or self.is_production
+
+    @property
+    def csrf_cookie_secure_effective(self) -> bool:
+        return self.csrf_cookie_secure or self.is_production
 
 
 settings = Settings()
