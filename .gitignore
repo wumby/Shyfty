@@ -17,6 +17,7 @@ shyfty.db
 web/vite.config.js
 web/vite.config.d.ts
 DerivedData/
+.derived/
 xcuserdata/
 *.xcuserstate
 data/raw/
