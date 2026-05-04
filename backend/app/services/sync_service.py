@@ -64,7 +64,12 @@ class SyncResult:
 
 
 def get_default_sync_sources() -> tuple[str, ...]:
-    return ("nba", "nfl")
+    sources: list[str] = []
+    if settings.enable_nba_sync:
+        sources.append("nba")
+    if settings.enable_nfl_sync:
+        sources.append("nfl")
+    return tuple(sources)
 
 
 def _record_raw_ingest_events(db, events) -> None:
@@ -141,35 +146,10 @@ def _run_nba_sync(
     max_games: int,
     season: Optional[str],
 ) -> SourceSyncResult:
-    from app.ingest.nba_source import NBASAPISource
-    from app.services.signal_generation_service import SignalGenerationResult, generate_signals_for_players
-
-    source = NBASAPISource()
-    min_games = MIN_BOOTSTRAP_GAMES_PER_LEAGUE if mode == "bootstrap" else MIN_INCREMENTAL_GAMES_PER_LEAGUE
-    max_games = max(max_games, min_games)
-    logger.info("Sync: starting %s sync for source=%s", mode, source.source_name)
-    events = list(
-        source.fetch_events(
-            season=season,
-            days_back=days_back,
-            max_games=max_games,
-            min_games_per_team=MIN_NBA_GAMES_PER_TEAM,
-        )
-    )
-
+    from app.services.schedule_sync_service import sync_league
+    result = sync_league(league="nba", force=(mode == "bootstrap"))
     with SessionLocal() as db:
-        _record_raw_ingest_events(db, events)
-        load = source.load_events(db, events)
-
-        affected_player_ids = load.affected_player_ids
-        affected_team_ids = load.affected_team_ids
-        if affected_player_ids or affected_team_ids:
-            sig = generate_signals_for_players(db, affected_player_ids, team_ids=affected_team_ids)
-        else:
-            sig = SignalGenerationResult()
-
         processed_at = datetime.utcnow()
-        _mark_games_processed(db, load.affected_game_ids, processed_at)
         _upsert_checkpoint(
             db,
             source="nba",
@@ -178,12 +158,11 @@ def _run_nba_sync(
             checkpoint_metadata={
                 "days_back": days_back,
                 "max_games": max_games,
-                "min_games_per_team": MIN_NBA_GAMES_PER_TEAM,
                 "season": season,
-                "games_loaded": load.games_loaded,
-                "players_loaded": load.players_loaded,
-                "stats_loaded": load.stats_loaded,
-                "skipped_stat_rows": load.skipped_stat_rows,
+                "games_discovered": result.discovered_games,
+                "games_hydrated": result.hydrated_games,
+                "players_loaded": result.players_loaded,
+                "stats_loaded": result.player_stats_loaded,
             },
         )
         db.commit()
@@ -191,11 +170,11 @@ def _run_nba_sync(
     return SourceSyncResult(
         source="nba",
         mode=mode,
-        games_fetched=load.games_loaded,
-        players_loaded=load.players_loaded,
-        stats_loaded=load.stats_loaded,
-        signals_created=sig.created_signals,
-        signals_updated=sig.updated_signals,
+        games_fetched=result.hydrated_games,
+        players_loaded=result.players_loaded,
+        stats_loaded=result.player_stats_loaded,
+        signals_created=result.signals_created,
+        signals_updated=result.signals_updated,
     )
 
 
@@ -205,72 +184,25 @@ def _run_nfl_sync(
     max_games: int,
     season: Optional[str],
 ) -> SourceSyncResult:
-    from app.ingest.nfl_source import ESPNNFLSource
-    from app.services.signal_generation_service import SignalGenerationResult, generate_signals_for_players
-
-    source = ESPNNFLSource()
-    weeks_back = max(
-        settings.espn_nfl_bootstrap_weeks if mode == "bootstrap" else settings.espn_nfl_incremental_weeks,
-        MIN_NFL_COMPLETED_WEEKS,
-    )
-    min_games = MIN_BOOTSTRAP_GAMES_PER_LEAGUE if mode == "bootstrap" else MIN_INCREMENTAL_GAMES_PER_LEAGUE
-    max_games = max(max_games, min_games)
-
-    logger.info("Sync: starting %s sync for source=%s", mode, source.source_name)
-
-    with SessionLocal() as db:
-        existing_event_ids = _existing_external_ids(db, source=source.source_name)
-        events = list(
-            source.fetch_events(
-                season=season,
-                max_games=max_games,
-                weeks_back=weeks_back,
-                skip_external_ids=existing_event_ids,
-            )
-        )
-        _record_raw_ingest_events(db, events)
-        load = source.load_events(db, events)
-
-        affected_player_ids = load.affected_player_ids
-        affected_team_ids = load.affected_team_ids
-        if affected_player_ids or affected_team_ids:
-            sig = generate_signals_for_players(db, affected_player_ids, team_ids=affected_team_ids)
-        else:
-            sig = SignalGenerationResult()
-
-        processed_at = datetime.utcnow()
-        _mark_games_processed(db, load.affected_game_ids, processed_at)
-        _upsert_checkpoint(
-            db,
+    if not settings.enable_nfl_sync:
+        return SourceSyncResult(
             source="nfl",
-            checkpoint_key=f"{mode}_last_success",
-            checkpoint_value=processed_at.isoformat(),
-            checkpoint_metadata={
-                "weeks_back": weeks_back,
-                "max_games": max_games,
-                "season": season,
-                "games_loaded": load.games_loaded,
-                "players_loaded": load.players_loaded,
-                "stats_loaded": load.stats_loaded,
-                "skipped_stat_rows": load.skipped_stat_rows,
-                "windows": source.last_windows,
-            },
+            mode=mode,
+            skipped=True,
+            detail="NFL sync disabled by ENABLE_NFL_SYNC=false",
         )
-        db.commit()
+
+    from app.services.schedule_sync_service import sync_league
+    result = sync_league(league="nfl", force=(mode == "bootstrap"))
 
     return SourceSyncResult(
         source="nfl",
         mode=mode,
-        games_fetched=load.games_loaded,
-        players_loaded=load.players_loaded,
-        stats_loaded=load.stats_loaded,
-        signals_created=sig.created_signals,
-        signals_updated=sig.updated_signals,
-        detail=(
-            ", ".join(f"{window['season']}-W{window['week']}" for window in source.last_windows)
-            if source.last_windows
-            else "No completed NFL windows returned by ESPN."
-        ),
+        games_fetched=result.hydrated_games,
+        players_loaded=result.players_loaded,
+        stats_loaded=result.player_stats_loaded,
+        signals_created=result.signals_created,
+        signals_updated=result.signals_updated,
     )
 
 

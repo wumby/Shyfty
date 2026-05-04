@@ -1,0 +1,72 @@
+{
+  "source": "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/Shyfty/Views/SignalCommentsSheetView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Comments",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 25
+        }
+      },
+      {
+        "comment": "",
+        "key": "Close",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 29
+        }
+      },
+      {
+        "comment": "",
+        "key": "%@ · %@",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 43
+        }
+      },
+      {
+        "comment": "",
+        "key": "No comments yet.",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 58
+        }
+      },
+      {
+        "comment": "",
+        "key": "Add a comment",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 82
+        }
+      },
+      {
+        "comment": "",
+        "key": "Post",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 94
+        }
+      },
+      {
+        "comment": "",
+        "key": "edited",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 118
+        }
+      },
+      {
+        "comment": "",
+        "key": "Delete",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 124
+        }
+      }
+    ]
+  },
+  "version": 1
+}

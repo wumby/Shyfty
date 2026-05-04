@@ -1,0 +1,40 @@
+{
+  "source": "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/Shyfty/Views/SignalCardView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "%@  •  %@  •  %@  •  Z %.2f  •  %@",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 64
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld discussing",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 68
+        }
+      },
+      {
+        "comment": "",
+        "key": "%.1f / %.1f",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 85
+        }
+      },
+      {
+        "comment": "",
+        "key": "%.1f",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 130
+        }
+      }
+    ]
+  },
+  "version": 1
+}

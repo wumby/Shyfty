@@ -46,6 +46,17 @@ From the repo root:
 5. Inspect ingest artifacts if needed:
    `python scripts/inspect_nba_ingest.py summary`
 
+Schedule-first production sync (preferred):
+
+1. Discover + hydrate in one pass for NBA:
+   `python -m app.ingest.cli sync --league NBA`
+2. Run all enabled leagues (production scheduler command):
+   `python -m app.ingest.cli sync --all`
+3. Backfill a range:
+   `python -m app.ingest.cli sync --league NBA --from YYYY-MM-DD --to YYYY-MM-DD`
+4. Force rehydrate a range:
+   `python -m app.ingest.cli sync --league NBA --from YYYY-MM-DD --to YYYY-MM-DD --force`
+
 Notes:
 
 - Raw NBA payloads are stored under `data/raw/nba/`.
@@ -53,6 +64,9 @@ Notes:
 - Sync runs are tracked in `ingest_runs`.
 - Source checkpoints are tracked in `sync_checkpoints`.
 - Games now retain `last_synced_at` and `signals_generated_at`.
+- Default discovery window is yesterday/today/tomorrow (`SYNC_LOOKBACK_DAYS=1`, `SYNC_LOOKAHEAD_DAYS=1`).
+- Final games can be rechecked for stat corrections within `STAT_CORRECTION_LOOKBACK_HOURS` (default `48`).
+- Schedule-first sync is cheaper on provider API quotas because it hydrates only selected games instead of broad re-fetching.
 
 ## Reset Workflow
 
@@ -105,3 +119,12 @@ Unit tests may still use small deterministic fixtures, but the runtime app path 
 - Scheduler currently runs a simple once-daily sync model.
 - ESPN endpoint stability/rate behavior can change over time because these are not a versioned paid feed.
 - Additional source-specific checkpoints and incremental cursors can be layered onto the new sync tracking without redesigning the core flow.
+
+## Production Deployment
+
+Production deployment details are in [DEPLOYMENT.md](/Users/jackziegler/Projects/Shyfty/DEPLOYMENT.md:1), including:
+- Railway backend + PostgreSQL setup
+- static frontend deployment and `VITE_API_BASE_URL`
+- CORS and cross-site cookie settings
+- separate scheduled ingest job
+- migration and rollback procedures

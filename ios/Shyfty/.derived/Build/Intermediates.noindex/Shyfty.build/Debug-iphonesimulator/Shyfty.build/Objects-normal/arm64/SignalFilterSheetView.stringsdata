@@ -1,0 +1,56 @@
+{
+  "source": "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/Shyfty/Views/SignalFilterSheetView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Filters",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 57
+        }
+      },
+      {
+        "comment": "",
+        "key": "Filters",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 18
+        }
+      },
+      {
+        "comment": "",
+        "key": "Keep browsing controls tucked away until you need them.",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 20
+        }
+      },
+      {
+        "comment": "",
+        "key": "Reset Filters",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 38
+        }
+      },
+      {
+        "comment": "",
+        "key": "Close",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 62
+        }
+      },
+      {
+        "comment": "",
+        "key": "Apply",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 66
+        }
+      }
+    ]
+  },
+  "version": 1
+}

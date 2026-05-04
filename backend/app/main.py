@@ -1,18 +1,34 @@
 from contextlib import asynccontextmanager
+import logging
 import secrets
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.middleware.trustedhost import TrustedHostMiddleware
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from app.api.routes import auth, comments, debug, health, ingest, players, profile, reactions, signals, teams
 from app.core.config import settings
 from app.services.auth_service import SESSION_COOKIE_NAME
 
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from app.services.scheduler import start_scheduler, stop_scheduler
+
+    logger.info(
+        "Startup config: env=%s db=%s scheduler_enabled=%s run_on_startup=%s cors_origins=%s allowed_hosts=%s trust_proxy_headers=%s",
+        settings.app_env,
+        settings.database_type,
+        settings.sync_scheduler_enabled_effective,
+        settings.sync_run_on_startup,
+        settings.cors_origins_effective,
+        settings.allowed_hosts_effective,
+        settings.trust_proxy_headers_effective,
+    )
     start_scheduler()
     yield
     stop_scheduler()
@@ -21,9 +37,14 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     app = FastAPI(title="Shyfty API", version="0.1.0", lifespan=lifespan)
 
+    if settings.trust_proxy_headers_effective:
+        app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
+
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts_effective)
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_origins,
+        allow_origins=settings.cors_origins_effective,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -51,7 +72,7 @@ def create_app() -> FastAPI:
                 value=secrets.token_urlsafe(32),
                 httponly=False,
                 secure=settings.csrf_cookie_secure_effective,
-                samesite=settings.csrf_cookie_samesite,
+                samesite=settings.csrf_cookie_samesite_effective,
                 max_age=settings.csrf_cookie_max_age_seconds,
                 path="/",
             )

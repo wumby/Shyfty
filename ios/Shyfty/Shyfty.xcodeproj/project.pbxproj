@@ -36,6 +36,7 @@
 		A10000000000000000000032 /* TeamsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000032 /* TeamsView.swift */; };
 		A10000000000000000000033 /* TeamDetailViewIOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000033 /* TeamDetailViewIOS.swift */; };
 		A10000000000000000000034 /* SignalCommentsSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000034 /* SignalCommentsSheetView.swift */; };
+		A10000000000000000000035 /* ShyftReactionIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000035 /* ShyftReactionIcon.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -71,6 +72,7 @@
 		A20000000000000000000032 /* TeamsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamsView.swift; sourceTree = "<group>"; };
 		A20000000000000000000033 /* TeamDetailViewIOS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamDetailViewIOS.swift; sourceTree = "<group>"; };
 		A20000000000000000000034 /* SignalCommentsSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignalCommentsSheetView.swift; sourceTree = "<group>"; };
+		A20000000000000000000035 /* ShyftReactionIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShyftReactionIcon.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -103,8 +105,9 @@
 				A20000000000000000000005 /* FeedViewModel.swift */,
 				A20000000000000000000020 /* HomeViewModel.swift */,
 				A20000000000000000000011 /* SignalFormatting.swift */,
-				A20000000000000000000018 /* ShyftyTheme.swift */,
-				A20000000000000000000014 /* AuthViewModel.swift */,
+					A20000000000000000000018 /* ShyftyTheme.swift */,
+					A20000000000000000000035 /* ShyftReactionIcon.swift */,
+					A20000000000000000000014 /* AuthViewModel.swift */,
 				A20000000000000000000012 /* Info-Debug.plist */,
 				A20000000000000000000013 /* Info-Release.plist */,
 				A40000000000000000000004 /* Views */,
@@ -237,8 +240,9 @@
 				A10000000000000000000034 /* SignalCommentsSheetView.swift in Sources */,
 				A10000000000000000000011 /* SignalFormatting.swift in Sources */,
 				A10000000000000000000029 /* SearchSheetView.swift in Sources */,
-				A10000000000000000000018 /* ShyftyTheme.swift in Sources */,
-				A10000000000000000000001 /* ShyftyApp.swift in Sources */,
+					A10000000000000000000018 /* ShyftyTheme.swift in Sources */,
+					A10000000000000000000035 /* ShyftReactionIcon.swift in Sources */,
+					A10000000000000000000001 /* ShyftyApp.swift in Sources */,
 				A10000000000000000000022 /* SignalsView.swift in Sources */,
 				A10000000000000000000026 /* SignalDetailView.swift in Sources */,
 				A10000000000000000000033 /* TeamDetailViewIOS.swift in Sources */,

@@ -1,7 +1,7 @@
 """Expand NFL player/team box score fields.
 
 Revision ID: 0017_expand_nfl_box_score_fields
-Revises: 0016_sync_checkpoints_and_game_tracking
+Revises: 0016_sync_checkpoints
 Create Date: 2026-05-01 22:00:00.000000
 """
 
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 revision = "0017_expand_nfl_box_score_fields"
-down_revision = "0016_sync_checkpoints_and_game_tracking"
+down_revision = "0016_sync_checkpoints"
 branch_labels = None
 depends_on = None
 

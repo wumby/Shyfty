@@ -1,0 +1,80 @@
+{
+  "source": "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/Shyfty/Views/PlayerDetailView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Player Detail",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 103
+        }
+      },
+      {
+        "comment": "",
+        "key": "%@ · %@",
+        "location": {
+          "startingColumn": 42,
+          "startingLine": 46
+        }
+      },
+      {
+        "comment": "",
+        "key": "✓ Following",
+        "location": {
+          "startingColumn": 59,
+          "startingLine": 55
+        }
+      },
+      {
+        "comment": "",
+        "key": "+ Follow",
+        "location": {
+          "startingColumn": 77,
+          "startingLine": 55
+        }
+      },
+      {
+        "comment": "",
+        "key": "Signals",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 81
+        }
+      },
+      {
+        "comment": "",
+        "key": "Last 5 Box Scores",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 116
+        }
+      },
+      {
+        "comment": "",
+        "key": "No box scores are stored for this player yet.",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 121
+        }
+      },
+      {
+        "comment": "",
+        "key": "%@ %@ • %@",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 146
+        }
+      },
+      {
+        "comment": "",
+        "key": "•",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 175
+        }
+      }
+    ]
+  },
+  "version": 1
+}

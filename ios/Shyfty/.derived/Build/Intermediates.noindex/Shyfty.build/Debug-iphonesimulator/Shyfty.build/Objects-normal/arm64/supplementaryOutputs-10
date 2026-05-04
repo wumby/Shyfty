@@ -1,0 +1,23 @@
+{
+  "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/Shyfty/HomeViewModel.swift" : {
+    "const-values" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/HomeViewModel.swiftconstvalues",
+    "dependencies" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/HomeViewModel.d",
+    "diagnostics" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/HomeViewModel.dia",
+    "object" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/HomeViewModel.o",
+    "swift-dependencies" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/HomeViewModel.swiftdeps"
+  },
+  "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/Shyfty/MainTabView.swift" : {
+    "const-values" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/MainTabView.swiftconstvalues",
+    "dependencies" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/MainTabView.d",
+    "diagnostics" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/MainTabView.dia",
+    "object" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/MainTabView.o",
+    "swift-dependencies" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/MainTabView.swiftdeps"
+  },
+  "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/Shyfty/Views/HomeView.swift" : {
+    "const-values" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/HomeView.swiftconstvalues",
+    "dependencies" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/HomeView.d",
+    "diagnostics" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/HomeView.dia",
+    "object" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/HomeView.o",
+    "swift-dependencies" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/HomeView.swiftdeps"
+  }
+}

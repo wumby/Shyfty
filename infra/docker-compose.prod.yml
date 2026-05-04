@@ -1,0 +1,68 @@
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-shyfty}
+      POSTGRES_USER: ${POSTGRES_USER:-shyfty}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - shyfty_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-shyfty} -d ${POSTGRES_DB:-shyfty}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ../backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      APP_ENV: production
+      PORT: 8001
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:?set FRONTEND_ORIGIN}
+      API_PUBLIC_URL: ${API_PUBLIC_URL:?set API_PUBLIC_URL}
+      TRUST_PROXY_HEADERS: "true"
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:?set ALLOWED_HOSTS}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-shyfty}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-shyfty}
+      CORS_ORIGINS: ${CORS_ORIGINS:?set CORS_ORIGINS}
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      AUTH_COOKIE_SAMESITE: ${AUTH_COOKIE_SAMESITE:-none}
+      CSRF_COOKIE_SAMESITE: ${CSRF_COOKIE_SAMESITE:-none}
+      AUTH_COOKIE_SECURE: "true"
+      CSRF_COOKIE_SECURE: "true"
+      SYNC_SCHEDULER_ENABLED: "false"
+      SYNC_RUN_ON_STARTUP: "false"
+      ENABLE_NBA_SYNC: ${ENABLE_NBA_SYNC:-true}
+      ENABLE_NFL_SYNC: ${ENABLE_NFL_SYNC:-false}
+      SYNC_LOOKBACK_DAYS: ${SYNC_LOOKBACK_DAYS:-1}
+      SYNC_LOOKAHEAD_DAYS: ${SYNC_LOOKAHEAD_DAYS:-1}
+      STAT_CORRECTION_LOOKBACK_HOURS: ${STAT_CORRECTION_LOOKBACK_HOURS:-48}
+    command: >
+      sh -c "alembic upgrade head &&
+             gunicorn app.main:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:${PORT:-8001} --workers ${WEB_CONCURRENCY:-2} --access-logfile - --error-logfile -"
+    ports:
+      - "8001:8001"
+
+  ingest:
+    build:
+      context: ../backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles: ["ops"]
+    environment:
+      APP_ENV: production
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-shyfty}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-shyfty}
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+    command: ["python", "-m", "app.cli.run_ingest", "--mode", "incremental"]
+    restart: "no"
+
+volumes:
+  shyfty_postgres_data:

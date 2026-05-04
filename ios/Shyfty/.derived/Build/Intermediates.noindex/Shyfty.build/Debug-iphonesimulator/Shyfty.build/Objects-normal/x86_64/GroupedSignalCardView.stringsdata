@@ -1,0 +1,80 @@
+{
+  "source": "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/Shyfty/Views/GroupedSignalCardView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": " · ",
+        "location": {
+          "startingColumn": 24,
+          "startingLine": 45
+        }
+      },
+      {
+        "comment": "",
+        "key": "%@ %@ %@",
+        "location": {
+          "startingColumn": 25,
+          "startingLine": 51
+        }
+      },
+      {
+        "comment": "",
+        "key": " %@",
+        "location": {
+          "startingColumn": 36,
+          "startingLine": 64
+        }
+      },
+      {
+        "comment": "",
+        "key": "✓ Following",
+        "location": {
+          "startingColumn": 39,
+          "startingLine": 100
+        }
+      },
+      {
+        "comment": "",
+        "key": "+ Follow",
+        "location": {
+          "startingColumn": 57,
+          "startingLine": 100
+        }
+      },
+      {
+        "comment": "",
+        "key": "/",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 163
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 202
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 52,
+          "startingLine": 224
+        }
+      },
+      {
+        "comment": "",
+        "key": "Comment",
+        "location": {
+          "startingColumn": 79,
+          "startingLine": 224
+        }
+      }
+    ]
+  },
+  "version": 1
+}

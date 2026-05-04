@@ -1,7 +1,7 @@
 """add sync checkpoints and game sync tracking
 
-Revision ID: 0016_sync_checkpoints_and_game_tracking
-Revises: 0015_team_game_stats_and_team_signals
+Revision ID: 0016_sync_checkpoints
+Revises: 0015_team_game_stats
 Create Date: 2026-04-23
 """
 
@@ -9,8 +9,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision = "0016_sync_checkpoints_and_game_tracking"
-down_revision = "0015_team_game_stats_and_team_signals"
+revision = "0016_sync_checkpoints"
+down_revision = "0015_team_game_stats"
 branch_labels = None
 depends_on = None
 

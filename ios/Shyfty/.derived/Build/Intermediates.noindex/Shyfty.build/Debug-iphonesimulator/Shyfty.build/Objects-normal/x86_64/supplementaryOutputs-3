@@ -1,0 +1,23 @@
+{
+  "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/Shyfty/AuthViewModel.swift" : {
+    "const-values" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/x86_64/AuthViewModel.swiftconstvalues",
+    "dependencies" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/x86_64/AuthViewModel.d",
+    "diagnostics" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/x86_64/AuthViewModel.dia",
+    "object" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/x86_64/AuthViewModel.o",
+    "swift-dependencies" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/x86_64/AuthViewModel.swiftdeps"
+  },
+  "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/Shyfty/Views/CascadeCardView.swift" : {
+    "const-values" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/x86_64/CascadeCardView.swiftconstvalues",
+    "dependencies" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/x86_64/CascadeCardView.d",
+    "diagnostics" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/x86_64/CascadeCardView.dia",
+    "object" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/x86_64/CascadeCardView.o",
+    "swift-dependencies" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/x86_64/CascadeCardView.swiftdeps"
+  },
+  "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/Shyfty/Views/CascadeDetailView.swift" : {
+    "const-values" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/x86_64/CascadeDetailView.swiftconstvalues",
+    "dependencies" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/x86_64/CascadeDetailView.d",
+    "diagnostics" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/x86_64/CascadeDetailView.dia",
+    "object" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/x86_64/CascadeDetailView.o",
+    "swift-dependencies" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/x86_64/CascadeDetailView.swiftdeps"
+  }
+}

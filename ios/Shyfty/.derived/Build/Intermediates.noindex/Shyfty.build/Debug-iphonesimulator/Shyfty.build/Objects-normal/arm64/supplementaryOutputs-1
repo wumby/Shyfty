@@ -1,0 +1,23 @@
+{
+  "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/Shyfty/APIClient.swift" : {
+    "const-values" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/APIClient.swiftconstvalues",
+    "dependencies" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/APIClient.d",
+    "diagnostics" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/APIClient.dia",
+    "object" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/APIClient.o",
+    "swift-dependencies" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/APIClient.swiftdeps"
+  },
+  "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/Shyfty/Views/AccountView.swift" : {
+    "const-values" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/AccountView.swiftconstvalues",
+    "dependencies" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/AccountView.d",
+    "diagnostics" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/AccountView.dia",
+    "object" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/AccountView.o",
+    "swift-dependencies" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/AccountView.swiftdeps"
+  },
+  "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/Shyfty/Views/AuthView.swift" : {
+    "const-values" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/AuthView.swiftconstvalues",
+    "dependencies" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/AuthView.d",
+    "diagnostics" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/AuthView.dia",
+    "object" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/AuthView.o",
+    "swift-dependencies" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/AuthView.swiftdeps"
+  }
+}

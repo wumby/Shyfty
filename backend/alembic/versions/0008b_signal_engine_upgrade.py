@@ -1,14 +1,14 @@
 """upgrade rolling metrics and signals for scored multi-window engine
 
 Revision ID: 0008b_signal_engine_upgrade
-Revises: 0008_personalization_and_comment_moderation
+Revises: 0008_personalization_comment_mod
 """
 
 from alembic import op
 import sqlalchemy as sa
 
 revision = "0008b_signal_engine_upgrade"
-down_revision = "0008_personalization_and_comment_moderation"
+down_revision = "0008_personalization_comment_mod"
 branch_labels = None
 depends_on = None
 

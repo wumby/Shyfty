@@ -52,7 +52,7 @@ def _cookie_options() -> dict:
     return {
         "httponly": True,
         "secure": settings.auth_cookie_secure_effective,
-        "samesite": settings.auth_cookie_samesite,
+        "samesite": settings.auth_cookie_samesite_effective,
         "max_age": settings.auth_cookie_max_age_seconds,
         "path": "/",
     }

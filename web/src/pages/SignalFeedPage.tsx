@@ -129,9 +129,11 @@ export function SignalFeedPage() {
     : 'All') as SignalTypeFilterValue;
   const sortFromUrl = searchParams.get('sort') as SortMode | null;
   const activeSort = sortFromUrl && SORTS.includes(sortFromUrl) ? sortFromUrl : 'newest';
+  const followedPlayers = profile?.follows?.players ?? [];
+  const followedTeams = profile?.follows?.teams ?? [];
   const followingHasFollows =
-    (profile?.follows.players.length ?? 0) > 0 ||
-    (profile?.follows.teams.length ?? 0) > 0;
+    followedPlayers.length > 0 ||
+    followedTeams.length > 0;
   const visibleItems = useMemo(() => {
     if (activeTab !== 'following') return signals;
     if (!profile) return [];
@@ -139,14 +141,14 @@ export function SignalFeedPage() {
     return signals.filter((item) => {
       if (!isSignal(item)) {
         const triggerPlayerId = item.trigger.player.id;
-        return (triggerPlayerId != null && profile.follows.players.includes(triggerPlayerId)) || profile.follows.teams.includes(item.team_id);
+        return (triggerPlayerId != null && followedPlayers.includes(triggerPlayerId)) || followedTeams.includes(item.team_id);
       }
       return (
-        (item.subject_type === 'player' && item.player_id != null && profile.follows.players.includes(item.player_id)) ||
-        (item.subject_type === 'team' && profile.follows.teams.includes(item.team_id))
+        (item.subject_type === 'player' && item.player_id != null && followedPlayers.includes(item.player_id)) ||
+        (item.subject_type === 'team' && followedTeams.includes(item.team_id))
       );
     });
-  }, [activeTab, profile, signals]);
+  }, [activeTab, followedPlayers, followedTeams, profile, signals]);
   const feedDisplayItems = useMemo(() => {
     const displays: Array<{ type: 'cascade'; cascade: CascadeSignal } | { type: 'signals'; signals: Signal[] }> = [];
     const signalOnly = visibleItems.filter(isSignal);

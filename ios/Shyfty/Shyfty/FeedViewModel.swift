@@ -261,7 +261,7 @@ final class FeedViewModel: ObservableObject {
         }
     }
 
-    func setReaction(on signalId: Int, type: String) async {
+    func setReaction(on signalId: Int, type: ShyftReaction) async {
         let previous = feedItems
         do {
             if signals.first(where: { $0.id == signalId })?.userReaction == type {

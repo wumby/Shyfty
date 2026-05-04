@@ -1,0 +1,40 @@
+{
+  "source": "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/Shyfty/Views/CascadeCardView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Minutes DROP",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 47
+        }
+      },
+      {
+        "comment": "",
+        "key": "%@ • %@",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 51
+        }
+      },
+      {
+        "comment": "",
+        "key": "+%lld more",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 75
+        }
+      },
+      {
+        "comment": "",
+        "key": "%@ %@",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 69
+        }
+      }
+    ]
+  },
+  "version": 1
+}

@@ -1,0 +1,56 @@
+{
+  "source": "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/Shyfty/Views/TeamsView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Teams",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 38
+        }
+      },
+      {
+        "comment": "",
+        "key": "Teams",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 49
+        }
+      },
+      {
+        "comment": "",
+        "key": "Scan teams and jump into their active signal context.",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 51
+        }
+      },
+      {
+        "comment": "",
+        "key": "Search teams",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 63
+        }
+      },
+      {
+        "comment": "",
+        "key": "•",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 113
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld signal%@",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 116
+        }
+      }
+    ]
+  },
+  "version": 1
+}

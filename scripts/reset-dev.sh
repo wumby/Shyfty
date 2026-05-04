@@ -6,6 +6,7 @@ BACKEND_DIR="$ROOT/backend"
 WEB_DIR="$ROOT/web"
 IOS_PROJECT="$ROOT/ios/Shyfty/Shyfty.xcodeproj"
 SQLITE_DB="$ROOT/shyfty.db"
+DEV_USE_SQLITE="${DEV_USE_SQLITE:-1}"
 
 BACKEND_PORT=8001
 WEB_PORT=5175
@@ -15,6 +16,11 @@ DEV_FOREGROUND="${DEV_FOREGROUND:-0}"
 IPHONE_API_HOST="${SHYFTY_LAN_IP:-192.168.0.28}"
 DEV_SYNC_MAX_GAMES="${DEV_SYNC_MAX_GAMES:-260}"
 DEV_MIN_GAMES_PER_TEAM="${DEV_MIN_GAMES_PER_TEAM:-5}"
+SYNC_LOOKBACK_DAYS="${SYNC_LOOKBACK_DAYS:-1}"
+SYNC_LOOKAHEAD_DAYS="${SYNC_LOOKAHEAD_DAYS:-1}"
+STAT_CORRECTION_LOOKBACK_HOURS="${STAT_CORRECTION_LOOKBACK_HOURS:-48}"
+ENABLE_NBA_SYNC="${ENABLE_NBA_SYNC:-true}"
+ENABLE_NFL_SYNC="${ENABLE_NFL_SYNC:-false}"
 
 detect_lan_ip() {
   if [[ -n "${SHYFTY_LAN_IP:-}" ]]; then
@@ -152,6 +158,13 @@ if [[ -n "$LAN_IP" ]]; then
   DETECTED_API_URL="http://$LAN_IP:$BACKEND_PORT/api"
 fi
 IPHONE_API_URL="http://$IPHONE_API_HOST:$BACKEND_PORT/api"
+if [[ -z "${ALLOWED_HOSTS:-}" ]]; then
+  if [[ -n "$LAN_IP" ]]; then
+    export ALLOWED_HOSTS="[\"localhost\",\"127.0.0.1\",\"$LAN_IP\",\"$IPHONE_API_HOST\"]"
+  else
+    export ALLOWED_HOSTS="[\"localhost\",\"127.0.0.1\",\"$IPHONE_API_HOST\"]"
+  fi
+fi
 
 echo "Starting backend on :$BACKEND_PORT ..."
 cd "$BACKEND_DIR"
@@ -163,7 +176,7 @@ if [[ ! -d ".venv" ]]; then
 fi
 
 if [[ -z "${DATABASE_URL:-}" ]]; then
-  if [[ -f "$SQLITE_DB" ]]; then
+  if [[ "$DEV_USE_SQLITE" == "1" ]]; then
     export DATABASE_URL="sqlite:///$SQLITE_DB"
   else
     export DATABASE_URL="postgresql+psycopg://postgres:postgres@localhost:5432/shyfty"
@@ -171,6 +184,7 @@ if [[ -z "${DATABASE_URL:-}" ]]; then
 fi
 
 echo "Using backend database: $DATABASE_URL"
+echo "Using allowed hosts: $ALLOWED_HOSTS"
 
 run_alembic_upgrade_with_retry() {
   local attempts=5
@@ -206,12 +220,17 @@ echo "Applying backend migrations..."
   run_alembic_upgrade_with_retry
 )
 
-echo "Starting data sync in background (NBA + NFL)..."
+echo "Starting schedule-first sync in background..."
 nohup /bin/bash -lc "
   set -euo pipefail
   cd '$ROOT'
   export DATABASE_URL='$DATABASE_URL'
-  bash scripts/bootstrap-min-coverage.sh --min-games-per-team '$DEV_MIN_GAMES_PER_TEAM' --max-games '$DEV_SYNC_MAX_GAMES'
+  export SYNC_LOOKBACK_DAYS='$SYNC_LOOKBACK_DAYS'
+  export SYNC_LOOKAHEAD_DAYS='$SYNC_LOOKAHEAD_DAYS'
+  export STAT_CORRECTION_LOOKBACK_HOURS='$STAT_CORRECTION_LOOKBACK_HOURS'
+  export ENABLE_NBA_SYNC='$ENABLE_NBA_SYNC'
+  export ENABLE_NFL_SYNC='$ENABLE_NFL_SYNC'
+  backend/.venv/bin/python -m backend.app.ingest.cli sync --all
 " > "$ROOT/.run/sync.log" 2>&1 &
 SYNC_PID=$!
 echo "$SYNC_PID" > "$ROOT/.run/sync.pid"

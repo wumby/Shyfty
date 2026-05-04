@@ -1,0 +1,120 @@
+{
+  "source": "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/Shyfty/Views/AuthView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Create account",
+        "location": {
+          "startingColumn": 50,
+          "startingLine": 25
+        }
+      },
+      {
+        "comment": "",
+        "key": "Welcome back",
+        "location": {
+          "startingColumn": 69,
+          "startingLine": 25
+        }
+      },
+      {
+        "comment": "",
+        "key": "Track player signals and build your personalized feed.",
+        "location": {
+          "startingColumn": 36,
+          "startingLine": 28
+        }
+      },
+      {
+        "comment": "",
+        "key": "Sign in to react, comment, and follow players.",
+        "location": {
+          "startingColumn": 36,
+          "startingLine": 29
+        }
+      },
+      {
+        "comment": "",
+        "key": "Access",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 22
+        }
+      },
+      {
+        "comment": "",
+        "key": "Email",
+        "location": {
+          "startingColumn": 39,
+          "startingLine": 37
+        }
+      },
+      {
+        "comment": "",
+        "key": "Password",
+        "location": {
+          "startingColumn": 41,
+          "startingLine": 43
+        }
+      },
+      {
+        "comment": "",
+        "key": "Create Account",
+        "location": {
+          "startingColumn": 62,
+          "startingLine": 68
+        }
+      },
+      {
+        "comment": "",
+        "key": "Sign In",
+        "location": {
+          "startingColumn": 81,
+          "startingLine": 68
+        }
+      },
+      {
+        "comment": "",
+        "key": "Already have an account?",
+        "location": {
+          "startingColumn": 54,
+          "startingLine": 88
+        }
+      },
+      {
+        "comment": "",
+        "key": "Don't have an account?",
+        "location": {
+          "startingColumn": 83,
+          "startingLine": 88
+        }
+      },
+      {
+        "comment": "",
+        "key": "Sign In",
+        "location": {
+          "startingColumn": 54,
+          "startingLine": 90
+        }
+      },
+      {
+        "comment": "",
+        "key": "Create one",
+        "location": {
+          "startingColumn": 66,
+          "startingLine": 90
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cancel",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 105
+        }
+      }
+    ]
+  },
+  "version": 1
+}

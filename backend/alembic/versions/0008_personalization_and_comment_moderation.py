@@ -3,7 +3,7 @@
 from alembic import op
 import sqlalchemy as sa
 
-revision = "0008_personalization_and_comment_moderation"
+revision = "0008_personalization_comment_mod"
 down_revision = "0007_favorites"
 branch_labels = None
 depends_on = None

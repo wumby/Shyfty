@@ -1,0 +1,48 @@
+{
+  "source": "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/Shyfty/Views/CompactSignalCardView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "%@ • %@ • %@",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 45
+        }
+      },
+      {
+        "comment": "",
+        "key": "%@ • %@ • %@",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 119
+        }
+      },
+      {
+        "comment": "",
+        "key": "✓",
+        "location": {
+          "startingColumn": 47,
+          "startingLine": 80
+        }
+      },
+      {
+        "comment": "",
+        "key": "+",
+        "location": {
+          "startingColumn": 55,
+          "startingLine": 80
+        }
+      },
+      {
+        "comment": "",
+        "key": "%@ • %@",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 114
+        }
+      }
+    ]
+  },
+  "version": 1
+}

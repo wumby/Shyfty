@@ -131,6 +131,11 @@ def _upsert_game(
     home_team_id: int,
     away_team_id: int,
     source_id: str,
+    status: str = "unknown",
+    home_team_external_id: Optional[str] = None,
+    away_team_external_id: Optional[str] = None,
+    source_updated_at: Optional[datetime] = None,
+    raw_schedule_payload: Optional[dict[str, Any]] = None,
 ) -> Game:
     season = season_from_date(game_date)
     game = db.execute(
@@ -145,6 +150,12 @@ def _upsert_game(
             away_team_id=away_team_id,
             source_system=NBA_SOURCE_SYSTEM,
             source_id=source_id,
+            external_game_id=source_id,
+            status=status,
+            home_team_external_id=home_team_external_id,
+            away_team_external_id=away_team_external_id,
+            source_updated_at=source_updated_at,
+            raw_schedule_payload=json.dumps(raw_schedule_payload) if raw_schedule_payload is not None else None,
         )
         db.add(game)
         db.flush()
@@ -155,6 +166,13 @@ def _upsert_game(
     game.season = season
     game.home_team_id = home_team_id
     game.away_team_id = away_team_id
+    game.external_game_id = source_id
+    game.status = status
+    game.home_team_external_id = home_team_external_id
+    game.away_team_external_id = away_team_external_id
+    game.source_updated_at = source_updated_at
+    if raw_schedule_payload is not None:
+        game.raw_schedule_payload = json.dumps(raw_schedule_payload)
     return game
 
 
@@ -186,6 +204,16 @@ def _team_stat_exists(db: Session, *, source_game_id: str, source_team_id: str) 
             TeamGameStat.source_team_id == source_team_id,
         )
     ).scalar_one_or_none() is not None
+
+
+def _get_existing_team_stat(db: Session, *, source_game_id: str, source_team_id: str) -> Optional[TeamGameStat]:
+    return db.execute(
+        select(TeamGameStat).where(
+            TeamGameStat.source_system == NBA_SOURCE_SYSTEM,
+            TeamGameStat.source_game_id == source_game_id,
+            TeamGameStat.source_team_id == source_team_id,
+        )
+    ).scalar_one_or_none()
 
 
 def _clear_existing_nba_data(db: Session, *, clear_since=None) -> None:
@@ -454,14 +482,14 @@ def _get_or_create_nba_league(db: Session) -> League:
     return league
 
 
-def _stat_exists(db: Session, *, source_game_id: str, source_player_id: str) -> bool:
+def _get_existing_player_stat(db: Session, *, source_game_id: str, source_player_id: str) -> Optional[PlayerGameStat]:
     return db.execute(
-        select(PlayerGameStat.id).where(
+        select(PlayerGameStat).where(
             PlayerGameStat.source_system == NBA_SOURCE_SYSTEM,
             PlayerGameStat.source_game_id == source_game_id,
             PlayerGameStat.source_player_id == source_player_id,
         )
-    ).scalar_one_or_none() is not None
+    ).scalar_one_or_none()
 
 
 def load_nba_games_incremental(
@@ -607,10 +635,6 @@ def load_nba_games_incremental(
                 skipped_stat_rows += 1
                 continue
 
-            if _team_stat_exists(db, source_game_id=game_id, source_team_id=source_team_id):
-                skipped_stat_rows += 1
-                continue
-
             team = team_cache.get(source_team_id)
             if team is None:
                 skipped_stat_rows += 1
@@ -633,41 +657,56 @@ def load_nba_games_incremental(
             opponent_team_id = game.away_team_id if is_home else game.home_team_id
             opponent_team = next((cached_team for cached_team in team_cache.values() if cached_team.id == opponent_team_id), None)
 
-            db.add(
-                TeamGameStat(
-                    team_id=team.id,
-                    game_id=game.id,
-                    opponent_team_id=opponent_team_id,
-                    opponent_name=opponent_team.name if opponent_team is not None else None,
-                    home_away="vs" if is_home else "@",
-                    points=row.get("PTS"),
-                    rebounds=row.get("REB"),
-                    assists=row.get("AST"),
-                    fg_pct=row.get("FG_PCT"),
-                    fg3_pct=row.get("FG3_PCT"),
-                    turnovers=row.get("TO"),
-                    pace=advanced_row.get("PACE") if advanced_row else None,
-                    off_rating=advanced_row.get("OFF_RATING") if advanced_row else None,
-                    source_system=NBA_SOURCE_SYSTEM,
-                    source_game_id=game_id,
-                    source_team_id=source_team_id,
-                    raw_snapshot_path=snapshot_dir_str or None,
-                    raw_traditional_payload_path=traditional_path_str or None,
-                    raw_advanced_payload_path=advanced_path_str or None,
-                    raw_record_index=raw_record_index,
+            existing_team_stat = _get_existing_team_stat(db, source_game_id=game_id, source_team_id=source_team_id)
+            if existing_team_stat is None:
+                db.add(
+                    TeamGameStat(
+                        team_id=team.id,
+                        game_id=game.id,
+                        opponent_team_id=opponent_team_id,
+                        opponent_name=opponent_team.name if opponent_team is not None else None,
+                        home_away="vs" if is_home else "@",
+                        points=row.get("PTS"),
+                        rebounds=row.get("REB"),
+                        assists=row.get("AST"),
+                        fg_pct=row.get("FG_PCT"),
+                        fg3_pct=row.get("FG3_PCT"),
+                        turnovers=row.get("TO"),
+                        pace=advanced_row.get("PACE") if advanced_row else None,
+                        off_rating=advanced_row.get("OFF_RATING") if advanced_row else None,
+                        source_system=NBA_SOURCE_SYSTEM,
+                        source_game_id=game_id,
+                        source_team_id=source_team_id,
+                        raw_snapshot_path=snapshot_dir_str or None,
+                        raw_traditional_payload_path=traditional_path_str or None,
+                        raw_advanced_payload_path=advanced_path_str or None,
+                        raw_record_index=raw_record_index,
+                    )
                 )
-            )
-            team_stats_loaded += 1
+                team_stats_loaded += 1
+            else:
+                existing_team_stat.team_id = team.id
+                existing_team_stat.game_id = game.id
+                existing_team_stat.opponent_team_id = opponent_team_id
+                existing_team_stat.opponent_name = opponent_team.name if opponent_team is not None else None
+                existing_team_stat.home_away = "vs" if is_home else "@"
+                existing_team_stat.points = row.get("PTS")
+                existing_team_stat.rebounds = row.get("REB")
+                existing_team_stat.assists = row.get("AST")
+                existing_team_stat.fg_pct = row.get("FG_PCT")
+                existing_team_stat.fg3_pct = row.get("FG3_PCT")
+                existing_team_stat.turnovers = row.get("TO")
+                existing_team_stat.pace = advanced_row.get("PACE") if advanced_row else None
+                existing_team_stat.off_rating = advanced_row.get("OFF_RATING") if advanced_row else None
+                existing_team_stat.raw_snapshot_path = snapshot_dir_str or None
+                existing_team_stat.raw_traditional_payload_path = traditional_path_str or None
+                existing_team_stat.raw_advanced_payload_path = advanced_path_str or None
+                existing_team_stat.raw_record_index = raw_record_index
 
         for raw_record_index, row in enumerate(traditional_rows):
             source_player_id = str(row["PLAYER_ID"])
 
             if row.get("MIN") in (None, "", "0", "0:00"):
-                skipped_stat_rows += 1
-                continue
-
-            # Idempotency: skip if this exact player-game stat was already loaded
-            if _stat_exists(db, source_game_id=game_id, source_player_id=source_player_id):
                 skipped_stat_rows += 1
                 continue
 
@@ -691,31 +730,51 @@ def load_nba_games_incremental(
                 player.team_id = team_cache[team_key].id
 
             usage_row = usage_by_player_id.get(source_player_id, {})
-            db.add(
-                PlayerGameStat(
-                    player_id=player.id,
-                    game_id=game.id,
-                    points=row.get("PTS"),
-                    rebounds=row.get("REB"),
-                    assists=row.get("AST"),
-                    steals=row.get("STL"),
-                    blocks=row.get("BLK"),
-                    turnovers=row.get("TO"),
-                    minutes_played=_parse_minutes(row.get("MIN")),
-                    plus_minus=row.get("PLUS_MINUS"),
-                    fg_pct=row.get("FG_PCT"),
-                    fg3_pct=row.get("FG3_PCT"),
-                    ft_pct=row.get("FT_PCT"),
-                    usage_rate=usage_row.get("USG_PCT"),
-                    source_system=NBA_SOURCE_SYSTEM,
-                    source_game_id=game_id,
-                    source_player_id=source_player_id,
-                    raw_snapshot_path=snapshot_dir_str,
-                    raw_payload_path=traditional_path_str,
-                    raw_record_index=raw_record_index,
+            existing_stat = _get_existing_player_stat(db, source_game_id=game_id, source_player_id=source_player_id)
+            if existing_stat is None:
+                db.add(
+                    PlayerGameStat(
+                        player_id=player.id,
+                        game_id=game.id,
+                        points=row.get("PTS"),
+                        rebounds=row.get("REB"),
+                        assists=row.get("AST"),
+                        steals=row.get("STL"),
+                        blocks=row.get("BLK"),
+                        turnovers=row.get("TO"),
+                        minutes_played=_parse_minutes(row.get("MIN")),
+                        plus_minus=row.get("PLUS_MINUS"),
+                        fg_pct=row.get("FG_PCT"),
+                        fg3_pct=row.get("FG3_PCT"),
+                        ft_pct=row.get("FT_PCT"),
+                        usage_rate=usage_row.get("USG_PCT"),
+                        source_system=NBA_SOURCE_SYSTEM,
+                        source_game_id=game_id,
+                        source_player_id=source_player_id,
+                        raw_snapshot_path=snapshot_dir_str,
+                        raw_payload_path=traditional_path_str,
+                        raw_record_index=raw_record_index,
+                    )
                 )
-            )
-            stats_loaded += 1
+                stats_loaded += 1
+            else:
+                existing_stat.player_id = player.id
+                existing_stat.game_id = game.id
+                existing_stat.points = row.get("PTS")
+                existing_stat.rebounds = row.get("REB")
+                existing_stat.assists = row.get("AST")
+                existing_stat.steals = row.get("STL")
+                existing_stat.blocks = row.get("BLK")
+                existing_stat.turnovers = row.get("TO")
+                existing_stat.minutes_played = _parse_minutes(row.get("MIN"))
+                existing_stat.plus_minus = row.get("PLUS_MINUS")
+                existing_stat.fg_pct = row.get("FG_PCT")
+                existing_stat.fg3_pct = row.get("FG3_PCT")
+                existing_stat.ft_pct = row.get("FT_PCT")
+                existing_stat.usage_rate = usage_row.get("USG_PCT")
+                existing_stat.raw_snapshot_path = snapshot_dir_str
+                existing_stat.raw_payload_path = traditional_path_str
+                existing_stat.raw_record_index = raw_record_index
 
     db.flush()
 

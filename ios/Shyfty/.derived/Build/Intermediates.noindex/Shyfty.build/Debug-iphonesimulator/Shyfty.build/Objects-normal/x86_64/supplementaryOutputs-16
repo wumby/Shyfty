@@ -1,0 +1,23 @@
+{
+  "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/Shyfty/ShyftyTheme.swift" : {
+    "const-values" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/x86_64/ShyftyTheme.swiftconstvalues",
+    "dependencies" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/x86_64/ShyftyTheme.d",
+    "diagnostics" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/x86_64/ShyftyTheme.dia",
+    "object" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/x86_64/ShyftyTheme.o",
+    "swift-dependencies" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/x86_64/ShyftyTheme.swiftdeps"
+  },
+  "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/Shyfty/SignalFormatting.swift" : {
+    "const-values" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/x86_64/SignalFormatting.swiftconstvalues",
+    "dependencies" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/x86_64/SignalFormatting.d",
+    "diagnostics" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/x86_64/SignalFormatting.dia",
+    "object" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/x86_64/SignalFormatting.o",
+    "swift-dependencies" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/x86_64/SignalFormatting.swiftdeps"
+  },
+  "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/Shyfty/Views/SearchSheetView.swift" : {
+    "const-values" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/x86_64/SearchSheetView.swiftconstvalues",
+    "dependencies" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/x86_64/SearchSheetView.d",
+    "diagnostics" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/x86_64/SearchSheetView.dia",
+    "object" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/x86_64/SearchSheetView.o",
+    "swift-dependencies" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/x86_64/SearchSheetView.swiftdeps"
+  }
+}

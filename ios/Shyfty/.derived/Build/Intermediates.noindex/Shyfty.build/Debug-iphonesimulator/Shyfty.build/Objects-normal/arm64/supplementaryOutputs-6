@@ -1,0 +1,23 @@
+{
+  "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/Shyfty/ContentView.swift" : {
+    "const-values" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/ContentView.swiftconstvalues",
+    "dependencies" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/ContentView.d",
+    "diagnostics" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/ContentView.dia",
+    "object" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/ContentView.o",
+    "swift-dependencies" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/ContentView.swiftdeps"
+  },
+  "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/Shyfty/Views/CompactSignalCardView.swift" : {
+    "const-values" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/CompactSignalCardView.swiftconstvalues",
+    "dependencies" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/CompactSignalCardView.d",
+    "diagnostics" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/CompactSignalCardView.dia",
+    "object" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/CompactSignalCardView.o",
+    "swift-dependencies" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/CompactSignalCardView.swiftdeps"
+  },
+  "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/Shyfty/Views/FilterChipsView.swift" : {
+    "const-values" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/FilterChipsView.swiftconstvalues",
+    "dependencies" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/FilterChipsView.d",
+    "diagnostics" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/FilterChipsView.dia",
+    "object" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/FilterChipsView.o",
+    "swift-dependencies" : "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/.derived/Build/Intermediates.noindex/Shyfty.build/Debug-iphonesimulator/Shyfty.build/Objects-normal/arm64/FilterChipsView.swiftdeps"
+  }
+}

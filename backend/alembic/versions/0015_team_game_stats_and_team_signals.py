@@ -4,7 +4,7 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision = "0015_team_game_stats_and_team_signals"
+revision = "0015_team_game_stats"
 down_revision = "0014_remove_consistency_signals"
 branch_labels = None
 depends_on = None

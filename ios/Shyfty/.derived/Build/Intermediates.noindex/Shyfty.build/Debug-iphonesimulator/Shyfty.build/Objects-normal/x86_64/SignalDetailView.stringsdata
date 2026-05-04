@@ -1,0 +1,104 @@
+{
+  "source": "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/Shyfty/Views/SignalDetailView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "•",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 181
+        }
+      },
+      {
+        "comment": "",
+        "key": "•",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 187
+        }
+      },
+      {
+        "comment": "",
+        "key": "Player context",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 177
+        }
+      },
+      {
+        "comment": "",
+        "key": "What This Means",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 205
+        }
+      },
+      {
+        "comment": "",
+        "key": "Why It Triggered",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 234
+        }
+      },
+      {
+        "comment": "",
+        "key": "%.1f",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 261
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 291
+        }
+      },
+      {
+        "comment": "",
+        "key": "Discussion",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 312
+        }
+      },
+      {
+        "comment": "",
+        "key": "No recent comments yet.",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 316
+        }
+      },
+      {
+        "comment": "",
+        "key": "edited",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 327
+        }
+      },
+      {
+        "comment": "",
+        "key": "Add a comment",
+        "location": {
+          "startingColumn": 27,
+          "startingLine": 344
+        }
+      },
+      {
+        "comment": "",
+        "key": "Post",
+        "location": {
+          "startingColumn": 24,
+          "startingLine": 350
+        }
+      }
+    ]
+  },
+  "version": 1
+}

@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, ForeignKey, String
+from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -9,6 +9,9 @@ from app.db.base import Base
 
 class Game(Base):
     __tablename__ = "games"
+    __table_args__ = (
+        UniqueConstraint("league_id", "external_game_id", name="uq_games_league_external_game_id"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     league_id: Mapped[int] = mapped_column(ForeignKey("leagues.id"), nullable=False)
@@ -18,7 +21,14 @@ class Game(Base):
     away_team_id: Mapped[int] = mapped_column(ForeignKey("teams.id"), nullable=False)
     source_system: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     source_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    external_game_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="unknown")
+    home_team_external_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    away_team_external_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     last_synced_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    last_hydrated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    source_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    raw_schedule_payload: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     signals_generated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     league = relationship("League", back_populates="games")

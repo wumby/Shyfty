@@ -219,6 +219,10 @@ def start_scheduler() -> None:
     global _ingest_task
     from app.core.config import settings
 
+    if not settings.sync_scheduler_enabled_effective:
+        logger.info("Scheduler: disabled by configuration")
+        return
+
     _load_state_from_db()
     _ingest_task = asyncio.create_task(_daily_loop())
     logger.info(

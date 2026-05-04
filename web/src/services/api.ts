@@ -19,7 +19,7 @@ import type {
   UserProfile,
 } from '../types';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8001/api';
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '/api';
 const CSRF_COOKIE_NAME = 'shyfty_csrf';
 
 function getCookie(name: string): string | null {
@@ -46,6 +46,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
+    cache: 'no-store',
     credentials: 'include',
     headers,
   });

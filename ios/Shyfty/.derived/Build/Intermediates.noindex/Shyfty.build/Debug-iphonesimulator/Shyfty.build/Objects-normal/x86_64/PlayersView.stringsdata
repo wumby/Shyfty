@@ -1,0 +1,64 @@
+{
+  "source": "/Users/jackziegler/Projects/Shyfty/ios/Shyfty/Shyfty/Views/PlayersView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Players",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 35
+        }
+      },
+      {
+        "comment": "",
+        "key": "Players",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 46
+        }
+      },
+      {
+        "comment": "",
+        "key": "Browse player signal context by name, team, or league.",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 48
+        }
+      },
+      {
+        "comment": "",
+        "key": "Search players",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 60
+        }
+      },
+      {
+        "comment": "",
+        "key": "%@ · %@",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 105
+        }
+      },
+      {
+        "comment": "",
+        "key": "•",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 110
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld signal%@",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 113
+        }
+      }
+    ]
+  },
+  "version": 1
+}

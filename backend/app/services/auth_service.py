@@ -10,6 +10,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.models.user import User
 from app.models.user_session import UserSession
 
@@ -36,7 +37,11 @@ def _verify_password(password: str, password_hash: str) -> bool:
 
 
 def _hash_session_token(token: str) -> str:
-    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+    return hmac.new(
+        settings.session_secret.encode("utf-8"),
+        token.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
 
 
 def create_user(db: Session, *, email: str, password: str) -> User:
