@@ -50,10 +50,10 @@ class PlayerGameStat(Base):
         back_populates="source_stat",
         foreign_keys="RollingMetric.source_stat_id",
     )
-    source_signals = relationship(
-        "Signal",
+    source_shyfts = relationship(
+        "Shyft",
         back_populates="source_stat",
-        foreign_keys="Signal.source_stat_id",
+        foreign_keys="Shyft.source_stat_id",
     )
     baseline_sample_links = relationship(
         "RollingMetricBaselineSample",

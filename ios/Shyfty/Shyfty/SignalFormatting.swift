@@ -1,7 +1,7 @@
 import Foundation
 import SwiftUI
 
-enum SignalFormatting {
+enum ShyftFormatting {
     private static let isoDateTimeFormatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -51,17 +51,17 @@ enum SignalFormatting {
             .joined(separator: " ")
     }
 
-    static func metricLabel(for signal: Signal) -> String {
-        signal.metricLabel.isEmpty ? metricLabel(signal.metricName) : signal.metricLabel
+    static func metricLabel(for shyft: Shyft) -> String {
+        shyft.metricLabel.isEmpty ? metricLabel(shyft.metricName) : shyft.metricLabel
     }
 
-    static func signalLabel(_ signalType: String) -> String {
-        switch signalType {
+    static func signalLabel(_ shyftType: String) -> String {
+        switch shyftType {
         case "SPIKE": return "Spike"
         case "DROP": return "Drop"
         case "SHIFT": return "Shift"
         case "OUTLIER": return "Outlier"
-        default: return signalType
+        default: return shyftType
         }
     }
 
@@ -96,9 +96,9 @@ enum SignalFormatting {
         return "\(metricLabel ?? self.metricLabel(metricName)) vs baseline"
     }
 
-    static func signalSummary(for signal: Signal) -> String {
-        let label = metricLabel(for: signal)
-        if let deltaPercent = deltaPercent(current: signal.currentValue, baseline: signal.baselineValue, provided: signal.movementPct) {
+    static func signalSummary(for shyft: Shyft) -> String {
+        let label = metricLabel(for: shyft)
+        if let deltaPercent = deltaPercent(current: shyft.currentValue, baseline: shyft.baselineValue, provided: shyft.movementPct) {
             let rounded = Int(abs(deltaPercent.rounded()))
             return "\(label) is \(rounded)% \(deltaPercent >= 0 ? "above" : "below") the recent baseline."
         }
@@ -134,8 +134,8 @@ enum SignalFormatting {
         return isoDateFormatter.date(from: value)
     }
 
-    static func tint(for signalType: String) -> Color {
-        switch signalType {
+    static func tint(for shyftType: String) -> Color {
+        switch shyftType {
         case "SHIFT": return Color(red: 0.60, green: 0.63, blue: 0.68)  // gray
         case "SWING": return Color(red: 0.95, green: 0.67, blue: 0.24)  // amber
         case "OUTLIER": return Color(red: 0.96, green: 0.36, blue: 0.36) // red

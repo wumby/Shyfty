@@ -20,13 +20,17 @@ function emailHandle(email: string) {
   return email.split('@')[0];
 }
 
+function commentAuthorName(comment: Comment) {
+  return (comment.user_display_name && comment.user_display_name.trim()) || emailHandle(comment.user_email);
+}
+
 interface Props {
-  signalId: number;
+  shyftId: number;
   initialComments?: Comment[];
   onCountChange?: (count: number) => void;
 }
 
-export function CommentsPanel({ signalId, initialComments, onCountChange }: Props) {
+export function CommentsPanel({ shyftId, initialComments, onCountChange }: Props) {
   const [comments, setComments] = useState<Comment[]>(initialComments ?? []);
   const [loading, setLoading] = useState(!initialComments);
   const [draft, setDraft] = useState('');
@@ -49,14 +53,14 @@ export function CommentsPanel({ signalId, initialComments, onCountChange }: Prop
     if (initialComments) return;
     setLoading(true);
     api
-      .getComments(signalId)
+      .getComments(shyftId)
       .then((rows) => {
         setComments(rows);
         onCountChangeRef.current?.(rows.length);
       })
       .catch(() => setComments([]))
       .finally(() => setLoading(false));
-  }, [initialComments, signalId]);
+  }, [initialComments, shyftId]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -71,9 +75,10 @@ export function CommentsPanel({ signalId, initialComments, onCountChange }: Prop
     const tempId = -Date.now();
     const optimisticComment: Comment = {
       id: tempId,
-      signal_id: signalId,
+      shyft_id: shyftId,
       user_id: currentUser.id,
       user_email: currentUser.email,
+      user_display_name: currentUser.display_name ?? currentUser.email.split('@')[0],
       body,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -89,7 +94,7 @@ export function CommentsPanel({ signalId, initialComments, onCountChange }: Prop
     });
     setDraft('');
     try {
-      const newComment = await api.postComment(signalId, body);
+      const newComment = await api.postComment(shyftId, body);
       setComments((prev) => {
         const next = prev.map((comment) => (comment.id === tempId ? newComment : comment));
         onCountChangeRef.current?.(next.length);
@@ -183,7 +188,7 @@ export function CommentsPanel({ signalId, initialComments, onCountChange }: Prop
         <div className="space-y-3 py-1">
           {comments.length === 0 && (
             <p className="text-[12px] italic text-muted/50">
-              Set the tone on this signal. Be the first read everyone else reacts to.
+              Set the tone on this shyft. Be the first read everyone else reacts to.
             </p>
           )}
           {comments.map((c) => (
@@ -191,7 +196,7 @@ export function CommentsPanel({ signalId, initialComments, onCountChange }: Prop
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-[11px] font-semibold text-[#d9e3f1]">{emailHandle(c.user_email)}</span>
+                    <span className="text-[11px] font-semibold text-[#d9e3f1]">{commentAuthorName(c)}</span>
                     <span className="text-[10px] text-muted">{formatCommentTime(c.created_at)}</span>
                     {c.is_edited ? <span className="text-[10px] uppercase tracking-[0.14em] text-muted/70">edited</span> : null}
                   </div>

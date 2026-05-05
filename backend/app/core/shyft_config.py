@@ -8,7 +8,7 @@ from typing import Any
 
 
 @dataclass(frozen=True)
-class SignalWindows:
+class ShyftWindows:
     short_window: int = 5
     medium_window: int = 10
     delta_window: int = 3
@@ -17,7 +17,7 @@ class SignalWindows:
 
 
 @dataclass(frozen=True)
-class SignalThresholds:
+class ShyftThresholds:
     shift_deviation: float = 0.10
     swing_deviation: float = 0.40
     outlier_deviation: float = 0.80
@@ -26,7 +26,7 @@ class SignalThresholds:
 
 
 @dataclass(frozen=True)
-class SignalScoring:
+class ShyftScoring:
     base_score: float = 24.0
     short_z_weight: float = 15.0
     medium_z_weight: float = 10.0
@@ -45,11 +45,11 @@ class MinutesEligibilityConfig:
 
 
 @dataclass(frozen=True)
-class SignalConfig:
-    windows: SignalWindows = SignalWindows()
-    thresholds: SignalThresholds = SignalThresholds()
-    scoring: SignalScoring = SignalScoring()
-    metric_thresholds: dict[str, SignalThresholds] | None = None
+class ShyftConfig:
+    windows: ShyftWindows = ShyftWindows()
+    thresholds: ShyftThresholds = ShyftThresholds()
+    scoring: ShyftScoring = ShyftScoring()
+    metric_thresholds: dict[str, ShyftThresholds] | None = None
     minutes_eligibility: MinutesEligibilityConfig = MinutesEligibilityConfig()
 
     def thresholds_for_metric(self, metric_name: str) -> SignalThresholds:
@@ -58,7 +58,7 @@ class SignalConfig:
         return self.metric_thresholds.get(metric_name, self.thresholds)
 
 
-def signal_config_path() -> Path:
+def shyft_config_path() -> Path:
     return Path(__file__).resolve().parents[2] / "config" / "signal_engine.json"
 
 
@@ -70,22 +70,22 @@ def _merge_dataclass(instance: Any, raw: dict[str, Any]) -> Any:
 
 
 @lru_cache(maxsize=1)
-def get_signal_config() -> SignalConfig:
-    path = signal_config_path()
+def get_shyft_config() -> ShyftConfig:
+    path = shyft_config_path()
     if not path.exists():
-        return SignalConfig()
+        return ShyftConfig()
 
     payload = json.loads(path.read_text(encoding="utf-8"))
-    windows = _merge_dataclass(SignalWindows(), payload.get("windows", {}))
-    thresholds = _merge_dataclass(SignalThresholds(), payload.get("thresholds", {}).get("global", {}))
-    scoring = _merge_dataclass(SignalScoring(), payload.get("scoring", {}))
+    windows = _merge_dataclass(ShyftWindows(), payload.get("windows", {}))
+    thresholds = _merge_dataclass(ShyftThresholds(), payload.get("thresholds", {}).get("global", {}))
+    scoring = _merge_dataclass(ShyftScoring(), payload.get("scoring", {}))
     minutes_eligibility = _merge_dataclass(MinutesEligibilityConfig(), payload.get("minutes_eligibility", {}))
 
-    metric_thresholds: dict[str, SignalThresholds] = {}
+    metric_thresholds: dict[str, ShyftThresholds] = {}
     for metric_name, raw_thresholds in payload.get("thresholds", {}).get("metrics", {}).items():
         metric_thresholds[metric_name] = _merge_dataclass(thresholds, raw_thresholds)
 
-    return SignalConfig(
+    return ShyftConfig(
         windows=windows,
         thresholds=thresholds,
         scoring=scoring,
@@ -94,6 +94,6 @@ def get_signal_config() -> SignalConfig:
     )
 
 
-def reload_signal_config() -> SignalConfig:
-    get_signal_config.cache_clear()
-    return get_signal_config()
+def reload_shyft_config() -> ShyftConfig:
+    get_shyft_config.cache_clear()
+    return get_shyft_config()

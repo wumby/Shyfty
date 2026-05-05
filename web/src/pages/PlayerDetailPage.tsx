@@ -2,56 +2,29 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import { EmptyState } from '../components/EmptyState';
-import { LastGameSignalCard } from '../components/LastGameSignalCard';
+import { LastGameShyftCard } from "../components/LastGameShyftCard";
 import { LoadingState } from '../components/LoadingState';
 import { SectionHeader } from '../components/SectionHeader';
-import { SignalCommentsDrawer } from '../components/SignalCommentsDrawer';
-import { SignalDetailDrawer } from '../components/SignalDetailDrawer';
+import { ShyftCommentsDrawer } from "../components/ShyftCommentsDrawer";
+import { ShyftDetailDrawer } from "../components/ShyftDetailDrawer";
 import { api } from '../services/api';
 import { useAuthStore } from '../store/useAuthStore';
-import { useSignalStore } from '../store/useSignalStore';
-import type { PlayerBoxScore, PlayerDetail, Signal } from '../types';
-import { formatGameContext, formatSignalLabel } from '../lib/signalFormat';
+import { useShyftStore } from "../store/useShyftStore";
+import type { PlayerBoxScore, PlayerDetail, Shyft } from '../types';
+import { formatGameContext, formatShyftLabel } from "../lib/shyftFormat";
 
-type CommentThread = { signalId: number; signalIds: number[]; title: string; subtitle?: string };
+type CommentThread = { shyftId: number; shyftIds: number[]; title: string; subtitle?: string };
 
-function groupSignalsByGame(signals: Signal[]): Signal[][] {
-  const grouped = new Map<string | number, Signal[]>();
-  for (const signal of signals) {
-    const key = signal.game_id ?? signal.event_date ?? 'unknown';
+function groupSignalsByGame(shyfts: Shyft[]): Shyft[][] {
+  const grouped = new Map<string | number, Shyft[]>();
+  for (const shyft of shyfts) {
+    const key = shyft.game_id ?? shyft.event_date ?? 'unknown';
     const existing = grouped.get(key);
-    if (existing) existing.push(signal);
-    else grouped.set(key, [signal]);
+    if (existing) existing.push(shyft);
+    else grouped.set(key, [shyft]);
   }
   return [...grouped.values()];
 }
-
-const PLAYER_BOX_SCORE_FIELDS: Array<[keyof PlayerBoxScore, string, 'number' | 'percent']> = [
-  ['points', 'PTS', 'number'],
-  ['rebounds', 'REB', 'number'],
-  ['assists', 'AST', 'number'],
-  ['minutes_played', 'MIN', 'number'],
-  ['usage_rate', 'USG', 'percent'],
-  ['steals', 'STL', 'number'],
-  ['blocks', 'BLK', 'number'],
-  ['turnovers', 'TO', 'number'],
-  ['plus_minus', '+/-', 'number'],
-  ['fg_pct', 'FG%', 'percent'],
-  ['fg3_pct', '3P%', 'percent'],
-  ['ft_pct', 'FT%', 'percent'],
-  ['passing_yards', 'PASS YDS', 'number'],
-  ['passing_completions', 'COMP', 'number'],
-  ['passing_attempts', 'ATT', 'number'],
-  ['interceptions', 'INT', 'number'],
-  ['rushing_yards', 'RUSH YDS', 'number'],
-  ['rushing_attempts', 'RUSH ATT', 'number'],
-  ['receiving_yards', 'REC YDS', 'number'],
-  ['receptions', 'REC', 'number'],
-  ['targets', 'TGT', 'number'],
-  ['touchdowns', 'TD', 'number'],
-  ['sacks', 'SACK', 'number'],
-  ['fumbles_lost', 'FUM LOST', 'number'],
-];
 
 function formatBoxScoreValue(value: number, mode: 'number' | 'percent') {
   if (mode === 'percent') {
@@ -61,46 +34,88 @@ function formatBoxScoreValue(value: number, mode: 'number' | 'percent') {
   return Number.isInteger(value) ? value.toString() : value.toFixed(1);
 }
 
+function dashValue(value: number | null | undefined, mode: 'number' | 'percent') {
+  if (typeof value !== 'number') return '—';
+  return formatBoxScoreValue(value, mode);
+}
+
+function plusMinusValue(value: number | null | undefined) {
+  if (typeof value !== 'number') return '—';
+  return value > 0 ? `+${value}` : `${value}`;
+}
+
+function boxScoreTone(result?: string | null) {
+  if (result === 'W') return { text: 'text-success', bg: 'bg-success/15', border: 'border-success/35' };
+  if (result === 'L') return { text: 'text-danger', bg: 'bg-danger/15', border: 'border-danger/35' };
+  return { text: 'text-muted', bg: 'bg-white/[0.05]', border: 'border-border' };
+}
+
 function PlayerBoxScores({ rows }: { rows: PlayerBoxScore[] }) {
   return (
     <section className="panel-surface px-4 py-4">
       <div className="flex items-center justify-between gap-3 px-1">
-        <h2 className="text-base font-semibold text-ink">Last 5 Box Scores</h2>
+        <h2 className="text-base font-semibold text-ink">Recent Box Scores</h2>
         <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">{rows.length}/5 games</span>
       </div>
-      <div className="mt-3 space-y-2">
+      <div className="mt-3">
         {rows.length === 0 ? (
           <div className="rounded-[16px] border border-dashed border-borderStrong bg-white/[0.025] px-4 py-4 text-sm text-muted">
             No box scores are stored for this player yet.
           </div>
-        ) : rows.map((row) => {
-          const stats = PLAYER_BOX_SCORE_FIELDS
-            .map(([key, label, mode]) => {
-              const value = row[key];
-              return typeof value === 'number' ? { label, value: formatBoxScoreValue(value, mode) } : null;
-            })
-            .filter(Boolean) as Array<{ label: string; value: string }>;
-          return (
-            <div key={row.game_id} className="rounded-[16px] border border-border bg-white/[0.025] px-3 py-3">
-              <div className="grid gap-3 lg:grid-cols-[170px_minmax(0,1fr)] lg:items-center">
-                <div className="min-w-0 border-b border-border pb-2 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-3">
-                  <div className="truncate text-sm font-semibold text-ink">
-                    {row.home_away === 'Away' ? '@' : 'vs'} {row.opponent}
-                  </div>
-                  <div className="mt-0.5 truncate text-[11px] text-muted">{formatGameContextDate(row.game_date)}{row.season ? ` · ${row.season}` : ''}</div>
-                </div>
-                <div className="grid grid-cols-[repeat(auto-fit,minmax(64px,1fr))] gap-px overflow-hidden rounded-[12px] border border-border bg-border">
-                  {stats.map((stat) => (
-                    <div key={`${row.game_id}-${stat.label}`} className="min-w-0 bg-[#081421] px-2.5 py-2">
-                      <div className="truncate text-[8px] font-semibold uppercase tracking-[0.1em] text-muted">{stat.label}</div>
-                      <div className="mt-0.5 truncate text-xs font-semibold tabular-nums text-ink">{stat.value}</div>
+        ) : (
+          <div className="overflow-hidden rounded-[16px] border border-border bg-white/[0.03]">
+            {rows.map((row, index) => {
+              const stats = [
+                { label: 'PTS', value: dashValue(row.points, 'number') },
+                { label: 'REB', value: dashValue(row.rebounds, 'number') },
+                { label: 'AST', value: dashValue(row.assists, 'number') },
+                { label: 'MIN', value: dashValue(row.minutes_played, 'number') },
+                { label: 'FG%', value: dashValue(row.fg_pct, 'percent') },
+                { label: '3P%', value: dashValue(row.fg3_pct, 'percent') },
+                { label: '+/-', value: plusMinusValue(row.plus_minus) },
+                { label: 'TO', value: dashValue(row.turnovers, 'number') },
+                { label: 'STL', value: dashValue(row.steals, 'number') },
+                { label: 'BLK', value: dashValue(row.blocks, 'number') },
+              ];
+              const tone = boxScoreTone(row.result);
+              const score = row.team_score != null && row.opponent_score != null
+                ? `${row.team_score}–${row.opponent_score}`
+                : '—';
+
+              return (
+                <div key={row.game_id}>
+                  <div className="px-3 py-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-semibold text-ink">
+                          {row.home_away === 'Away' ? '@' : 'vs'} {row.opponent}
+                        </div>
+                        <div className="mt-0.5 truncate text-[11px] text-muted">{formatGameContextDate(row.game_date)}</div>
+                      </div>
+                      <div className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold tabular-nums ${tone.bg} ${tone.border} ${tone.text}`}>
+                        {(row.result ?? '—')} {score}
+                      </div>
                     </div>
-                  ))}
+
+                    <div className="mt-2 grid grid-cols-5 gap-x-3 gap-y-1 md:grid-cols-10 md:gap-x-2">
+                      {stats.map((stat) => (
+                        <div key={`${row.game_id}-${stat.label}`} className="min-w-0 text-left">
+                          <div className="text-[8px] font-semibold uppercase tracking-[0.1em] text-muted">{stat.label}</div>
+                          <div className={`text-[14px] font-semibold tabular-nums ${stat.label === '+/-' && stat.value.startsWith('+') ? 'text-success' : stat.label === '+/-' && stat.value.startsWith('-') ? 'text-danger' : 'text-ink'}`}>
+                            {stat.value}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  {index < rows.length - 1 ? (
+                    <div className="border-t border-white/10" />
+                  ) : null}
                 </div>
-              </div>
-            </div>
-          );
-        })}
+              );
+            })}
+          </div>
+        )}
       </div>
     </section>
   );
@@ -120,18 +135,18 @@ export function PlayerDetailPage() {
   const { id = '' } = useParams();
   const currentUser = useAuthStore((s) => s.currentUser);
   const openAuth = useAuthStore((s) => s.openAuth);
-  const toggleFollowPlayer = useSignalStore((s) => s.toggleFollowPlayer);
-  const profile = useSignalStore((s) => s.profile);
-  const fetchProfile = useSignalStore((s) => s.fetchProfile);
-  const signalMetaById = useSignalStore((s) => s.signalMetaById);
-  const setSignalGroupCommentCount = useSignalStore((s) => s.setSignalGroupCommentCount);
-  const mergeSignalMeta = useSignalStore((s) => s.mergeSignalMeta);
+  const toggleFollowPlayer = useShyftStore((s) => s.toggleFollowPlayer);
+  const profile = useShyftStore((s) => s.profile);
+  const fetchProfile = useShyftStore((s) => s.fetchProfile);
+  const shyftMetaById = useShyftStore((s) => s.shyftMetaById);
+  const setShyftGroupCommentCount = useShyftStore((s) => s.setShyftGroupCommentCount);
+  const mergeShyftMeta = useShyftStore((s) => s.mergeShyftMeta);
 
   const [player, setPlayer] = useState<PlayerDetail | null>(null);
-  const [signals, setSignals] = useState<Signal[]>([]);
+  const [shyfts, setShyfts] = useState<Shyft[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [detailSignalId, setDetailSignalId] = useState<number | null>(null);
+  const [detailShyftId, setDetailSignalId] = useState<number | null>(null);
   const [commentThread, setCommentThread] = useState<CommentThread | null>(null);
 
   useEffect(() => {
@@ -144,13 +159,13 @@ export function PlayerDetailPage() {
       setLoading(true);
       setError(null);
       try {
-        const [playerRes, signalRes] = await Promise.all([
+        const [playerRes, shyftRes] = await Promise.all([
           api.getPlayer(id),
-          api.getPlayerSignals(id),
+          api.getPlayerShyfts(id),
         ]);
         setPlayer(playerRes);
-        setSignals(signalRes);
-        signalRes.forEach(mergeSignalMeta);
+        setShyfts(shyftRes);
+        shyftRes.forEach(mergeShyftMeta);
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : 'Unknown error');
       } finally {
@@ -159,15 +174,15 @@ export function PlayerDetailPage() {
     }
 
     void load();
-  }, [id, mergeSignalMeta]);
+  }, [id, mergeShyftMeta]);
 
   useEffect(() => {
-    setSignals((prev) =>
-      prev.map((signal) => {
-        const meta = signalMetaById[signal.id];
-        if (!meta) return signal;
+    setShyfts((prev) =>
+      prev.map((shyft) => {
+        const meta = shyftMetaById[shyft.id];
+        if (!meta) return shyft;
         return {
-          ...signal,
+          ...shyft,
           comment_count: meta.comment_count,
           reaction_summary: meta.reaction_summary,
           user_reaction: meta.user_reaction,
@@ -176,18 +191,18 @@ export function PlayerDetailPage() {
         };
       }),
     );
-  }, [signalMetaById]);
+  }, [shyftMetaById]);
 
-  const primarySignal = signals[0] ?? null;
-  const groupedSignals = useMemo(() => groupSignalsByGame(signals), [signals]);
+  const primaryShyft = shyfts[0] ?? null;
+  const groupedShyfts = useMemo(() => groupSignalsByGame(shyfts), [shyfts]);
   const contextCards = useMemo(
     () => [
       { label: 'Team', value: player?.team_name ?? '—' },
       { label: 'League', value: player?.league_name ?? '—' },
-      { label: 'Active Signals', value: String(signals.length) },
-      { label: 'Latest Signal', value: primarySignal ? formatSignalLabel(primarySignal.severity ?? primarySignal.signal_type) : 'None yet' },
+      { label: 'Active Signals', value: String(shyfts.length) },
+      { label: 'Latest Shyft', value: primaryShyft ? formatShyftLabel(primaryShyft.severity ?? primaryShyft.shyft_type) : 'None yet' },
     ],
-    [player, primarySignal, signals.length],
+    [player, primaryShyft, shyfts.length],
   );
 
   if (loading) return <LoadingState />;
@@ -247,39 +262,39 @@ export function PlayerDetailPage() {
 
         <PlayerBoxScores rows={player.recent_box_scores} />
 
-        {primarySignal ? (
+        {primaryShyft ? (
           <section className="panel-surface px-4 py-4">
             <SectionHeader
               title="Latest Context"
-              description="The most recent signal is the anchor. Everything else here should help explain that moment."
+              description="The most recent shyft is the anchor. Everything else here should help explain that moment."
             />
             <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.9fr)]">
               <div className="rounded-[22px] border border-border bg-white/[0.03] px-4 py-4">
-                <div className="eyebrow">Current Signal</div>
+                <div className="eyebrow">Current Shyft</div>
                 <div className="mt-2 text-2xl font-semibold text-ink">
-                  {formatSignalLabel(primarySignal.severity ?? primarySignal.signal_type)} on {primarySignal.metric_label ?? primarySignal.metric_name}
+                  {formatShyftLabel(primaryShyft.severity ?? primaryShyft.shyft_type)} on {primaryShyft.metric_label ?? primaryShyft.metric_name}
                 </div>
-                <p className="mt-2 text-sm leading-6 text-muted">{primarySignal.explanation}</p>
-                <div className="mt-3 text-sm text-[#ffd8bd]">{formatGameContext(primarySignal)}</div>
+                <p className="mt-2 text-sm leading-6 text-muted">{primaryShyft.explanation}</p>
+                <div className="mt-3 text-sm text-[#ffd8bd]">{formatGameContext(primaryShyft)}</div>
               </div>
               <div className="rounded-[22px] border border-border bg-[#09172a]/80 px-4 py-4">
                 <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Why it surfaced</div>
                 <div className="mt-3 flex items-end justify-between gap-3">
                   <div>
                     <div className="text-xs text-muted">Current</div>
-                    <div className="text-2xl font-semibold text-ink">{primarySignal.current_value}</div>
+                    <div className="text-2xl font-semibold text-ink">{primaryShyft.current_value}</div>
                   </div>
                   <div>
                     <div className="text-xs text-muted">Baseline</div>
-                    <div className="text-xl font-semibold text-ink">{primarySignal.baseline_value}</div>
+                    <div className="text-xl font-semibold text-ink">{primaryShyft.baseline_value}</div>
                   </div>
                   <div>
                     <div className="text-xs text-muted">Z-score</div>
-                    <div className="text-xl font-semibold text-[#ffd8bd]">{primarySignal.z_score.toFixed(1)}</div>
+                    <div className="text-xl font-semibold text-[#ffd8bd]">{primaryShyft.z_score.toFixed(1)}</div>
                   </div>
                 </div>
                 <div className="mt-4 text-xs leading-5 text-muted">
-                  Supporting context is intentionally tight here: enough to explain the signal, not enough to turn this page into a long-range stats encyclopedia.
+                  Supporting context is intentionally tight here: enough to explain the shyft, not enough to turn this page into a long-range stats encyclopedia.
                 </div>
               </div>
             </div>
@@ -288,24 +303,24 @@ export function PlayerDetailPage() {
 
         <section className="panel-surface px-4 py-4">
           <SectionHeader
-            title="Recent Signals"
-            description="Read the active signals first. If this list is empty, the player simply does not have a fresh signal yet."
-            aside={<div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">{signals.length} total</div>}
+            title="Recent Shyfts"
+            description="Read the active shyfts first. If this list is empty, the player simply does not have a fresh shyft yet."
+            aside={<div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">{shyfts.length} total</div>}
           />
 
           <div className="mt-4 space-y-4">
-            {groupedSignals.length === 0 ? (
+            {groupedShyfts.length === 0 ? (
               <div className="rounded-[20px] border border-dashed border-borderStrong bg-white/[0.03] px-4 py-5 text-sm text-muted">
-                No recent signals are active for this player yet. This page will fill in once the next real-data sync produces signal-worthy movement.
+                No recent shyfts are active for this player yet. This page will fill in once the next real-data sync produces shyft-worthy movement.
               </div>
             ) : (
-              groupedSignals.map((group) => (
-                <LastGameSignalCard
+              groupedShyfts.map((group) => (
+                <LastGameShyftCard
                   key={`${group[0]?.player_id ?? group[0]?.team_id ?? 'unknown'}-${group[0]?.game_id ?? group[0]?.event_date ?? 'game'}`}
-                  signals={group}
-                  onOpenDetail={(signalId) => setDetailSignalId(signalId)}
-                  onOpenComments={(signalId, title, subtitle, signalIds) =>
-                    setCommentThread({ signalId, title, subtitle, signalIds: signalIds?.length ? signalIds : [signalId] })
+                  shyfts={group}
+                  onOpenDetail={(shyftId) => setDetailSignalId(shyftId)}
+                  onOpenComments={(shyftId, title, subtitle, shyftIds) =>
+                    setCommentThread({ shyftId, title, subtitle, shyftIds: shyftIds?.length ? shyftIds : [shyftId] })
                   }
                 />
               ))
@@ -314,20 +329,20 @@ export function PlayerDetailPage() {
         </section>
       </div>
 
-      {detailSignalId != null ? (
-        <SignalDetailDrawer signalId={detailSignalId} onClose={() => setDetailSignalId(null)} />
+      {detailShyftId != null ? (
+        <ShyftDetailDrawer shyftId={detailShyftId} onClose={() => setDetailSignalId(null)} />
       ) : null}
       {commentThread ? (
-        <SignalCommentsDrawer
-          signalId={commentThread.signalId}
+        <ShyftCommentsDrawer
+          shyftId={commentThread.shyftId}
           title={commentThread.title}
           subtitle={commentThread.subtitle}
           onCountChange={(count) => {
-            const ids = new Set(commentThread.signalIds);
-            setSignalGroupCommentCount(commentThread.signalIds, count);
-            setSignals((prev) =>
-              prev.map((signal) =>
-                ids.has(signal.id) ? { ...signal, comment_count: count } : signal,
+            const ids = new Set(commentThread.shyftIds);
+            setShyftGroupCommentCount(commentThread.shyftIds, count);
+            setShyfts((prev) =>
+              prev.map((shyft) =>
+                ids.has(shyft.id) ? { ...shyft, comment_count: count } : shyft,
               ),
             );
           }}

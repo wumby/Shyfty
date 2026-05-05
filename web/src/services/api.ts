@@ -4,15 +4,15 @@ import type {
   GameLogRow,
   IngestStatus,
   MetricSeriesPoint,
-  PaginatedSignals,
+  PaginatedShyfts,
   Player,
   PlayerDetail,
   ProfilePreferences,
   ReactionType,
   SeasonAveragesRow,
-  Signal,
-  SignalFilters,
-  SignalTrace,
+  Shyft,
+  ShyftFilters,
+  ShyftTrace,
   Team,
   TeamDetail,
   User,
@@ -86,10 +86,10 @@ interface AuthSession {
 }
 
 export const api = {
-  getSignals(filters: SignalFilters = {}, beforeId?: number) {
+  getShyfts(filters: ShyftFilters = {}, beforeId?: number) {
     const query = new URLSearchParams();
     if (filters.league) query.set('league', filters.league);
-    if (filters.signal_type) query.set('signal_type', filters.signal_type);
+    if (filters.shyft_type) query.set('shyft_type', filters.shyft_type);
     if (filters.player) query.set('player', filters.player);
     if (filters.sort) query.set('sort', filters.sort);
     if (filters.feed) query.set('feed', filters.feed);
@@ -97,10 +97,10 @@ export const api = {
     if (filters.date_to) query.set('date_to', filters.date_to);
     if (beforeId != null) query.set('before_id', String(beforeId));
     query.set('limit', '24');
-    return request<PaginatedSignals>(`/signals?${query.toString()}`);
+    return request<PaginatedShyfts>(`/shyfts?${query.toString()}`);
   },
-  getSignal(id: number) {
-    return request<SignalTrace>(`/signals/${id}`);
+  getShyft(id: number) {
+    return request<ShyftTrace>(`/shyfts/${id}`);
   },
   getPlayers() {
     return request<Player[]>('/players');
@@ -108,8 +108,8 @@ export const api = {
   getPlayer(id: string) {
     return request<PlayerDetail>(`/players/${id}`);
   },
-  getPlayerSignals(id: string) {
-    return request<Signal[]>(`/players/${id}/signals`);
+  getPlayerShyfts(id: string) {
+    return request<Shyft[]>(`/players/${id}/shyfts`);
   },
   getPlayerGamelog(id: string, season?: string) {
     const query = season ? `?season=${encodeURIComponent(season)}` : '';
@@ -139,8 +139,8 @@ export const api = {
   unfollowTeam(teamId: number) {
     return request<void>(`/teams/${teamId}/follow`, { method: 'DELETE' });
   },
-  getSignalTrace(id: number) {
-    return request<SignalTrace>(`/signals/${id}`);
+  getShyftTrace(id: number) {
+    return request<ShyftTrace>(`/shyfts/${id}`);
   },
   getSession() {
     return request<AuthSession>('/auth/me');
@@ -160,23 +160,29 @@ export const api = {
   signOut() {
     return request<void>('/auth/signout', { method: 'POST' });
   },
-  setSignalReaction(signalId: number, type: ReactionType) {
-    return request(`/signals/${signalId}/reaction`, {
+  changePassword(payload: { current_password: string; new_password: string; confirm_new_password: string }) {
+    return request<{ message: string }>('/auth/password', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  },
+  setShyftReaction(shyftId: number, type: ReactionType) {
+    return request(`/shyfts/${shyftId}/reaction`, {
       method: 'PUT',
       body: JSON.stringify({ type }),
     });
   },
-  clearSignalReaction(signalId: number) {
-    return request<void>(`/signals/${signalId}/reaction`, { method: 'DELETE' });
+  clearShyftReaction(shyftId: number) {
+    return request<void>(`/shyfts/${shyftId}/reaction`, { method: 'DELETE' });
   },
-  getTrendingSignals(limit = 12) {
-    return request<Signal[]>(`/signals/trending?limit=${limit}`);
+  getTrendingShyfts(limit = 12) {
+    return request<Shyft[]>(`/shyfts/trending?limit=${limit}`);
   },
-  getComments(signalId: number) {
-    return request<Comment[]>(`/signals/${signalId}/comments`);
+  getComments(shyftId: number) {
+    return request<Comment[]>(`/shyfts/${shyftId}/comments`);
   },
-  postComment(signalId: number, body: string) {
-    return request<Comment>(`/signals/${signalId}/comments`, {
+  postComment(shyftId: number, body: string) {
+    return request<Comment>(`/shyfts/${shyftId}/comments`, {
       method: 'POST',
       body: JSON.stringify({ body }),
     });
@@ -207,6 +213,12 @@ export const api = {
   },
   updatePreferences(payload: Partial<ProfilePreferences>) {
     return request<ProfilePreferences>('/profile/preferences', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  },
+  updateProfile(payload: { display_name: string | null }) {
+    return request<UserProfile>('/profile', {
       method: 'PUT',
       body: JSON.stringify(payload),
     });

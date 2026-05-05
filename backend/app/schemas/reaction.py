@@ -33,7 +33,7 @@ class ReactionSummaryRead(BaseModel):
 
 class ReactionRead(BaseModel):
     id: int
-    signal_id: int
+    shyft_id: int
     user_id: int
     type: ShyftReaction
     created_at: datetime

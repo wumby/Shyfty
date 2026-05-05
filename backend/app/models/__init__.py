@@ -7,9 +7,9 @@ from app.models.player import Player
 from app.models.player_game_stat import PlayerGameStat
 from app.models.rolling_metric import RollingMetric
 from app.models.rolling_metric_baseline_sample import RollingMetricBaselineSample
-from app.models.signal import Signal
-from app.models.signal_comment import SignalComment
-from app.models.signal_reaction import SignalReaction
+from app.models.shyft import Shyft
+from app.models.shyft_comment import ShyftComment
+from app.models.shyft_reaction import ShyftReactionRecord
 from app.models.sync_checkpoint import SyncCheckpoint
 from app.models.team import Team
 from app.models.team_game_stat import TeamGameStat
@@ -28,9 +28,9 @@ __all__ = [
     "PlayerGameStat",
     "RollingMetric",
     "RollingMetricBaselineSample",
-    "Signal",
-    "SignalComment",
-    "SignalReaction",
+    "Shyft",
+    "ShyftComment",
+    "ShyftReactionRecord",
     "SyncCheckpoint",
     "Team",
     "TeamGameStat",

@@ -1,5 +1,5 @@
-export type SignalSeverity = 'SHIFT' | 'SWING' | 'OUTLIER';
-export type SignalType = SignalSeverity;
+export type ShyftSeverity = 'SHIFT' | 'SWING' | 'OUTLIER';
+export type ShyftType = ShyftSeverity;
 export type ShyftReaction = 'SHYFT_UP' | 'SHYFT_DOWN' | 'SHYFT_EYE';
 export type ReactionType = ShyftReaction;
 export type SortMode = 'newest' | 'most_important' | 'biggest_deviation' | 'most_discussed';
@@ -22,10 +22,11 @@ export interface ReactionEntry {
 export interface User {
   id: number;
   email: string;
+  display_name?: string | null;
   created_at: string;
 }
 
-export interface SignalDebugTrace {
+export interface ShyftDebugTrace {
   baseline: number;
   actual: number;
   delta: number;
@@ -36,8 +37,8 @@ export interface SignalDebugTrace {
   passed: boolean;
 }
 
-export interface Signal {
-  type?: 'signal';
+export interface Shyft {
+  type?: 'shyft';
   id: number;
   subject_type?: 'player' | 'team';
   player_id: number | null;
@@ -46,15 +47,15 @@ export interface Signal {
   player_name: string;
   team_name: string;
   league_name: string;
-  signal_type: SignalType;
-  severity: SignalSeverity;
+  shyft_type: ShyftType;
+  severity: ShyftSeverity;
   metric_name: string;
   current_value: number;
   baseline_value: number;
   performance: number | null;
   deviation: number | null;
   z_score: number;
-  signal_score: number;
+  shyft_score: number;
   score_explanation?: string | null;
   explanation: string;
   importance?: number;
@@ -76,7 +77,7 @@ export interface Signal {
     trend_direction: 'up' | 'down' | 'flat';
   };
   classification_reason?: string;
-  debug_trace?: SignalDebugTrace;
+  debug_trace?: ShyftDebugTrace;
   narrative_summary?: string;
   streak: number;
   reaction_summary: ReactionSummary;
@@ -94,18 +95,18 @@ export interface CascadePlayer {
 
 export interface CascadeTrigger {
   player: CascadePlayer;
-  signal_id: number;
+  shyft_id: number;
   stat: string;
   metric_label: string;
   delta: number;
   delta_percent: number | null;
-  signal_type: SignalType;
-  signal_score: number;
+  shyft_type: ShyftType;
+  shyft_score: number;
 }
 
 export interface CascadeContributor extends CascadeTrigger {}
 
-export interface CascadeSignal {
+export interface CascadeShyft {
   type: 'cascade';
   id: string;
   game_id: number;
@@ -116,11 +117,11 @@ export interface CascadeSignal {
   created_at: string;
   trigger: CascadeTrigger;
   contributors: CascadeContributor[];
-  underlying_signals: Signal[];
+  underlying_shyfts: Shyft[];
   narrative_summary: string | null;
 }
 
-export type FeedItem = Signal | CascadeSignal;
+export type FeedItem = Shyft | CascadeShyft;
 
 export interface Player {
   id: number;
@@ -128,12 +129,12 @@ export interface Player {
   position: string;
   team_name: string;
   league_name: string;
-  signal_count?: number;
+  shyft_count?: number;
   is_followed: boolean;
 }
 
 export interface PlayerDetail extends Player {
-  signal_count: number;
+  shyft_count: number;
   recent_box_scores: PlayerBoxScore[];
 }
 
@@ -142,7 +143,7 @@ export interface Team {
   name: string;
   league_name: string;
   player_count: number;
-  signal_count?: number;
+  shyft_count?: number;
   is_followed: boolean;
 }
 
@@ -153,7 +154,7 @@ export interface MetricSeriesPoint {
 
 export interface TeamDetail extends Team {
   players: Player[];
-  recent_signals: Signal[];
+  recent_shyfts: Shyft[];
   recent_box_scores: TeamBoxScore[];
 }
 
@@ -163,6 +164,9 @@ export interface PlayerBoxScore {
   season?: string | null;
   opponent: string;
   home_away: string;
+  team_score?: number | null;
+  opponent_score?: number | null;
+  result?: 'W' | 'L' | 'T' | null;
   points?: number | null;
   rebounds?: number | null;
   assists?: number | null;
@@ -211,6 +215,9 @@ export interface TeamBoxScore {
   turnovers_lost?: number | null;
   third_down_pct?: number | null;
   redzone_pct?: number | null;
+  team_score?: number | null;
+  opponent_score?: number | null;
+  result?: 'W' | 'L' | 'T' | null;
 }
 
 export interface FeedContext {
@@ -219,7 +226,7 @@ export interface FeedContext {
   personalization_reason: string | null;
 }
 
-export interface PaginatedSignals {
+export interface PaginatedShyfts {
   items: FeedItem[];
   has_more: boolean;
   next_cursor: number | null;
@@ -233,8 +240,8 @@ export interface BaselineSample {
   value: number;
 }
 
-export interface SignalTrace {
-  signal: Signal;
+export interface ShyftTrace {
+  shyft: Shyft;
   rolling_metric: {
     metric_name: string;
     rolling_avg: number;
@@ -253,9 +260,10 @@ export interface SignalTrace {
 
 export interface Comment {
   id: number;
-  signal_id: number;
+  shyft_id: number;
   user_id: number;
   user_email: string;
+  user_display_name?: string;
   body: string;
   created_at: string;
   updated_at: string;
@@ -310,9 +318,9 @@ export interface SeasonAveragesRow {
   usage_rate: number | null;
 }
 
-export interface SignalFilters {
+export interface ShyftFilters {
   league?: string;
-  signal_type?: string;
+  shyft_type?: string;
   player?: string;
   sort?: SortMode;
   feed?: FeedMode;
@@ -340,7 +348,7 @@ export interface IngestStatus {
 
 export interface ProfilePreferences {
   preferred_league: string | null;
-  preferred_signal_type: string | null;
+  preferred_shyft_type: string | null;
   default_sort_mode: SortMode;
   default_feed_mode: FeedMode;
   notification_releases: boolean;
@@ -348,6 +356,7 @@ export interface ProfilePreferences {
 }
 
 export interface UserProfile {
+  display_name?: string | null;
   preferences: ProfilePreferences;
   follows: {
     players: number[];

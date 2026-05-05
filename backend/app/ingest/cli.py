@@ -51,7 +51,7 @@ def main() -> int:
         print(
             f"[{league}] discovered={result.discovered_games} skipped={result.skipped_games} hydrated={result.hydrated_games} "
             f"players={result.players_loaded} team_stats={result.team_stats_loaded} player_stats={result.player_stats_loaded} "
-            f"signals_created={result.signals_created} signals_updated={result.signals_updated}"
+            f"shyfts_created={result.shyfts_created} shyfts_updated={result.shyfts_updated}"
         )
     return 0
 

@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 class ProfilePreferencesRead(BaseModel):
     preferred_league: Optional[str] = None
-    preferred_signal_type: Optional[str] = None
+    preferred_shyft_type: Optional[str] = None
     default_sort_mode: str = "newest"
     default_feed_mode: str = "all"
     notification_releases: bool = False
@@ -14,7 +14,7 @@ class ProfilePreferencesRead(BaseModel):
 
 class ProfilePreferencesUpdate(BaseModel):
     preferred_league: Optional[str] = None
-    preferred_signal_type: Optional[str] = None
+    preferred_shyft_type: Optional[str] = None
     default_sort_mode: Optional[str] = None
     default_feed_mode: Optional[str] = None
     notification_releases: Optional[bool] = None
@@ -27,5 +27,10 @@ class FollowSummaryRead(BaseModel):
 
 
 class UserProfileRead(BaseModel):
+    display_name: Optional[str] = None
     preferences: ProfilePreferencesRead
     follows: FollowSummaryRead
+
+
+class UserProfileUpdate(BaseModel):
+    display_name: Optional[str] = None

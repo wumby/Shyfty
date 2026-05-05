@@ -6,18 +6,26 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from app.models.comment_report import CommentReport
-from app.models.signal import Signal
-from app.models.signal_comment import SignalComment
+from app.models.shyft import Shyft
+from app.models.shyft_comment import ShyftComment
 from app.models.user import User
 from app.schemas.comment import CommentRead
 
 
-def _comment_read(comment: SignalComment, email: str, current_user_id: Optional[int]) -> CommentRead:
+def _display_name(display_name: Optional[str], email: str) -> str:
+    clean = (display_name or "").strip()
+    if clean:
+        return clean
+    return email.split("@", 1)[0] if "@" in email else email
+
+
+def _comment_read(comment: ShyftComment, email: str, display_name: Optional[str], current_user_id: Optional[int]) -> CommentRead:
     return CommentRead(
         id=comment.id,
-        signal_id=comment.signal_id,
+        shyft_id=comment.shyft_id,
         user_id=comment.user_id,
         user_email=email,
+        user_display_name=_display_name(display_name, email),
         body=comment.body,
         created_at=comment.created_at,
         updated_at=comment.updated_at,
@@ -28,77 +36,77 @@ def _comment_read(comment: SignalComment, email: str, current_user_id: Optional[
     )
 
 
-def _signal_group_ids(db: Session, signal_id: int) -> list[int]:
-    signal = db.execute(select(Signal).where(Signal.id == signal_id)).scalar_one_or_none()
-    if signal is None:
+def _signal_group_ids(db: Session, shyft_id: int) -> list[int]:
+    shyft = db.execute(select(Shyft).where(Shyft.id == shyft_id)).scalar_one_or_none()
+    if shyft is None:
         return []
 
     same_group = [
-        Signal.game_id == signal.game_id,
-        Signal.subject_type == signal.subject_type,
+        Shyft.game_id == shyft.game_id,
+        Shyft.subject_type == shyft.subject_type,
     ]
-    if signal.player_id is not None:
-        same_group.append(Signal.player_id == signal.player_id)
+    if shyft.player_id is not None:
+        same_group.append(Shyft.player_id == shyft.player_id)
     else:
-        same_group.extend([Signal.player_id.is_(None), Signal.team_id == signal.team_id])
+        same_group.extend([Shyft.player_id.is_(None), Shyft.team_id == shyft.team_id])
 
     return list(
         db.execute(
-            select(Signal.id)
+            select(Shyft.id)
             .where(and_(*same_group))
-            .order_by(func.coalesce(Signal.signal_score, 0).desc(), Signal.id.asc())
+            .order_by(func.coalesce(Shyft.shyft_score, 0).desc(), Shyft.id.asc())
         ).scalars()
     )
 
 
-def list_comments(db: Session, signal_id: int, current_user_id: Optional[int] = None) -> list[CommentRead]:
-    signal_ids = _signal_group_ids(db, signal_id)
+def list_comments(db: Session, shyft_id: int, current_user_id: Optional[int] = None) -> list[CommentRead]:
+    signal_ids = _signal_group_ids(db, shyft_id)
     if not signal_ids:
         return []
     rows = db.execute(
-        select(SignalComment, User.email)
-        .join(User, SignalComment.user_id == User.id)
-        .where(SignalComment.signal_id.in_(signal_ids))
-        .order_by(SignalComment.created_at.asc())
+        select(ShyftComment, User.email, User.display_name)
+        .join(User, ShyftComment.user_id == User.id)
+        .where(ShyftComment.shyft_id.in_(signal_ids))
+        .order_by(ShyftComment.created_at.asc())
     ).all()
-    return [_comment_read(comment, email, current_user_id) for comment, email in rows]
+    return [_comment_read(comment, email, display_name, current_user_id) for comment, email, display_name in rows]
 
 
 def list_discussion_preview(
     db: Session,
-    signal_id: int,
+    shyft_id: int,
     current_user_id: Optional[int] = None,
     limit: int = 3,
 ) -> list[CommentRead]:
-    signal_ids = _signal_group_ids(db, signal_id)
+    signal_ids = _signal_group_ids(db, shyft_id)
     if not signal_ids:
         return []
     rows = db.execute(
-        select(SignalComment, User.email)
-        .join(User, SignalComment.user_id == User.id)
-        .where(SignalComment.signal_id.in_(signal_ids))
-        .order_by(SignalComment.created_at.desc())
+        select(ShyftComment, User.email, User.display_name)
+        .join(User, ShyftComment.user_id == User.id)
+        .where(ShyftComment.shyft_id.in_(signal_ids))
+        .order_by(ShyftComment.created_at.desc())
         .limit(limit)
     ).all()
-    return [_comment_read(comment, email, current_user_id) for comment, email in rows]
+    return [_comment_read(comment, email, display_name, current_user_id) for comment, email, display_name in rows]
 
 
-def create_comment(db: Session, *, signal_id: int, user_id: int, body: str) -> CommentRead:
-    signal_ids = _signal_group_ids(db, signal_id)
+def create_comment(db: Session, *, shyft_id: int, user_id: int, body: str) -> CommentRead:
+    signal_ids = _signal_group_ids(db, shyft_id)
     if not signal_ids:
-        raise LookupError("Signal not found.")
+        raise LookupError("Shyft not found.")
 
-    comment = SignalComment(signal_id=signal_ids[0], user_id=user_id, body=body.strip())
+    comment = ShyftComment(shyft_id=signal_ids[0], user_id=user_id, body=body.strip())
     db.add(comment)
     db.commit()
     db.refresh(comment)
 
     user = db.get(User, user_id)
-    return _comment_read(comment, user.email if user else "", user_id)
+    return _comment_read(comment, user.email if user else "", user.display_name if user else None, user_id)
 
 
 def update_comment(db: Session, *, comment_id: int, user_id: int, body: str) -> CommentRead:
-    comment = db.execute(select(SignalComment).where(SignalComment.id == comment_id)).scalar_one_or_none()
+    comment = db.execute(select(ShyftComment).where(ShyftComment.id == comment_id)).scalar_one_or_none()
     if comment is None:
         raise LookupError("Comment not found.")
     if comment.user_id != user_id:
@@ -108,11 +116,11 @@ def update_comment(db: Session, *, comment_id: int, user_id: int, body: str) -> 
     db.commit()
     db.refresh(comment)
     user = db.get(User, user_id)
-    return _comment_read(comment, user.email if user else "", user_id)
+    return _comment_read(comment, user.email if user else "", user.display_name if user else None, user_id)
 
 
 def delete_comment(db: Session, *, comment_id: int, user_id: int) -> None:
-    comment = db.execute(select(SignalComment).where(SignalComment.id == comment_id)).scalar_one_or_none()
+    comment = db.execute(select(ShyftComment).where(ShyftComment.id == comment_id)).scalar_one_or_none()
     if comment is None:
         raise LookupError("Comment not found.")
     if comment.user_id != user_id:
@@ -122,7 +130,7 @@ def delete_comment(db: Session, *, comment_id: int, user_id: int) -> None:
 
 
 def report_comment(db: Session, *, comment_id: int, reporter_user_id: int, reason: str, notes: Optional[str]) -> dict:
-    comment = db.execute(select(SignalComment).where(SignalComment.id == comment_id)).scalar_one_or_none()
+    comment = db.execute(select(ShyftComment).where(ShyftComment.id == comment_id)).scalar_one_or_none()
     if comment is None:
         raise LookupError("Comment not found.")
     existing = db.execute(

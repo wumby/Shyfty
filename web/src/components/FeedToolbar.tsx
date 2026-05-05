@@ -1,19 +1,19 @@
-import type { SignalFilters } from '../types';
+import type { ShyftFilters } from '../types';
 import { ActiveFilterChips } from './ActiveFilterChips';
 
 type FeedTab = 'forYou' | 'following';
 
 interface FeedToolbarProps {
-  filters: SignalFilters;
+  filters: ShyftFilters;
   filtersOpen: boolean;
   onOpenFilters: () => void;
-  onRemoveFilter: (key: 'league' | 'signal_type' | 'sort') => void;
+  onRemoveFilter: (key: 'league' | 'shyft_type' | 'sort') => void;
   activeTab: FeedTab;
   onTabChange: (tab: FeedTab) => void;
 }
 
 export function FeedToolbar({ filters, filtersOpen, onOpenFilters, onRemoveFilter, activeTab, onTabChange }: FeedToolbarProps) {
-  const hasActiveFilters = !!(filters.league || filters.signal_type || (filters.sort && filters.sort !== 'newest'));
+  const hasActiveFilters = !!(filters.league || filters.shyft_type || (filters.sort && filters.sort !== 'newest'));
 
   return (
     <div>

@@ -24,18 +24,18 @@ def _require_user(user: Optional[User]) -> User:
     return user
 
 
-@router.get("/signals/{signal_id}/comments", response_model=list[CommentRead])
+@router.get("/shyfts/{shyft_id}/comments", response_model=list[CommentRead])
 def get_comments(
-    signal_id: int,
+    shyft_id: int,
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user),
 ) -> list[CommentRead]:
-    return list_comments(db, signal_id=signal_id, current_user_id=current_user.id if current_user else None)
+    return list_comments(db, shyft_id=shyft_id, current_user_id=current_user.id if current_user else None)
 
 
-@router.post("/signals/{signal_id}/comments", response_model=CommentRead, status_code=201)
+@router.post("/shyfts/{shyft_id}/comments", response_model=CommentRead, status_code=201)
 def post_comment(
-    signal_id: int,
+    shyft_id: int,
     payload: CommentCreate,
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user),
@@ -43,7 +43,7 @@ def post_comment(
     user = _require_user(current_user)
     enforce_rate_limit(f"user:{user.id}", "comment_post", limit=8, per_seconds=300)
     try:
-        return create_comment(db, signal_id=signal_id, user_id=user.id, body=payload.body)
+        return create_comment(db, shyft_id=shyft_id, user_id=user.id, body=payload.body)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 

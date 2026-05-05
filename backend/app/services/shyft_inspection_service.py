@@ -3,24 +3,24 @@ from typing import Optional
 from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
 
-from app.domain.signals import BASELINE_WINDOW_SIZE, classification_reason
+from app.domain.shyfts import BASELINE_WINDOW_SIZE, classification_reason
 from app.models.game import Game
 from app.models.league import League
 from app.models.player import Player
 from app.models.player_game_stat import PlayerGameStat
 from app.models.rolling_metric import RollingMetric
 from app.models.rolling_metric_baseline_sample import RollingMetricBaselineSample
-from app.models.signal import Signal
+from app.models.shyft import Shyft
 from app.models.team import Team
 from app.models.team_game_stat import TeamGameStat
-from app.schemas.signal import (
+from app.schemas.shyft import (
     BaselineSampleRead,
     RollingMetricTraceRead,
-    SignalTraceRead,
+    ShyftTraceRead,
     SourceStatContextRead,
     WindowContextRead,
 )
-from app.services.signal_service import build_signal_read, effective_metric_to_snapshot
+from app.services.shyft_service import build_shyft_read, effective_metric_to_snapshot
 
 
 def _stat_value(stat: PlayerGameStat, metric_name: str) -> Optional[float]:
@@ -162,16 +162,16 @@ def _build_team_baseline_sample(
 def _fallback_source_and_baseline(
     db: Session,
     *,
-    signal: Signal,
+    shyft: Shyft,
 ) -> tuple[Optional[PlayerGameStat], list[BaselineSampleRead]]:
     stat_rows = db.execute(
         select(PlayerGameStat, Game.game_date)
         .join(Game, PlayerGameStat.game_id == Game.id)
-        .where(PlayerGameStat.player_id == signal.player_id)
+        .where(PlayerGameStat.player_id == shyft.player_id)
         .order_by(Game.game_date, Game.id)
     ).all()
 
-    current_index = next((index for index, (stat, _) in enumerate(stat_rows) if stat.game_id == signal.game_id), None)
+    current_index = next((index for index, (stat, _) in enumerate(stat_rows) if stat.game_id == shyft.game_id), None)
     if current_index is None:
         return None, []
 
@@ -179,15 +179,15 @@ def _fallback_source_and_baseline(
     observations = [
         (stat, game_date)
         for stat, game_date in stat_rows
-        if _stat_value(stat, signal.metric_name) is not None
+        if _stat_value(stat, shyft.metric_name) is not None
     ]
-    observation_index = next((index for index, (stat, _) in enumerate(observations) if stat.game_id == signal.game_id), None)
+    observation_index = next((index for index, (stat, _) in enumerate(observations) if stat.game_id == shyft.game_id), None)
     prior_values = observations[:observation_index] if observation_index is not None else []
     baseline_rows = prior_values[-BASELINE_WINDOW_SIZE:] or prior_values
 
     baseline_samples = []
     for stat, game_date in baseline_rows:
-        sample = _build_baseline_sample(stat, game_date=game_date, metric_name=signal.metric_name)
+        sample = _build_baseline_sample(stat, game_date=game_date, metric_name=shyft.metric_name)
         if sample is not None:
             baseline_samples.append(sample)
     return current_stat, baseline_samples
@@ -196,16 +196,16 @@ def _fallback_source_and_baseline(
 def _fallback_team_source_and_baseline(
     db: Session,
     *,
-    signal: Signal,
+    shyft: Shyft,
 ) -> tuple[Optional[TeamGameStat], list[BaselineSampleRead]]:
     stat_rows = db.execute(
         select(TeamGameStat, Game.game_date)
         .join(Game, TeamGameStat.game_id == Game.id)
-        .where(TeamGameStat.team_id == signal.team_id)
+        .where(TeamGameStat.team_id == shyft.team_id)
         .order_by(Game.game_date, Game.id)
     ).all()
 
-    current_index = next((index for index, (stat, _) in enumerate(stat_rows) if stat.game_id == signal.game_id), None)
+    current_index = next((index for index, (stat, _) in enumerate(stat_rows) if stat.game_id == shyft.game_id), None)
     if current_index is None:
         return None, []
 
@@ -213,85 +213,85 @@ def _fallback_team_source_and_baseline(
     observations = [
         (stat, game_date)
         for stat, game_date in stat_rows
-        if getattr(stat, signal.metric_name, None) is not None
+        if getattr(stat, shyft.metric_name, None) is not None
     ]
-    observation_index = next((index for index, (stat, _) in enumerate(observations) if stat.game_id == signal.game_id), None)
+    observation_index = next((index for index, (stat, _) in enumerate(observations) if stat.game_id == shyft.game_id), None)
     prior_values = observations[:observation_index] if observation_index is not None else []
     baseline_rows = prior_values[-BASELINE_WINDOW_SIZE:] or prior_values
 
     baseline_samples = []
     for stat, game_date in baseline_rows:
-        sample = _build_team_baseline_sample(stat, game_date=game_date, metric_name=signal.metric_name)
+        sample = _build_team_baseline_sample(stat, game_date=game_date, metric_name=shyft.metric_name)
         if sample is not None:
             baseline_samples.append(sample)
     return current_stat, baseline_samples
 
 
-def inspect_signal(db: Session, signal_id: int) -> Optional[SignalTraceRead]:
+def inspect_shyft(db: Session, shyft_id: int) -> Optional[ShyftTraceRead]:
     row = db.execute(
-        select(Signal, Player.name, Team.name, League.name, Game.game_date, RollingMetric)
-        .outerjoin(Player, Signal.player_id == Player.id)
-        .join(Team, Signal.team_id == Team.id)
-        .join(League, Signal.league_id == League.id)
-        .join(Game, Signal.game_id == Game.id)
+        select(Shyft, Player.name, Team.name, League.name, Game.game_date, RollingMetric)
+        .outerjoin(Player, Shyft.player_id == Player.id)
+        .join(Team, Shyft.team_id == Team.id)
+        .join(League, Shyft.league_id == League.id)
+        .join(Game, Shyft.game_id == Game.id)
         .outerjoin(
             RollingMetric,
             and_(
-                RollingMetric.id == Signal.rolling_metric_id,
+                RollingMetric.id == Shyft.rolling_metric_id,
             ),
         )
-        .where(Signal.id == signal_id)
+        .where(Shyft.id == shyft_id)
     ).one_or_none()
 
     if row is None:
         return None
 
-    signal, player_name, team_name, league_name, event_date, rolling_metric = row
+    shyft, player_name, team_name, league_name, event_date, rolling_metric = row
 
     if rolling_metric is None:
-        if signal.player_id is not None:
+        if shyft.player_id is not None:
             rolling_metric = db.execute(
                 select(RollingMetric).where(
-                    RollingMetric.player_id == signal.player_id,
-                    RollingMetric.game_id == signal.game_id,
-                    RollingMetric.metric_name == signal.metric_name,
+                    RollingMetric.player_id == shyft.player_id,
+                    RollingMetric.game_id == shyft.game_id,
+                    RollingMetric.metric_name == shyft.metric_name,
                 )
             ).scalar_one_or_none()
 
     source_stat = None
     baseline_samples: list[BaselineSampleRead] = []
 
-    if signal.subject_type == "team" and signal.source_team_stat_id is not None:
+    if shyft.subject_type == "team" and shyft.source_team_stat_id is not None:
         source_row = db.execute(
             select(TeamGameStat, Game.game_date)
             .join(Game, TeamGameStat.game_id == Game.id)
-            .where(TeamGameStat.id == signal.source_team_stat_id)
+            .where(TeamGameStat.id == shyft.source_team_stat_id)
         ).one_or_none()
         if source_row is not None:
             stat, game_date = source_row
             source_stat = _build_team_source_stat_context(
                 stat,
                 game_date=game_date,
-                metric_name=signal.metric_name,
-                current_value=float(getattr(stat, signal.metric_name) or signal.current_value),
+                metric_name=shyft.metric_name,
+                current_value=float(getattr(stat, shyft.metric_name) or shyft.current_value),
             )
-    elif signal.source_stat_id is not None:
+    elif shyft.source_stat_id is not None:
         source_row = db.execute(
             select(PlayerGameStat, Game.game_date)
             .join(Game, PlayerGameStat.game_id == Game.id)
-            .where(PlayerGameStat.id == signal.source_stat_id)
+            .where(PlayerGameStat.id == shyft.source_stat_id)
         ).one_or_none()
         if source_row is not None:
             stat, game_date = source_row
             source_stat = _build_source_stat_context(
                 stat,
                 game_date=game_date,
-                metric_name=signal.metric_name,
-                current_value=_stat_value(stat, signal.metric_name) or signal.current_value,
+                metric_name=shyft.metric_name,
+                current_value=_stat_value(stat, shyft.metric_name) or shyft.current_value,
             )
 
-    if signal.subject_type == "team":
-        fallback_stat, fallback_samples = _fallback_team_source_and_baseline(db, signal=signal)
+    if shyft.subject_type == "team":
+        fallback_stat, fallback_samples = _fallback_team_source_and_baseline(db, shyft=shyft)
         if fallback_stat is None:
             return None
         if source_stat is None:
@@ -299,8 +299,8 @@ def inspect_signal(db: Session, signal_id: int) -> Optional[SignalTraceRead]:
             source_stat = _build_team_source_stat_context(
                 fallback_stat,
                 game_date=fallback_game_date,
-                metric_name=signal.metric_name,
-                current_value=float(getattr(fallback_stat, signal.metric_name) or signal.current_value),
+                metric_name=shyft.metric_name,
+                current_value=float(getattr(fallback_stat, shyft.metric_name) or shyft.current_value),
             )
         baseline_samples = fallback_samples
     elif rolling_metric is not None:
@@ -315,12 +315,12 @@ def inspect_signal(db: Session, signal_id: int) -> Optional[SignalTraceRead]:
             .order_by(RollingMetricBaselineSample.sample_order)
         ).all()
         for stat, game_date in baseline_rows:
-            sample = _build_baseline_sample(stat, game_date=game_date, metric_name=signal.metric_name)
+            sample = _build_baseline_sample(stat, game_date=game_date, metric_name=shyft.metric_name)
             if sample is not None:
                 baseline_samples.append(sample)
 
-    if signal.subject_type != "team" and (source_stat is None or not baseline_samples):
-        fallback_stat, fallback_samples = _fallback_source_and_baseline(db, signal=signal)
+    if shyft.subject_type != "team" and (source_stat is None or not baseline_samples):
+        fallback_stat, fallback_samples = _fallback_source_and_baseline(db, shyft=shyft)
         if fallback_stat is None:
             return None
         if source_stat is None:
@@ -328,32 +328,32 @@ def inspect_signal(db: Session, signal_id: int) -> Optional[SignalTraceRead]:
             source_stat = _build_source_stat_context(
                 fallback_stat,
                 game_date=fallback_game_date,
-                metric_name=signal.metric_name,
-                current_value=_stat_value(fallback_stat, signal.metric_name) or signal.current_value,
+                metric_name=shyft.metric_name,
+                current_value=_stat_value(fallback_stat, shyft.metric_name) or shyft.current_value,
             )
         if not baseline_samples:
             baseline_samples = fallback_samples
 
-    signal_read = build_signal_read(
-        signal,
+    signal_read = build_shyft_read(
+        shyft,
         player_name,
         team_name,
         league_name,
         event_date,
         rolling_metric,
     )
-    snapshot = effective_metric_to_snapshot(signal, rolling_metric)
-    signal_read.classification_reason = classification_reason(signal.signal_type, snapshot, signal.metric_name)
+    snapshot = effective_metric_to_snapshot(shyft, rolling_metric)
+    signal_read.classification_reason = classification_reason(shyft.shyft_type, snapshot, shyft.metric_name)
 
     rolling_metric_read = RollingMetricTraceRead(
         id=rolling_metric.id if rolling_metric is not None else None,
-        player_id=signal.player_id,
-        game_id=signal.game_id,
-        metric_name=signal.metric_name,
-        source_stat_id=rolling_metric.source_stat_id if rolling_metric is not None else signal.source_stat_id,
-        rolling_avg=rolling_metric.rolling_avg if rolling_metric is not None else signal.baseline_value,
+        player_id=shyft.player_id,
+        game_id=shyft.game_id,
+        metric_name=shyft.metric_name,
+        source_stat_id=rolling_metric.source_stat_id if rolling_metric is not None else shyft.source_stat_id,
+        rolling_avg=rolling_metric.rolling_avg if rolling_metric is not None else shyft.baseline_value,
         rolling_stddev=rolling_metric.rolling_stddev if rolling_metric is not None else 0.0,
-        z_score=rolling_metric.z_score if rolling_metric is not None else signal.z_score,
+        z_score=rolling_metric.z_score if rolling_metric is not None else shyft.z_score,
         short_window=WindowContextRead(
             sample_size=len(rolling_metric.short_values) if rolling_metric and rolling_metric.short_values else len(snapshot.short_window.values),
             values=[float(value) for value in ((rolling_metric.short_values if rolling_metric and rolling_metric.short_values else snapshot.short_window.values))],
@@ -387,8 +387,8 @@ def inspect_signal(db: Session, signal_id: int) -> Optional[SignalTraceRead]:
         high_volatility=rolling_metric.high_volatility if rolling_metric is not None else snapshot.high_volatility,
     )
 
-    return SignalTraceRead(
-        signal=signal_read,
+    return ShyftTraceRead(
+        shyft=signal_read,
         rolling_metric=rolling_metric_read,
         source_stat=source_stat,
         baseline_samples=baseline_samples,

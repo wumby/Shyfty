@@ -44,9 +44,22 @@ def _hash_session_token(token: str) -> str:
     ).hexdigest()
 
 
-def create_user(db: Session, *, email: str, password: str) -> User:
+def _is_strong_password(password: str) -> bool:
+    if len(password) < 8:
+        return False
+    has_letter = any(ch.isalpha() for ch in password)
+    has_digit = any(ch.isdigit() for ch in password)
+    return has_letter and has_digit
+
+
+def create_user(db: Session, *, email: str, password: str, display_name: Optional[str] = None) -> User:
     normalized_email = _normalize_email(email)
-    user = User(email=normalized_email, password_hash=_hash_password(password))
+    normalized_display_name = (display_name or "").strip() or normalized_email.split("@", 1)[0]
+    user = User(
+        email=normalized_email,
+        display_name=normalized_display_name[:80],
+        password_hash=_hash_password(password),
+    )
     db.add(user)
     try:
         db.commit()
@@ -62,6 +75,31 @@ def authenticate_user(db: Session, *, email: str, password: str) -> User:
     if user is None or not _verify_password(password, user.password_hash):
         raise AuthError("Invalid email or password.")
     return user
+
+
+def change_password(
+    db: Session,
+    *,
+    user_id: int,
+    current_password: str,
+    new_password: str,
+    confirm_new_password: str,
+) -> None:
+    user = db.get(User, user_id)
+    if user is None:
+        raise AuthError("Authentication required.")
+    if not _verify_password(current_password, user.password_hash):
+        raise AuthError("Current password is incorrect.")
+    if new_password != confirm_new_password:
+        raise AuthError("New password and confirm password do not match.")
+    if not _is_strong_password(new_password):
+        raise AuthError("New password is too weak. Use at least 8 characters with letters and numbers.")
+    if _verify_password(new_password, user.password_hash):
+        raise AuthError("New password must be different from your current password.")
+
+    user.password_hash = _hash_password(new_password)
+    db.add(user)
+    db.commit()
 
 
 def create_user_session(db: Session, *, user_id: int) -> str:

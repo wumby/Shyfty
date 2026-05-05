@@ -4,17 +4,17 @@ struct TeamNavigationTarget: Hashable {
     let teamID: Int
 }
 
-struct GroupedSignalCardView: View {
-    let signals: [Signal]
+struct GroupedShyftCardView: View {
+    let shyfts: [Shyft]
     var isFollowed: Bool? = nil
     var onFollowToggle: (() -> Void)? = nil
 
     @EnvironmentObject private var auth: AuthViewModel
-    @State private var selectedCommentSignal: Signal?
+    @State private var selectedCommentSignal: Shyft?
     @State private var isMutatingReaction = false
 
-    private var sorted: [Signal] {
-        signals.sorted { $0.importance > $1.importance }
+    private var sorted: [Shyft] {
+        shyfts.sorted { $0.importance > $1.importance }
     }
 
     var body: some View {
@@ -28,8 +28,8 @@ struct GroupedSignalCardView: View {
             }
             .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
             .shyftyPanel(strong: true)
-            .sheet(item: $selectedCommentSignal) { signal in
-                SignalCommentsSheetView(signal: signal)
+            .sheet(item: $selectedCommentSignal) { shyft in
+                ShyftCommentsSheetView(shyft: shyft)
                     .environmentObject(auth)
                     .presentationDetents([.medium, .large])
             }
@@ -40,24 +40,24 @@ struct GroupedSignalCardView: View {
         name.split(separator: " ").last.map(String.init) ?? name
     }
 
-    private func matchupText(_ signal: Signal) -> Text {
+    private func matchupText(_ shyft: Shyft) -> Text {
         let muted = ShyftyTheme.muted
         let dot = Text(" · ").foregroundStyle(muted)
 
         // Team vs Opponent
         var base: Text
-        if let opponent = signal.opponent, !opponent.isEmpty {
-            let side = (signal.homeAway == "Away" || signal.homeAway == "@") ? "@" : "vs"
-            base = Text("\(shortName(signal.teamName)) \(side) \(shortName(opponent))").foregroundStyle(muted)
+        if let opponent = shyft.opponent, !opponent.isEmpty {
+            let side = (shyft.homeAway == "Away" || shyft.homeAway == "@") ? "@" : "vs"
+            base = Text("\(shortName(shyft.teamName)) \(side) \(shortName(opponent))").foregroundStyle(muted)
         } else {
-            base = Text(shortName(signal.teamName)).foregroundStyle(muted)
+            base = Text(shortName(shyft.teamName)).foregroundStyle(muted)
         }
 
         // W / L + score
-        if let result = signal.gameResult, !result.isEmpty {
+        if let result = shyft.gameResult, !result.isEmpty {
             let resultColor: Color = result == "W" ? ShyftyTheme.success : result == "L" ? ShyftyTheme.danger : muted
             base = base + dot + Text(result).foregroundStyle(resultColor)
-            if let score = signal.finalScore, !score.isEmpty {
+            if let score = shyft.finalScore, !score.isEmpty {
                 let clean = score
                     .replacingOccurrences(of: " - ", with: "–")
                     .replacingOccurrences(of: "-", with: "–")
@@ -66,15 +66,15 @@ struct GroupedSignalCardView: View {
         }
 
         // Date — no year
-        base = base + dot + Text(SignalFormatting.eventDateShort(signal.eventDate)).foregroundStyle(muted)
+        base = base + dot + Text(ShyftFormatting.eventDateShort(shyft.eventDate)).foregroundStyle(muted)
         return base
     }
 
-    private func headerRow(_ signal: Signal) -> some View {
-        let name = signal.subjectType == "team" ? signal.teamName : signal.playerName
+    private func headerRow(_ shyft: Shyft) -> some View {
+        let name = shyft.subjectType == "team" ? shyft.teamName : shyft.playerName
         return HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                if let playerID = signal.playerID {
+                if let playerID = shyft.playerID {
                     NavigationLink(value: playerID) {
                         Text(name)
                             .font(.system(size: 22, weight: .semibold, design: .serif))
@@ -82,14 +82,14 @@ struct GroupedSignalCardView: View {
                     }
                     .buttonStyle(.plain)
                 } else {
-                    NavigationLink(value: TeamNavigationTarget(teamID: signal.teamID)) {
+                    NavigationLink(value: TeamNavigationTarget(teamID: shyft.teamID)) {
                         Text(name)
                             .font(.system(size: 22, weight: .semibold, design: .serif))
                             .foregroundStyle(ShyftyTheme.ink)
                     }
                     .buttonStyle(.plain)
                 }
-                matchupText(signal)
+                matchupText(shyft)
                     .font(.system(size: 12, weight: .medium))
             }
 
@@ -115,9 +115,9 @@ struct GroupedSignalCardView: View {
 
     @ViewBuilder
     private var signalRows: some View {
-        ForEach(Array(sorted.enumerated()), id: \.element.id) { index, signal in
-            NavigationLink(value: signal) {
-                signalRow(signal)
+        ForEach(Array(sorted.enumerated()), id: \.element.id) { index, shyft in
+            NavigationLink(value: shyft) {
+                signalRow(shyft)
             }
             .buttonStyle(.plain)
             if index < sorted.count - 1 {
@@ -126,11 +126,11 @@ struct GroupedSignalCardView: View {
         }
     }
 
-    private func signalRow(_ signal: Signal) -> some View {
-        let tint = SignalFormatting.tint(for: signal.signalType)
-        let delta = SignalFormatting.deltaText(current: signal.currentValue, baseline: signal.baselineValue, movementPct: signal.movementPct)
-        let isUp = signal.trendDirection == "up"
-        let isDown = signal.trendDirection == "down"
+    private func signalRow(_ shyft: Shyft) -> some View {
+        let tint = ShyftFormatting.tint(for: shyft.shyftType)
+        let delta = ShyftFormatting.deltaText(current: shyft.currentValue, baseline: shyft.baselineValue, movementPct: shyft.movementPct)
+        let isUp = shyft.trendDirection == "up"
+        let isDown = shyft.trendDirection == "down"
         let deltaTone: Color = isUp ? ShyftyTheme.success : isDown ? ShyftyTheme.danger : ShyftyTheme.muted
         let arrow = isUp ? "↑" : isDown ? "↓" : ""
 
@@ -141,11 +141,11 @@ struct GroupedSignalCardView: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
-                    Text(SignalFormatting.metricLabel(for: signal))
+                    Text(ShyftFormatting.metricLabel(for: shyft))
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(ShyftyTheme.ink)
                         .lineLimit(1)
-                    Text(signal.signalType)
+                    Text(shyft.shyftType)
                         .font(.system(size: 9, weight: .bold))
                         .kerning(1.4)
                         .padding(.horizontal, 7)
@@ -157,13 +157,13 @@ struct GroupedSignalCardView: View {
                 }
 
                 HStack(spacing: 6) {
-                    Text(formatStat(signal.currentValue, metricName: signal.metricName))
+                    Text(formatStat(shyft.currentValue, metricName: shyft.metricName))
                         .font(.system(size: 22, weight: .bold))
                         .foregroundStyle(ShyftyTheme.ink)
                     Text("/")
                         .font(.system(size: 16))
                         .foregroundStyle(ShyftyTheme.muted.opacity(0.5))
-                    Text(formatStat(signal.baselineValue, metricName: signal.metricName))
+                    Text(formatStat(shyft.baselineValue, metricName: shyft.metricName))
                         .font(.system(size: 20, weight: .semibold))
                         .foregroundStyle(ShyftyTheme.muted)
                 }
@@ -187,14 +187,14 @@ struct GroupedSignalCardView: View {
     }
 
     @ViewBuilder
-    private func engagementControls(_ signal: Signal) -> some View {
+    private func engagementControls(_ shyft: Shyft) -> some View {
         HStack(spacing: 0) {
             HStack(spacing: 16) {
                 ForEach(ShyftReaction.allCases, id: \.self) { reaction in
-                    let count = signal.reactionSummary.count(for: reaction)
-                    let isActive = signal.userReaction == reaction
+                    let count = shyft.reactionSummary.count(for: reaction)
+                    let isActive = shyft.userReaction == reaction
                     Button {
-                        Task { await react(signal: signal, type: reaction) }
+                        Task { await react(shyft: shyft, type: reaction) }
                     } label: {
                         HStack(spacing: 4) {
                             ShyftReactionIcon(reaction: reaction, size: 14)
@@ -216,12 +216,12 @@ struct GroupedSignalCardView: View {
             Spacer(minLength: 8)
 
             Button {
-                selectedCommentSignal = signal
+                selectedCommentSignal = shyft
             } label: {
                 HStack(spacing: 5) {
                     Image(systemName: "bubble.left")
                         .font(.system(size: 11, weight: .semibold))
-                    Text(signal.commentCount > 0 ? "\(signal.commentCount)" : "Comment")
+                    Text(shyft.commentCount > 0 ? "\(shyft.commentCount)" : "Comment")
                         .font(.system(size: 11, weight: .semibold))
                         .lineLimit(1)
                 }
@@ -239,17 +239,17 @@ struct GroupedSignalCardView: View {
     }
 
     @MainActor
-    private func react(signal: Signal, type: ShyftReaction) async {
+    private func react(shyft: Shyft, type: ShyftReaction) async {
         guard auth.currentUser != nil else {
             auth.showAuthSheet = true
             return
         }
         guard !isMutatingReaction else { return }
 
-        let isTogglingOff = signal.userReaction == type
+        let isTogglingOff = shyft.userReaction == type
         let nextUserReaction: ShyftReaction? = isTogglingOff ? nil : type
-        let nextSignal = signal.withReaction(
-            reactionSummary: updatedReactionSummary(from: signal, nextUserReaction: nextUserReaction),
+        let nextSignal = shyft.withReaction(
+            reactionSummary: updatedReactionSummary(from: shyft, nextUserReaction: nextUserReaction),
             userReaction: nextUserReaction
         )
 
@@ -257,21 +257,21 @@ struct GroupedSignalCardView: View {
         postEngagementChange(nextSignal)
         do {
             if isTogglingOff {
-                try await APIClient.shared.clearReaction(signalId: signal.id)
+                try await APIClient.shared.clearReaction(shyftId: shyft.id)
             } else {
-                try await APIClient.shared.setReaction(signalId: signal.id, type: type)
+                try await APIClient.shared.setReaction(shyftId: shyft.id, type: type)
             }
         } catch {
-            postEngagementChange(signal)
+            postEngagementChange(shyft)
         }
         isMutatingReaction = false
     }
 
-    private func updatedReactionSummary(from signal: Signal, nextUserReaction: ShyftReaction?) -> ReactionSummary {
-        let current = signal.reactionSummary
+    private func updatedReactionSummary(from shyft: Shyft, nextUserReaction: ShyftReaction?) -> ReactionSummary {
+        let current = shyft.reactionSummary
         func adjusted(_ reaction: ShyftReaction, _ value: Int) -> Int {
             var next = value
-            if signal.userReaction == reaction { next -= 1 }
+            if shyft.userReaction == reaction { next -= 1 }
             if nextUserReaction == reaction { next += 1 }
             return max(0, next)
         }
@@ -282,15 +282,15 @@ struct GroupedSignalCardView: View {
         )
     }
 
-    private func postEngagementChange(_ signal: Signal) {
+    private func postEngagementChange(_ shyft: Shyft) {
         NotificationCenter.default.post(
-            name: .signalEngagementDidChange,
+            name: .shyftEngagementDidChange,
             object: nil,
             userInfo: [
-                "signalId": signal.id,
-                "reactionSummary": signal.reactionSummary,
-                "userReaction": signal.userReaction?.rawValue ?? NSNull(),
-                "commentCount": signal.commentCount,
+                "shyftId": shyft.id,
+                "reactionSummary": shyft.reactionSummary,
+                "userReaction": shyft.userReaction?.rawValue ?? NSNull(),
+                "commentCount": shyft.commentCount,
             ]
         )
     }

@@ -6,7 +6,7 @@ from app.services.signal_backtest_service import run_signal_backtest, write_back
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Replay historical data and evaluate signal quality.")
+    parser = argparse.ArgumentParser(description="Replay historical data and evaluate shyft quality.")
     parser.add_argument(
         "--output",
         default="data/backtests/latest_signal_backtest.json",
@@ -21,7 +21,7 @@ def main() -> int:
     write_backtest_result(result, output_path)
     print(
         "Backtest complete: "
-        f"signals={result.summary['signal_count']} "
+        f"shyfts={result.summary['signal_count']} "
         f"precision_next_game={result.summary['precision_next_game']:.4f} "
         f"precision_next_3_games={result.summary['precision_next_3_games']:.4f} "
         f"output={output_path}"

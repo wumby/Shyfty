@@ -2,7 +2,7 @@ import SwiftUI
 
 @MainActor
 final class SignalDetailViewModel: ObservableObject {
-    @Published var trace: SignalTrace?
+    @Published var trace: ShyftTrace?
     @Published var comments: [Comment] = []
     @Published var isLoading = false
     @Published var isMutatingReaction = false
@@ -10,17 +10,17 @@ final class SignalDetailViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var draftComment = ""
 
-    let signalId: Int
+    let shyftId: Int
 
-    init(signalId: Int, prefetchedSignal: Signal? = nil) {
-        self.signalId = signalId
+    init(shyftId: Int, prefetchedSignal: Shyft? = nil) {
+        self.shyftId = shyftId
     }
 
     func load() async {
         isLoading = true
         errorMessage = nil
         do {
-            let fetched = try await APIClient.shared.fetchSignalDetail(id: signalId)
+            let fetched = try await APIClient.shared.fetchShyftDetail(id: shyftId)
             trace = fetched
             comments = fetched.discussionPreview
         } catch {
@@ -30,19 +30,19 @@ final class SignalDetailViewModel: ObservableObject {
     }
 
     func react(type: ShyftReaction) async {
-        guard let signal = trace?.signal else { return }
+        guard let shyft = trace?.shyft else { return }
         let previousTrace = trace
-        let isTogglingOff = signal.userReaction == type
+        let isTogglingOff = shyft.userReaction == type
         let nextUserReaction: ShyftReaction? = isTogglingOff ? nil : type
-        let nextSummary = updatedReactionSummary(from: signal, nextUserReaction: nextUserReaction)
-        patchSignal(signal.withReaction(reactionSummary: nextSummary, userReaction: nextUserReaction))
+        let nextSummary = updatedReactionSummary(from: shyft, nextUserReaction: nextUserReaction)
+        patchShyft(shyft.withReaction(reactionSummary: nextSummary, userReaction: nextUserReaction))
         isMutatingReaction = true
         errorMessage = nil
         do {
             if isTogglingOff {
-                try await APIClient.shared.clearReaction(signalId: signalId)
+                try await APIClient.shared.clearReaction(shyftId: shyftId)
             } else {
-                try await APIClient.shared.setReaction(signalId: signalId, type: type)
+                try await APIClient.shared.setReaction(shyftId: shyftId, type: type)
             }
         } catch {
             trace = previousTrace
@@ -57,11 +57,11 @@ final class SignalDetailViewModel: ObservableObject {
         isPostingComment = true
         errorMessage = nil
         do {
-            let comment = try await APIClient.shared.postComment(signalId: signalId, body: body)
+            let comment = try await APIClient.shared.postComment(shyftId: shyftId, body: body)
             comments.append(comment)
             draftComment = ""
-            if let signal = trace?.signal {
-                patchSignal(signal.withCommentCount(signal.commentCount + 1))
+            if let shyft = trace?.shyft {
+                patchShyft(shyft.withCommentCount(shyft.commentCount + 1))
             }
         } catch {
             errorMessage = error.localizedDescription
@@ -69,11 +69,11 @@ final class SignalDetailViewModel: ObservableObject {
         isPostingComment = false
     }
 
-    private func updatedReactionSummary(from signal: Signal, nextUserReaction: ShyftReaction?) -> ReactionSummary {
-        let current = signal.reactionSummary
+    private func updatedReactionSummary(from shyft: Shyft, nextUserReaction: ShyftReaction?) -> ReactionSummary {
+        let current = shyft.reactionSummary
         func adjusted(_ reaction: ShyftReaction, _ value: Int) -> Int {
             var next = value
-            if signal.userReaction == reaction { next -= 1 }
+            if shyft.userReaction == reaction { next -= 1 }
             if nextUserReaction == reaction { next += 1 }
             return max(0, next)
         }
@@ -84,10 +84,10 @@ final class SignalDetailViewModel: ObservableObject {
         )
     }
 
-    private func patchSignal(_ signal: Signal) {
+    private func patchShyft(_ shyft: Shyft) {
         guard let trace else { return }
-        self.trace = SignalTrace(
-            signal: signal,
+        self.trace = ShyftTrace(
+            shyft: shyft,
             rollingMetric: trace.rollingMetric,
             sourceStat: trace.sourceStat,
             baselineSamples: trace.baselineSamples,
@@ -95,29 +95,29 @@ final class SignalDetailViewModel: ObservableObject {
             feedContext: trace.feedContext
         )
         NotificationCenter.default.post(
-            name: .signalEngagementDidChange,
+            name: .shyftEngagementDidChange,
             object: nil,
             userInfo: [
-                "signalId": signal.id,
-                "reactionSummary": signal.reactionSummary,
-                "userReaction": signal.userReaction?.rawValue ?? NSNull(),
-                "commentCount": signal.commentCount,
+                "shyftId": shyft.id,
+                "reactionSummary": shyft.reactionSummary,
+                "userReaction": shyft.userReaction?.rawValue ?? NSNull(),
+                "commentCount": shyft.commentCount,
             ]
         )
     }
 }
 
-struct SignalDetailView: View {
-    let signalId: Int
-    let prefetchedSignal: Signal?
+struct ShyftDetailView: View {
+    let shyftId: Int
+    let prefetchedSignal: Shyft?
 
     @StateObject private var viewModel: SignalDetailViewModel
     @State private var provenanceExpanded = false
 
-    init(signalId: Int, signal: Signal? = nil) {
-        self.signalId = signalId
-        self.prefetchedSignal = signal
-        _viewModel = StateObject(wrappedValue: SignalDetailViewModel(signalId: signalId, prefetchedSignal: signal))
+    init(shyftId: Int, shyft: Shyft? = nil) {
+        self.shyftId = shyftId
+        self.prefetchedSignal = shyft
+        _viewModel = StateObject(wrappedValue: SignalDetailViewModel(shyftId: shyftId, prefetchedSignal: shyft))
     }
 
     var body: some View {
@@ -139,24 +139,24 @@ struct SignalDetailView: View {
             Text(error).foregroundStyle(ShyftyTheme.danger)
         } else if let trace = viewModel.trace {
             detailScroll(trace: trace)
-        } else if let signal = prefetchedSignal {
+        } else if let shyft = prefetchedSignal {
             ScrollView {
-                SignalCardView(signal: signal)
+                ShyftCardView(shyft: shyft)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 12)
             }
         }
     }
 
-    private func detailScroll(trace: SignalTrace) -> some View {
-        let signal = trace.signal
-        let tint = SignalFormatting.tint(for: signal.signalType)
+    private func detailScroll(trace: ShyftTrace) -> some View {
+        let shyft = trace.shyft
+        let tint = ShyftFormatting.tint(for: shyft.shyftType)
 
         return ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(spacing: 8) {
-                        Text(SignalFormatting.signalLabel(signal.signalType).uppercased())
+                        Text(ShyftFormatting.signalLabel(shyft.shyftType).uppercased())
                             .font(.system(size: 10, weight: .semibold))
                             .kerning(1.6)
                             .padding(.horizontal, 10)
@@ -168,11 +168,11 @@ struct SignalDetailView: View {
                         Spacer()
                     }
 
-                    Text(signal.playerName)
+                    Text(shyft.playerName)
                         .shyftyHeadline(32)
 
                     HStack(spacing: 8) {
-                        if let playerID = signal.playerID {
+                        if let playerID = shyft.playerID {
                             NavigationLink(value: playerID) {
                                 Text("Player context")
                                     .font(.system(size: 12, weight: .semibold))
@@ -181,12 +181,12 @@ struct SignalDetailView: View {
                             Text("•")
                                 .foregroundStyle(ShyftyTheme.muted)
                         }
-                        Text(signal.teamName)
+                        Text(shyft.teamName)
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(ShyftyTheme.ink)
                         Text("•")
                             .foregroundStyle(ShyftyTheme.muted)
-                        Text(signal.metricLabel.uppercased())
+                        Text(shyft.metricLabel.uppercased())
                             .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(ShyftyTheme.muted)
                     }
@@ -196,15 +196,15 @@ struct SignalDetailView: View {
                 .shyftyPanel()
 
                 HStack(spacing: 12) {
-                    metricCell(label: "This Game", value: String(format: "%.1f", signal.currentValue), color: tint)
-                    metricCell(label: "Baseline", value: String(format: "%.1f", signal.baselineValue), color: ShyftyTheme.muted)
-                    metricCell(label: "Z-Score", value: "\(signal.zScore >= 0 ? "+" : "")\(String(format: "%.2f", signal.zScore))", color: ShyftyTheme.ink)
+                    metricCell(label: "This Game", value: String(format: "%.1f", shyft.currentValue), color: tint)
+                    metricCell(label: "Baseline", value: String(format: "%.1f", shyft.baselineValue), color: ShyftyTheme.muted)
+                    metricCell(label: "Z-Score", value: "\(shyft.zScore >= 0 ? "+" : "")\(String(format: "%.2f", shyft.zScore))", color: ShyftyTheme.ink)
                 }
 
                 VStack(alignment: .leading, spacing: 10) {
                     Text("What This Means")
                         .shyftyEyebrow()
-                    Text(signal.explanation)
+                    Text(shyft.explanation)
                         .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(Color(red: 0.85, green: 0.89, blue: 0.95))
                         .lineSpacing(3)
@@ -213,7 +213,7 @@ struct SignalDetailView: View {
                 .shyftyPanel()
 
                 provenanceSection(trace: trace)
-                reactionSection(signal: signal)
+                reactionSection(shyft: shyft)
                 discussionSection
             }
             .padding(.horizontal, 14)
@@ -222,8 +222,8 @@ struct SignalDetailView: View {
     }
 
     @ViewBuilder
-    private func provenanceSection(trace: SignalTrace) -> some View {
-        let signal = trace.signal
+    private func provenanceSection(trace: ShyftTrace) -> some View {
+        let shyft = trace.shyft
         VStack(alignment: .leading, spacing: 0) {
             Button {
                 withAnimation(.easeInOut(duration: 0.2)) {
@@ -243,7 +243,7 @@ struct SignalDetailView: View {
 
             if provenanceExpanded {
                 VStack(alignment: .leading, spacing: 14) {
-                    if let reason = signal.classificationReason {
+                    if let reason = shyft.classificationReason {
                         Text(reason)
                             .font(.system(size: 11, weight: .semibold))
                             .tracking(1.4)
@@ -265,7 +265,7 @@ struct SignalDetailView: View {
                         }
                     }
 
-                    Text(signal.baselineWindow)
+                    Text(shyft.baselineWindow)
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(ShyftyTheme.muted.opacity(0.75))
                 }
@@ -277,11 +277,11 @@ struct SignalDetailView: View {
     }
 
     @ViewBuilder
-    private func reactionSection(signal: Signal) -> some View {
+    private func reactionSection(shyft: Shyft) -> some View {
         HStack(spacing: 20) {
             ForEach(ShyftReaction.allCases, id: \.self) { reaction in
-                let count = signal.reactionSummary.count(for: reaction)
-                let isActive = signal.userReaction == reaction
+                let count = shyft.reactionSummary.count(for: reaction)
+                let isActive = shyft.userReaction == reaction
                 Button {
                     Task { await viewModel.react(type: reaction) }
                 } label: {

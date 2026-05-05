@@ -1,9 +1,9 @@
-import type { SignalFilters, SortMode } from '../types';
+import type { ShyftFilters, SortMode } from '../types';
 
 interface FilterDrawerProps {
   open: boolean;
-  filters: SignalFilters;
-  onChange: (filters: SignalFilters) => void;
+  filters: ShyftFilters;
+  onChange: (filters: ShyftFilters) => void;
   onClose: () => void;
 }
 
@@ -22,7 +22,7 @@ const severities = [
 
 const sorts: Array<{ label: string; value: SortMode }> = [
   { label: 'Newest', value: 'newest' },
-  { label: 'Signal score', value: 'most_important' },
+  { label: 'Shyft score', value: 'most_important' },
   { label: 'Biggest deviation', value: 'biggest_deviation' },
 ];
 
@@ -52,10 +52,10 @@ function FilterOption({
 }
 
 export function FilterDrawer({ open, filters, onChange, onClose }: FilterDrawerProps) {
-  function updateFilter(next: SignalFilters) {
+  function updateFilter(next: ShyftFilters) {
     onChange({
       league: next.league,
-      signal_type: next.signal_type,
+      shyft_type: next.shyft_type,
       sort: next.sort ?? 'newest',
       feed: 'all',
     });
@@ -126,8 +126,8 @@ export function FilterDrawer({ open, filters, onChange, onClose }: FilterDrawerP
                 <FilterOption
                   key={option.label}
                   label={option.label}
-                  active={filters.signal_type === option.value || (!filters.signal_type && !option.value)}
-                  onClick={() => updateFilter({ ...filters, signal_type: option.value })}
+                  active={filters.shyft_type === option.value || (!filters.shyft_type && !option.value)}
+                  onClick={() => updateFilter({ ...filters, shyft_type: option.value })}
                 />
               ))}
             </div>

@@ -4,7 +4,7 @@ import { AppShell } from './components/AppShell';
 import { AccountPage } from './pages/AccountPage';
 import { PlayerDetailPage } from './pages/PlayerDetailPage';
 import { PlayersPage } from './pages/PlayersPage';
-import { SignalFeedPage } from './pages/SignalFeedPage';
+import { ShyftFeedPage } from "./pages/ShyftFeedPage";
 import { TeamDetailPage } from './pages/TeamDetailPage';
 import { TeamsPage } from './pages/TeamsPage';
 
@@ -12,7 +12,7 @@ export default function App() {
   return (
     <Routes>
       <Route element={<AppShell />}>
-        <Route path="/" element={<SignalFeedPage />} />
+        <Route path="/" element={<ShyftFeedPage />} />
         <Route path="/players" element={<PlayersPage />} />
         <Route path="/players/:id" element={<PlayerDetailPage />} />
         <Route path="/teams" element={<TeamsPage />} />

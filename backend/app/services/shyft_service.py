@@ -7,7 +7,7 @@ from typing import Optional
 from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session, aliased
 
-from app.domain.signals import (
+from app.domain.shyfts import (
     BASELINE_WINDOW_SIZE,
     baseline_window_label,
     classification_reason,
@@ -19,9 +19,9 @@ from app.domain.signals import (
     deviation_from_expected,
     meaningful_movement_pct,
     metric_label,
-    stat_signal_config,
+    stat_shyft_config,
     performance_ratio,
-    signal_gate_trace,
+    shyft_gate_trace,
     trend_direction,
 )
 from app.models.game import Game
@@ -29,24 +29,24 @@ from app.models.league import League
 from app.models.player import Player
 from app.models.player_game_stat import PlayerGameStat
 from app.models.rolling_metric import RollingMetric
-from app.models.signal import Signal
-from app.models.signal_comment import SignalComment
-from app.models.signal_reaction import SignalReaction
+from app.models.shyft import Shyft
+from app.models.shyft_comment import ShyftComment
+from app.models.shyft_reaction import ShyftReactionRecord
 from app.models.team import Team
 from app.models.team_game_stat import TeamGameStat
 from app.models.user_follow import UserFollow
 from app.schemas.reaction import ReactionAggregateRead, ReactionSummaryRead, ShyftReaction
-from app.schemas.signal import (
+from app.schemas.shyft import (
     CascadeContributorRead,
     CascadePlayerRead,
-    CascadeSignalRead,
+    CascadeShyftRead,
     CascadeTriggerRead,
     FeedContextRead,
     FeedItemRead,
-    PaginatedSignals,
-    SignalDebugTraceRead,
-    SignalRead,
-    SignalSummaryTemplateInputs,
+    PaginatedShyfts,
+    ShyftDebugTraceRead,
+    ShyftRead,
+    ShyftSummaryTemplateInputs,
 )
 from app.services.reaction_service import get_reaction_summaries, get_user_reactions
 
@@ -58,7 +58,7 @@ SORT_MODE_DISCUSSED = "most_discussed"
 FEED_MODE_ALL = "all"
 FEED_MODE_FOLLOWING = "following"
 FEED_MODE_FOR_YOU = "for_you"
-EXCLUDED_SIGNAL_TYPES = {"CONSISTENCY"}
+EXCLUDED_SHYFT_TYPES = {"CONSISTENCY"}
 CASCADE_TRIGGER_STATS = {"minutes", "minutes_played"}
 CASCADE_ALLOWED_CONTRIBUTOR_STATS = {
     "points",
@@ -77,57 +77,57 @@ CASCADE_MIN_CONTRIBUTOR_SCORE = 5.0
 
 
 def _deviation_expr():
-    return func.abs(Signal.current_value - Signal.baseline_value)
+    return func.abs(Shyft.current_value - Shyft.baseline_value)
 
 
 def _severity_order_expr():
     return case(
-        (Signal.signal_type == "OUTLIER", 3),
-        (Signal.signal_type == "SWING", 2),
-        (Signal.signal_type == "SHIFT", 1),
+        (Shyft.shyft_type == "OUTLIER", 3),
+        (Shyft.shyft_type == "SWING", 2),
+        (Shyft.shyft_type == "SHIFT", 1),
         else_=0,
     )
 
 
-def _severity_filter_expr(signal_type: str):
-    return Signal.signal_type.ilike(signal_type)
+def _severity_filter_expr(shyft_type: str):
+    return Shyft.shyft_type.ilike(shyft_type)
 
 
-def effective_metric_to_snapshot(signal: Signal, rolling_metric: Optional[RollingMetric]) -> MetricSnapshot:
-    short_values = rolling_metric.short_values if rolling_metric and rolling_metric.short_values else [signal.baseline_value]
+def effective_metric_to_snapshot(shyft: Shyft, rolling_metric: Optional[RollingMetric]) -> MetricSnapshot:
+    short_values = rolling_metric.short_values if rolling_metric and rolling_metric.short_values else [shyft.baseline_value]
     medium_values = rolling_metric.medium_values if rolling_metric and rolling_metric.medium_values else short_values
     season_values = rolling_metric.season_values if rolling_metric and rolling_metric.season_values else medium_values
     return MetricSnapshot(
-        game_id=signal.game_id,
-        source_stat_id=signal.source_stat_id or 0,
+        game_id=shyft.game_id,
+        source_stat_id=shyft.source_stat_id or 0,
         event_date=None,
         baseline_stat_ids=[],
-        current_value=signal.current_value,
-        baseline_value=signal.baseline_value,
+        current_value=shyft.current_value,
+        baseline_value=shyft.baseline_value,
         rolling_stddev=rolling_metric.short_rolling_stddev if rolling_metric and rolling_metric.short_rolling_stddev is not None else 0.0,
-        z_score=signal.z_score,
+        z_score=shyft.z_score,
         short_window=WindowSnapshot(
             stat_ids=[],
             values=[float(value) for value in short_values],
-            rolling_avg=rolling_metric.short_rolling_avg if rolling_metric and rolling_metric.short_rolling_avg is not None else signal.baseline_value,
+            rolling_avg=rolling_metric.short_rolling_avg if rolling_metric and rolling_metric.short_rolling_avg is not None else shyft.baseline_value,
             rolling_stddev=rolling_metric.short_rolling_stddev if rolling_metric and rolling_metric.short_rolling_stddev is not None else 0.0,
-            z_score=rolling_metric.short_z_score if rolling_metric and rolling_metric.short_z_score is not None else signal.z_score,
+            z_score=rolling_metric.short_z_score if rolling_metric and rolling_metric.short_z_score is not None else shyft.z_score,
         ),
         medium_window=WindowSnapshot(
             stat_ids=[],
             values=[float(value) for value in medium_values],
-            rolling_avg=rolling_metric.medium_rolling_avg if rolling_metric and rolling_metric.medium_rolling_avg is not None else signal.baseline_value,
+            rolling_avg=rolling_metric.medium_rolling_avg if rolling_metric and rolling_metric.medium_rolling_avg is not None else shyft.baseline_value,
             rolling_stddev=rolling_metric.medium_rolling_stddev if rolling_metric and rolling_metric.medium_rolling_stddev is not None else 0.0,
-            z_score=rolling_metric.medium_z_score if rolling_metric and rolling_metric.medium_z_score is not None else signal.z_score,
+            z_score=rolling_metric.medium_z_score if rolling_metric and rolling_metric.medium_z_score is not None else shyft.z_score,
         ),
         season_window=WindowSnapshot(
             stat_ids=[],
             values=[float(value) for value in season_values],
-            rolling_avg=rolling_metric.season_rolling_avg if rolling_metric and rolling_metric.season_rolling_avg is not None else signal.baseline_value,
+            rolling_avg=rolling_metric.season_rolling_avg if rolling_metric and rolling_metric.season_rolling_avg is not None else shyft.baseline_value,
             rolling_stddev=rolling_metric.season_rolling_stddev if rolling_metric and rolling_metric.season_rolling_stddev is not None else 0.0,
-            z_score=rolling_metric.season_z_score if rolling_metric and rolling_metric.season_z_score is not None else signal.z_score,
+            z_score=rolling_metric.season_z_score if rolling_metric and rolling_metric.season_z_score is not None else shyft.z_score,
         ),
-        ewma=rolling_metric.ewma if rolling_metric and rolling_metric.ewma is not None else signal.baseline_value,
+        ewma=rolling_metric.ewma if rolling_metric and rolling_metric.ewma is not None else shyft.baseline_value,
         recent_delta=rolling_metric.recent_delta if rolling_metric and rolling_metric.recent_delta is not None else 0.0,
         trend_slope=rolling_metric.trend_slope if rolling_metric and rolling_metric.trend_slope is not None else 0.0,
         volatility_index=rolling_metric.volatility_index if rolling_metric and rolling_metric.volatility_index is not None else 0.0,
@@ -140,8 +140,8 @@ def effective_metric_to_snapshot(signal: Signal, rolling_metric: Optional[Rollin
     )
 
 
-def build_signal_read(
-    signal: Signal,
+def build_shyft_read(
+    shyft: Shyft,
     player_name: Optional[str],
     team_name: str,
     league_name: str,
@@ -157,17 +157,17 @@ def build_signal_read(
     game_result: Optional[str] = None,
     final_score: Optional[str] = None,
     streak: int = 1,
-) -> SignalRead:
+) -> ShyftRead:
     baseline_window = baseline_window_label()
-    movement = meaningful_movement_pct(signal.metric_name, signal.current_value, signal.baseline_value)
-    performance = performance_ratio(signal.current_value, signal.baseline_value)
-    deviation = deviation_from_expected(signal.current_value, signal.baseline_value)
-    severity = signal.signal_type
-    direction = trend_direction(signal.current_value, signal.baseline_value)
-    readable_metric_label = metric_label(signal.metric_name)
-    snapshot = effective_metric_to_snapshot(signal, rolling_metric)
-    debug_trace = signal_gate_trace(snapshot, signal.metric_name)
-    signal_score = round(signal.signal_score or importance_score(severity, signal.z_score, deviation), 1)
+    movement = meaningful_movement_pct(shyft.metric_name, shyft.current_value, shyft.baseline_value)
+    performance = performance_ratio(shyft.current_value, shyft.baseline_value)
+    deviation = deviation_from_expected(shyft.current_value, shyft.baseline_value)
+    severity = shyft.shyft_type
+    direction = trend_direction(shyft.current_value, shyft.baseline_value)
+    readable_metric_label = metric_label(shyft.metric_name)
+    snapshot = effective_metric_to_snapshot(shyft, rolling_metric)
+    debug_trace = shyft_gate_trace(snapshot, shyft.metric_name)
+    shyft_score = round(shyft.shyft_score or importance_score(severity, shyft.z_score, deviation), 1)
     rolling_stddev = (
         rolling_metric.short_rolling_stddev
         if rolling_metric and rolling_metric.short_rolling_stddev is not None
@@ -181,28 +181,28 @@ def build_signal_read(
     )
     user_reactions_value = user_reactions or ([user_reaction] if user_reaction else [])
 
-    return SignalRead(
-        id=signal.id,
-        subject_type=signal.subject_type,
-        player_id=signal.player_id,
-        team_id=signal.team_id,
-        game_id=signal.game_id,
+    return ShyftRead(
+        id=shyft.id,
+        subject_type=shyft.subject_type,
+        player_id=shyft.player_id,
+        team_id=shyft.team_id,
+        game_id=shyft.game_id,
         player_name=player_name or team_name,
         team_name=team_name,
         league_name=league_name,
-        signal_type=severity,
+        shyft_type=severity,
         severity=severity,
-        metric_name=signal.metric_name,
-        current_value=signal.current_value,
-        baseline_value=signal.baseline_value,
+        metric_name=shyft.metric_name,
+        current_value=shyft.current_value,
+        baseline_value=shyft.baseline_value,
         performance=performance,
         deviation=deviation,
-        z_score=signal.z_score,
-        signal_score=signal_score,
-        score_explanation=signal.score_explanation,
-        explanation=signal.explanation,
-        importance=signal_score,
-        importance_label=importance_label_for_score(signal_score),
+        z_score=shyft.z_score,
+        shyft_score=shyft_score,
+        score_explanation=shyft.score_explanation,
+        explanation=shyft.explanation,
+        importance=shyft_score,
+        importance_label=importance_label_for_score(shyft_score),
         baseline_window=baseline_window,
         baseline_window_size=(rolling_metric.short_window_size if rolling_metric and rolling_metric.short_window_size else BASELINE_WINDOW_SIZE),
         event_date=event_date,
@@ -214,12 +214,12 @@ def build_signal_read(
         home_away=home_away,
         game_result=game_result,
         final_score=final_score,
-        classification_reason=classification_reason(severity, snapshot, signal.metric_name),
-        debug_trace=SignalDebugTraceRead(**debug_trace),
+        classification_reason=classification_reason(severity, snapshot, shyft.metric_name),
+        debug_trace=ShyftDebugTraceRead(**debug_trace),
         summary_template="metric_vs_recent_baseline",
-        summary_template_inputs=SignalSummaryTemplateInputs(
-            current_value=signal.current_value,
-            baseline_value=signal.baseline_value,
+        summary_template_inputs=ShyftSummaryTemplateInputs(
+            current_value=shyft.current_value,
+            baseline_value=shyft.baseline_value,
             movement_pct=movement,
             baseline_window=baseline_window,
             trend_direction=direction,
@@ -234,53 +234,53 @@ def build_signal_read(
         reactions=reaction_entries,
         user_reactions=user_reactions_value,
         comment_count=comment_count,
-        created_at=signal.created_at,
+        created_at=shyft.created_at,
     )
 
 
 def _comment_count_subquery():
-    base_signal = aliased(Signal)
-    comment_signal = aliased(Signal)
-    same_signal_group = and_(
-        comment_signal.game_id == base_signal.game_id,
-        comment_signal.subject_type == base_signal.subject_type,
+    base_shyft = aliased(Shyft)
+    comment_shyft = aliased(Shyft)
+    same_shyft_group = and_(
+        comment_shyft.game_id == base_shyft.game_id,
+        comment_shyft.subject_type == base_shyft.subject_type,
         or_(
-            and_(base_signal.player_id.is_not(None), comment_signal.player_id == base_signal.player_id),
+            and_(base_shyft.player_id.is_not(None), comment_shyft.player_id == base_shyft.player_id),
             and_(
-                base_signal.player_id.is_(None),
-                comment_signal.player_id.is_(None),
-                comment_signal.team_id == base_signal.team_id,
+                base_shyft.player_id.is_(None),
+                comment_shyft.player_id.is_(None),
+                comment_shyft.team_id == base_shyft.team_id,
             ),
         ),
     )
     return (
-        select(base_signal.id.label("signal_id"), func.count(SignalComment.id).label("comment_count"))
-        .select_from(base_signal)
-        .outerjoin(comment_signal, same_signal_group)
-        .outerjoin(SignalComment, SignalComment.signal_id == comment_signal.id)
-        .group_by(base_signal.id)
+        select(base_shyft.id.label("shyft_id"), func.count(ShyftComment.id).label("comment_count"))
+        .select_from(base_shyft)
+        .outerjoin(comment_shyft, same_shyft_group)
+        .outerjoin(ShyftComment, ShyftComment.shyft_id == comment_shyft.id)
+        .group_by(base_shyft.id)
         .subquery()
     )
 
 
 def _reaction_count_subquery():
     return (
-        select(SignalReaction.signal_id, func.count(SignalReaction.id).label("reaction_count"))
-        .group_by(SignalReaction.signal_id)
+        select(ShyftReactionRecord.shyft_id, func.count(ShyftReactionRecord.id).label("reaction_count"))
+        .group_by(ShyftReactionRecord.shyft_id)
         .subquery()
     )
 
 
-def _base_signal_query():
+def _base_shyft_query():
     comment_count_subq = _comment_count_subquery()
     reaction_count_subq = _reaction_count_subquery()
     home_team = aliased(Team)
     away_team = aliased(Team)
-    signal_team_stat = aliased(TeamGameStat)
+    shyft_team_stat = aliased(TeamGameStat)
     opponent_team_stat = aliased(TeamGameStat)
     return (
         select(
-            Signal,
+            Shyft,
             Player.name,
             Team.name,
             League.name,
@@ -295,36 +295,36 @@ def _base_signal_query():
             away_team.name.label("away_team_name"),
             TeamGameStat.opponent_name,
             TeamGameStat.home_away,
-            signal_team_stat.points.label("signal_team_points"),
+            shyft_team_stat.points.label("shyft_team_points"),
             opponent_team_stat.points.label("opponent_team_points"),
         )
-        .outerjoin(Player, Signal.player_id == Player.id)
-        .join(Team, Signal.team_id == Team.id)
-        .join(League, Signal.league_id == League.id)
-        .join(Game, Signal.game_id == Game.id)
+        .outerjoin(Player, Shyft.player_id == Player.id)
+        .join(Team, Shyft.team_id == Team.id)
+        .join(League, Shyft.league_id == League.id)
+        .join(Game, Shyft.game_id == Game.id)
         .outerjoin(
             RollingMetric,
             and_(
-                RollingMetric.player_id == Signal.player_id,
-                RollingMetric.game_id == Signal.game_id,
-                RollingMetric.metric_name == Signal.metric_name,
+                RollingMetric.player_id == Shyft.player_id,
+                RollingMetric.game_id == Shyft.game_id,
+                RollingMetric.metric_name == Shyft.metric_name,
             ),
         )
-        .outerjoin(PlayerGameStat, PlayerGameStat.id == Signal.source_stat_id)
-        .outerjoin(TeamGameStat, TeamGameStat.id == Signal.source_team_stat_id)
+        .outerjoin(PlayerGameStat, PlayerGameStat.id == Shyft.source_stat_id)
+        .outerjoin(TeamGameStat, TeamGameStat.id == Shyft.source_team_stat_id)
         .outerjoin(
-            signal_team_stat,
-            and_(signal_team_stat.game_id == Signal.game_id, signal_team_stat.team_id == Signal.team_id),
+            shyft_team_stat,
+            and_(shyft_team_stat.game_id == Shyft.game_id, shyft_team_stat.team_id == Shyft.team_id),
         )
         .outerjoin(
             opponent_team_stat,
-            and_(opponent_team_stat.game_id == Signal.game_id, opponent_team_stat.team_id != Signal.team_id),
+            and_(opponent_team_stat.game_id == Shyft.game_id, opponent_team_stat.team_id != Shyft.team_id),
         )
         .outerjoin(home_team, Game.home_team_id == home_team.id)
         .outerjoin(away_team, Game.away_team_id == away_team.id)
-        .outerjoin(comment_count_subq, comment_count_subq.c.signal_id == Signal.id)
-        .outerjoin(reaction_count_subq, reaction_count_subq.c.signal_id == Signal.id)
-        .where(~Signal.signal_type.in_(EXCLUDED_SIGNAL_TYPES))
+        .outerjoin(comment_count_subq, comment_count_subq.c.shyft_id == Shyft.id)
+        .outerjoin(reaction_count_subq, reaction_count_subq.c.shyft_id == Shyft.id)
+        .where(~Shyft.shyft_type.in_(EXCLUDED_SHYFT_TYPES))
     )
 
 
@@ -336,14 +336,14 @@ def _get_engagement_context(db: Session, user_id: int) -> dict[str, object]:
     followed_teams = {entity_id for entity_type, entity_id in followed_rows if entity_type == "team"}
 
     reaction_rows = db.execute(
-        select(Signal.player_id, Signal.team_id, Signal.metric_name)
-        .join(SignalReaction, SignalReaction.signal_id == Signal.id)
-        .where(SignalReaction.user_id == user_id)
+        select(Shyft.player_id, Shyft.team_id, Shyft.metric_name)
+        .join(ShyftReactionRecord, ShyftReactionRecord.shyft_id == Shyft.id)
+        .where(ShyftReactionRecord.user_id == user_id)
     ).all()
     comment_rows = db.execute(
-        select(Signal.player_id, Signal.team_id, Signal.metric_name)
-        .join(SignalComment, SignalComment.signal_id == Signal.id)
-        .where(SignalComment.user_id == user_id)
+        select(Shyft.player_id, Shyft.team_id, Shyft.metric_name)
+        .join(ShyftComment, ShyftComment.shyft_id == Shyft.id)
+        .where(ShyftComment.user_id == user_id)
     ).all()
     metric_names = {metric_name for *_, metric_name in [*reaction_rows, *comment_rows]}
     engaged_players = {player_id for player_id, *_ in [*reaction_rows, *comment_rows]}
@@ -359,46 +359,46 @@ def _get_engagement_context(db: Session, user_id: int) -> dict[str, object]:
 def _apply_sort(query, sort_mode: str):
     deviation_expr = _deviation_expr()
     ranked_order = (
-        func.coalesce(Signal.signal_score, 0).desc(),
+        func.coalesce(Shyft.shyft_score, 0).desc(),
         _severity_order_expr().desc(),
         deviation_expr.desc(),
         Game.game_date.desc(),
-        Signal.id.desc(),
+        Shyft.id.desc(),
     )
     if sort_mode == SORT_MODE_IMPORTANT:
         return query.order_by(*ranked_order)
     if sort_mode == SORT_MODE_DEVIATION:
         return query.order_by(*ranked_order)
-    return query.order_by(Game.game_date.desc(), Signal.id.desc())
+    return query.order_by(Game.game_date.desc(), Shyft.id.desc())
 
 
 def _compute_streaks(
     db: Session,
-    signal_info: list[tuple[int, Optional[int], str, str, date]],
+    shyft_info: list[tuple[int, Optional[int], str, str, date]],
 ) -> dict[int, int]:
     """
-    signal_info: [(signal_id, player_id, metric_name, signal_type, event_date), ...]
-    Returns {signal_id: streak_count}.
+    shyft_info: [(shyft_id, player_id, metric_name, shyft_type, event_date), ...]
+    Returns {shyft_id: streak_count}.
     Streak = consecutive prior games (by date, going back) where the same player
-    had the same signal_type for the same metric, with no gap of a different type.
+    had the same shyft_type for the same metric, with no gap of a different type.
     """
     player_metric_pairs = {
         (pid, metric)
-        for _, pid, metric, _, _ in signal_info
+        for _, pid, metric, _, _ in shyft_info
         if pid is not None
     }
     if not player_metric_pairs:
-        return {sig_id: 1 for sig_id, *_ in signal_info}
+        return {sig_id: 1 for sig_id, *_ in shyft_info}
 
     history_rows = db.execute(
-        select(Signal.player_id, Signal.metric_name, Signal.signal_type, Game.game_date)
-        .join(Game, Signal.game_id == Game.id)
-        .where(~Signal.signal_type.in_(EXCLUDED_SIGNAL_TYPES))
+        select(Shyft.player_id, Shyft.metric_name, Shyft.shyft_type, Game.game_date)
+        .join(Game, Shyft.game_id == Game.id)
+        .where(~Shyft.shyft_type.in_(EXCLUDED_SHYFT_TYPES))
         .where(or_(*[
-            and_(Signal.player_id == pid, Signal.metric_name == metric)
+            and_(Shyft.player_id == pid, Shyft.metric_name == metric)
             for pid, metric in player_metric_pairs
         ]))
-        .order_by(Game.game_date.desc(), Signal.id.desc())
+        .order_by(Game.game_date.desc(), Shyft.id.desc())
     ).all()
 
     history: dict[tuple, list[tuple[str, date]]] = defaultdict(list)
@@ -406,14 +406,14 @@ def _compute_streaks(
         history[(player_id, metric_name)].append((sig_type, game_date))
 
     result: dict[int, int] = {}
-    for sig_id, player_id, metric_name, signal_type, event_date in signal_info:
+    for sig_id, player_id, metric_name, shyft_type, event_date in shyft_info:
         if player_id is None:
             result[sig_id] = 1
             continue
         relevant = [(st, gd) for st, gd in history[(player_id, metric_name)] if gd <= event_date]
         count = 0
         for st, _ in relevant:
-            if st == signal_type:
+            if st == shyft_type:
                 count += 1
             else:
                 break
@@ -422,20 +422,20 @@ def _compute_streaks(
     return result
 
 
-def _build_signal_items(rows, db: Session, current_user_id: Optional[int]) -> list[SignalRead]:
-    signal_ids = [signal.id for signal, *_ in rows]
-    reaction_summaries = get_reaction_summaries(db, signal_ids)
-    user_reactions = get_user_reactions(db, user_id=current_user_id, signal_ids=signal_ids)
+def _build_shyft_items(rows, db: Session, current_user_id: Optional[int]) -> list[ShyftRead]:
+    shyft_ids = [shyft.id for shyft, *_ in rows]
+    reaction_summaries = get_reaction_summaries(db, shyft_ids)
+    user_reactions = get_user_reactions(db, user_id=current_user_id, shyft_ids=shyft_ids)
 
-    signal_info = [
-        (signal.id, signal.player_id, signal.metric_name, signal.signal_type, event_date)
-        for signal, _player_name, _team_name, _league_name, event_date, *_ in rows
+    shyft_info = [
+        (shyft.id, shyft.player_id, shyft.metric_name, shyft.shyft_type, event_date)
+        for shyft, _player_name, _team_name, _league_name, event_date, *_ in rows
     ]
-    streaks = _compute_streaks(db, signal_info)
+    streaks = _compute_streaks(db, shyft_info)
 
-    items: list[SignalRead] = []
+    items: list[ShyftRead] = []
     for (
-        signal,
+        shyft,
         player_name,
         team_name,
         league_name,
@@ -450,50 +450,50 @@ def _build_signal_items(rows, db: Session, current_user_id: Optional[int]) -> li
         away_team_name,
         team_stat_opponent_name,
         team_stat_home_away,
-        signal_team_points,
+        shyft_team_points,
         opponent_team_points,
     ) in rows:
-        is_home = signal.team_id == home_team_id
+        is_home = shyft.team_id == home_team_id
         opponent = team_stat_opponent_name or (away_team_name if is_home else home_team_name)
         home_away = team_stat_home_away or ("vs" if is_home else "@")
         final_score = (
-            f"{int(signal_team_points)}-{int(opponent_team_points)}"
-            if signal_team_points is not None and opponent_team_points is not None
+            f"{int(shyft_team_points)}-{int(opponent_team_points)}"
+            if shyft_team_points is not None and opponent_team_points is not None
             else None
         )
         score_result = (
             "W"
-            if signal_team_points is not None and opponent_team_points is not None and signal_team_points > opponent_team_points
+            if shyft_team_points is not None and opponent_team_points is not None and shyft_team_points > opponent_team_points
             else "L"
-            if signal_team_points is not None and opponent_team_points is not None and signal_team_points < opponent_team_points
+            if shyft_team_points is not None and opponent_team_points is not None and shyft_team_points < opponent_team_points
             else None
         )
-        game_result = score_result or (None if signal.subject_type == "team" else ("W" if plus_minus and plus_minus > 0 else "L" if plus_minus and plus_minus < 0 else None))
+        game_result = score_result or (None if shyft.subject_type == "team" else ("W" if plus_minus and plus_minus > 0 else "L" if plus_minus and plus_minus < 0 else None))
 
-        current_user_reactions = sorted(user_reactions.get(signal.id, set()))
+        current_user_reactions = sorted(user_reactions.get(shyft.id, set()))
         items.append(
-            build_signal_read(
-                signal,
+            build_shyft_read(
+                shyft,
                 player_name,
                 team_name,
                 league_name,
                 event_date,
                 rolling_metric,
-                reactions=reaction_summaries.get(signal.id),
+                reactions=reaction_summaries.get(shyft.id),
                 user_reactions=current_user_reactions,
-                user_reaction=next(iter(user_reactions.get(signal.id, set())), None),
+                user_reaction=next(iter(user_reactions.get(shyft.id, set())), None),
                 comment_count=comment_count,
                 opponent=opponent,
                 home_away=home_away,
                 game_result=game_result,
                 final_score=final_score,
-                streak=streaks.get(signal.id, 1),
+                streak=streaks.get(shyft.id, 1),
             )
         )
     return items
 
 
-def _delta_percent(item: SignalRead) -> Optional[float]:
+def _delta_percent(item: ShyftRead) -> Optional[float]:
     if item.movement_pct is not None:
         return item.movement_pct
     if abs(item.baseline_value) < 0.05:
@@ -501,7 +501,7 @@ def _delta_percent(item: SignalRead) -> Optional[float]:
     return ((item.current_value - item.baseline_value) / item.baseline_value) * 100
 
 
-def _is_cascade_trigger(item: SignalRead) -> bool:
+def _is_cascade_trigger(item: ShyftRead) -> bool:
     if item.subject_type != "player" or item.player_id is None:
         return False
     if item.metric_name not in CASCADE_TRIGGER_STATS:
@@ -512,7 +512,7 @@ def _is_cascade_trigger(item: SignalRead) -> bool:
     return item.current_value <= 0.5 or (drop_pct is not None and drop_pct <= CASCADE_MIN_TRIGGER_DROP_PCT)
 
 
-def _is_cascade_contributor(item: SignalRead, trigger: SignalRead) -> bool:
+def _is_cascade_contributor(item: ShyftRead, trigger: ShyftRead) -> bool:
     if item.subject_type != "player" or item.player_id is None:
         return False
     if item.game_id != trigger.game_id or item.team_id != trigger.team_id or item.player_id == trigger.player_id:
@@ -521,48 +521,48 @@ def _is_cascade_contributor(item: SignalRead, trigger: SignalRead) -> bool:
         return False
     if item.current_value <= item.baseline_value:
         return False
-    config = stat_signal_config(item.metric_name)
+    config = stat_shyft_config(item.metric_name)
     if item.current_value - item.baseline_value < config.min_delta:
         return False
-    return item.signal_score >= CASCADE_MIN_CONTRIBUTOR_SCORE
+    return item.shyft_score >= CASCADE_MIN_CONTRIBUTOR_SCORE
 
 
-def _cascade_rank_key(item: SignalRead) -> tuple[float, float, float]:
+def _cascade_rank_key(item: ShyftRead) -> tuple[float, float, float]:
     delta_pct = _delta_percent(item)
     return (
-        item.signal_score,
+        item.shyft_score,
         abs(delta_pct) if delta_pct is not None else 0.0,
         abs(item.z_score),
     )
 
 
-def _trigger_read(item: SignalRead) -> CascadeTriggerRead:
+def _trigger_read(item: ShyftRead) -> CascadeTriggerRead:
     return CascadeTriggerRead(
         player=CascadePlayerRead(id=item.player_id, name=item.player_name),
-        signal_id=item.id,
+        shyft_id=item.id,
         stat=item.metric_name,
         metric_label=item.metric_label,
         delta=item.current_value - item.baseline_value,
         delta_percent=_delta_percent(item),
-        signal_type=item.signal_type,
-        signal_score=item.signal_score,
+        shyft_type=item.shyft_type,
+        shyft_score=item.shyft_score,
     )
 
 
-def _contributor_read(item: SignalRead) -> CascadeContributorRead:
+def _contributor_read(item: ShyftRead) -> CascadeContributorRead:
     return CascadeContributorRead(
         player=CascadePlayerRead(id=item.player_id, name=item.player_name),
-        signal_id=item.id,
+        shyft_id=item.id,
         stat=item.metric_name,
         metric_label=item.metric_label,
         delta=item.current_value - item.baseline_value,
         delta_percent=_delta_percent(item),
-        signal_type=item.signal_type,
-        signal_score=item.signal_score,
+        shyft_type=item.shyft_type,
+        shyft_score=item.shyft_score,
     )
 
 
-def _cascade_drop_reason(trigger: SignalRead) -> str:
+def _cascade_drop_reason(trigger: ShyftRead) -> str:
     drop_pct = _delta_percent(trigger)
     if trigger.current_value <= 0.5:
         return "DNP"
@@ -586,7 +586,7 @@ def _cascade_usage_phrase(metric_name: str) -> str:
     return phrases.get(metric_name, metric_label(metric_name).lower())
 
 
-def _cascade_summary(trigger: SignalRead, contributors: list[SignalRead]) -> str:
+def _cascade_summary(trigger: ShyftRead, contributors: list[ShyftRead]) -> str:
     primary = contributors[0]
     reason = _cascade_drop_reason(trigger)
     primary_phrase = _cascade_usage_phrase(primary.metric_name)
@@ -598,8 +598,8 @@ def _cascade_summary(trigger: SignalRead, contributors: list[SignalRead]) -> str
     return f"{summary}."
 
 
-def detect_cascade_signals(items: list[SignalRead], *, max_contributors: int = CASCADE_MAX_CONTRIBUTORS) -> list[CascadeSignalRead]:
-    cascades: list[CascadeSignalRead] = []
+def detect_cascade_shyfts(items: list[ShyftRead], *, max_contributors: int = CASCADE_MAX_CONTRIBUTORS) -> list[CascadeShyftRead]:
+    cascades: list[CascadeShyftRead] = []
     triggers = [item for item in items if _is_cascade_trigger(item)]
     seen_trigger_keys: set[tuple[int, int, int]] = set()
 
@@ -618,7 +618,7 @@ def detect_cascade_signals(items: list[SignalRead], *, max_contributors: int = C
         kept = contributors[:max_contributors]
         seen_trigger_keys.add(trigger_key)
         cascades.append(
-            CascadeSignalRead(
+            CascadeShyftRead(
                 id=f"cascade:{trigger.game_id}:{trigger.team_id}:{trigger.player_id}",
                 game_id=trigger.game_id,
                 team_id=trigger.team_id,
@@ -628,7 +628,7 @@ def detect_cascade_signals(items: list[SignalRead], *, max_contributors: int = C
                 created_at=max([trigger.created_at, *[contributor.created_at for contributor in kept]]),
                 trigger=_trigger_read(trigger),
                 contributors=[_contributor_read(contributor) for contributor in kept],
-                underlying_signals=[trigger, *kept],
+                underlying_shyfts=[trigger, *kept],
                 narrative_summary=_cascade_summary(trigger, kept),
             )
         )
@@ -636,16 +636,16 @@ def detect_cascade_signals(items: list[SignalRead], *, max_contributors: int = C
     return cascades
 
 
-def _inject_cascades(items: list[SignalRead]) -> list[FeedItemRead]:
-    cascades = detect_cascade_signals(items)
+def _inject_cascades(items: list[ShyftRead]) -> list[FeedItemRead]:
+    cascades = detect_cascade_shyfts(items)
     if not cascades:
         return items
 
-    cascades_by_trigger_id = {cascade.trigger.signal_id: cascade for cascade in cascades}
-    grouped_signal_ids = {
-        signal.id
+    cascades_by_trigger_id = {cascade.trigger.shyft_id: cascade for cascade in cascades}
+    grouped_shyft_ids = {
+        shyft.id
         for cascade in cascades
-        for signal in cascade.underlying_signals
+        for shyft in cascade.underlying_shyfts
     }
 
     feed_items: list[FeedItemRead] = []
@@ -654,7 +654,7 @@ def _inject_cascades(items: list[SignalRead]) -> list[FeedItemRead]:
         if cascade is not None:
             feed_items.append(cascade)
             continue
-        if item.id in grouped_signal_ids:
+        if item.id in grouped_shyft_ids:
             continue
         feed_items.append(item)
     return feed_items
@@ -668,20 +668,20 @@ def _personalized_reason(feed_mode: str, current_user_id: Optional[int], items: 
     if feed_mode == FEED_MODE_FOLLOWING and not items:
         return "This view will fill in as you follow players or teams."
     if not items:
-        return "This view will fill in as you follow players or teams and react to signals."
+        return "This view will fill in as you follow players or teams and react to shyfts."
     if feed_mode == FEED_MODE_FOLLOWING:
-        return "Signals from players and teams you follow."
+        return "Shyfts from players and teams you follow."
     if feed_mode == FEED_MODE_FOR_YOU:
         return "Ranked from your follows, comments, and reaction history."
     return None
 
 
-def list_signals(
+def list_shyfts(
     db: Session,
     league: Optional[str],
     team: Optional[str],
     player: Optional[str],
-    signal_type: Optional[str],
+    shyft_type: Optional[str],
     limit: int = 24,
     before_id: Optional[int] = None,
     current_user_id: Optional[int] = None,
@@ -689,8 +689,8 @@ def list_signals(
     feed_mode: str = FEED_MODE_ALL,
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
-) -> PaginatedSignals:
-    query = _base_signal_query()
+) -> PaginatedShyfts:
+    query = _base_shyft_query()
 
     if league:
         query = query.where(League.name.ilike(league))
@@ -698,18 +698,18 @@ def list_signals(
         query = query.where(Team.name.ilike(f"%{team}%"))
     if player:
         query = query.where(Player.name.ilike(f"%{player}%"))
-    if signal_type:
-        query = query.where(_severity_filter_expr(signal_type))
+    if shyft_type:
+        query = query.where(_severity_filter_expr(shyft_type))
     if date_from is not None:
         query = query.where(Game.game_date >= date_from)
     if date_to is not None:
         query = query.where(Game.game_date <= date_to)
     if before_id is not None and sort_mode == SORT_MODE_NEWEST and feed_mode == FEED_MODE_ALL:
-        query = query.where(Signal.id < before_id)
+        query = query.where(Shyft.id < before_id)
 
     if feed_mode == FEED_MODE_FOLLOWING:
         if current_user_id is None:
-            return PaginatedSignals(
+            return PaginatedShyfts(
                 items=[],
                 has_more=False,
                 next_cursor=None,
@@ -725,7 +725,7 @@ def list_signals(
         followed_players = {entity_id for entity_type, entity_id in follow_rows if entity_type == "player"}
         followed_teams = {entity_id for entity_type, entity_id in follow_rows if entity_type == "team"}
         if not followed_players and not followed_teams:
-            return PaginatedSignals(
+            return PaginatedShyfts(
                 items=[],
                 has_more=False,
                 next_cursor=None,
@@ -737,18 +737,18 @@ def list_signals(
             )
         follow_clauses = []
         if followed_players:
-            follow_clauses.append(and_(Signal.subject_type == "player", Signal.player_id.in_(followed_players)))
+            follow_clauses.append(and_(Shyft.subject_type == "player", Shyft.player_id.in_(followed_players)))
         if followed_teams:
-            follow_clauses.append(and_(Signal.subject_type == "team", Signal.team_id.in_(followed_teams)))
+            follow_clauses.append(and_(Shyft.subject_type == "team", Shyft.team_id.in_(followed_teams)))
         query = query.where(or_(*follow_clauses))
 
     elif feed_mode == FEED_MODE_FOR_YOU and current_user_id is not None:
         query = query.limit(max(limit * 5, 120))
         rows = db.execute(_apply_sort(query, SORT_MODE_NEWEST)).all()
-        items = _build_signal_items(rows, db, current_user_id)
+        items = _build_shyft_items(rows, db, current_user_id)
         preferred = _get_engagement_context(db, current_user_id)
 
-        def score(item: SignalRead) -> float:
+        def score(item: ShyftRead) -> float:
             score_value = item.importance
             if item.player_id in preferred["followed_players"]:
                 score_value += 8
@@ -762,7 +762,7 @@ def list_signals(
 
         items = sorted(items, key=score, reverse=True)[:limit]
         feed_items = _inject_cascades(items)
-        return PaginatedSignals(
+        return PaginatedShyfts(
             items=feed_items,
             has_more=False,
             next_cursor=None,
@@ -779,7 +779,7 @@ def list_signals(
 
     has_more = paginated and len(rows) > limit
     rows = rows[:limit] if paginated else rows
-    items = _build_signal_items(rows, db, current_user_id)
+    items = _build_shyft_items(rows, db, current_user_id)
     if sort_mode == SORT_MODE_DISCUSSED:
         items = sorted(
             items,
@@ -790,10 +790,10 @@ def list_signals(
             reverse=True,
         )[:limit]
     feed_items = _inject_cascades(items)
-    signal_cursor_items = [item for item in feed_items if isinstance(item, SignalRead)]
-    next_cursor = signal_cursor_items[-1].id if has_more and signal_cursor_items else (items[-1].id if has_more and items else None)
+    shyft_cursor_items = [item for item in feed_items if isinstance(item, ShyftRead)]
+    next_cursor = shyft_cursor_items[-1].id if has_more and shyft_cursor_items else (items[-1].id if has_more and items else None)
 
-    return PaginatedSignals(
+    return PaginatedShyfts(
         items=feed_items,
         has_more=has_more,
         next_cursor=next_cursor,
@@ -805,17 +805,17 @@ def list_signals(
     )
 
 
-def list_trending_signals(
+def list_trending_shyfts(
     db: Session,
     limit: int = 12,
     current_user_id: Optional[int] = None,
-) -> list[SignalRead]:
-    page = list_signals(
+) -> list[ShyftRead]:
+    page = list_shyfts(
         db=db,
         league=None,
         team=None,
         player=None,
-        signal_type=None,
+        shyft_type=None,
         limit=limit,
         before_id=None,
         current_user_id=current_user_id,

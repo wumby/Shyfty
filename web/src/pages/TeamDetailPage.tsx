@@ -2,47 +2,28 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import { EmptyState } from '../components/EmptyState';
-import { LastGameSignalCard } from '../components/LastGameSignalCard';
+import { LastGameShyftCard } from "../components/LastGameShyftCard";
 import { LoadingState } from '../components/LoadingState';
 import { SectionHeader } from '../components/SectionHeader';
-import { SignalCommentsDrawer } from '../components/SignalCommentsDrawer';
-import { SignalDetailDrawer } from '../components/SignalDetailDrawer';
+import { ShyftCommentsDrawer } from "../components/ShyftCommentsDrawer";
+import { ShyftDetailDrawer } from "../components/ShyftDetailDrawer";
 import { useAuthStore } from '../store/useAuthStore';
-import { useSignalStore } from '../store/useSignalStore';
+import { useShyftStore } from "../store/useShyftStore";
 import { api } from '../services/api';
-import type { Signal, TeamBoxScore, TeamDetail } from '../types';
+import type { Shyft, TeamBoxScore, TeamDetail } from '../types';
 
-type CommentThread = { signalId: number; signalIds: number[]; title: string; subtitle?: string };
+type CommentThread = { shyftId: number; shyftIds: number[]; title: string; subtitle?: string };
 
-function groupSignalsByPlayerGame(signals: Signal[]): Signal[][] {
-  const grouped = new Map<string, Signal[]>();
-  for (const signal of signals) {
-    const key = `${signal.player_id ?? signal.team_id}:${signal.game_id ?? signal.event_date ?? 'unknown'}`;
+function groupSignalsByPlayerGame(shyfts: Shyft[]): Shyft[][] {
+  const grouped = new Map<string, Shyft[]>();
+  for (const shyft of shyfts) {
+    const key = `${shyft.player_id ?? shyft.team_id}:${shyft.game_id ?? shyft.event_date ?? 'unknown'}`;
     const existing = grouped.get(key);
-    if (existing) existing.push(signal);
-    else grouped.set(key, [signal]);
+    if (existing) existing.push(shyft);
+    else grouped.set(key, [shyft]);
   }
   return [...grouped.values()];
 }
-
-const TEAM_BOX_SCORE_FIELDS: Array<[keyof TeamBoxScore, string, 'number' | 'percent']> = [
-  ['points', 'PTS', 'number'],
-  ['rebounds', 'REB', 'number'],
-  ['assists', 'AST', 'number'],
-  ['turnovers', 'TO', 'number'],
-  ['fg_pct', 'FG%', 'percent'],
-  ['fg3_pct', '3P%', 'percent'],
-  ['pace', 'PACE', 'number'],
-  ['off_rating', 'OFF RTG', 'number'],
-  ['total_yards', 'TOT YDS', 'number'],
-  ['first_downs', '1ST DN', 'number'],
-  ['penalties', 'PEN', 'number'],
-  ['penalty_yards', 'PEN YDS', 'number'],
-  ['turnovers_forced', 'TO FORCED', 'number'],
-  ['turnovers_lost', 'TO LOST', 'number'],
-  ['third_down_pct', '3RD%', 'percent'],
-  ['redzone_pct', 'RZ%', 'percent'],
-];
 
 function formatTeamBoxScoreValue(value: number, mode: 'number' | 'percent') {
   if (mode === 'percent') {
@@ -62,46 +43,70 @@ function formatBoxScoreDate(value: string) {
   return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value));
 }
 
+function teamBoxScoreTone(result?: string | null) {
+  if (result === 'W') return { text: 'text-success', bg: 'bg-success/15', border: 'border-success/35' };
+  if (result === 'L') return { text: 'text-danger', bg: 'bg-danger/15', border: 'border-danger/35' };
+  return { text: 'text-muted', bg: 'bg-white/[0.05]', border: 'border-border' };
+}
+
 function TeamBoxScores({ rows }: { rows: TeamBoxScore[] }) {
   return (
     <section className="panel-surface px-4 py-4">
       <div className="flex items-center justify-between gap-3 px-1">
-        <h2 className="text-base font-semibold text-ink">Last 5 Box Scores</h2>
+        <h2 className="text-base font-semibold text-ink">Recent Box Scores</h2>
         <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">{rows.length}/5 games</span>
       </div>
-      <div className="mt-3 space-y-2">
+      <div className="mt-3">
         {rows.length === 0 ? (
           <div className="rounded-[16px] border border-dashed border-borderStrong bg-white/[0.025] px-4 py-4 text-sm text-muted">
             No team box scores are stored yet.
           </div>
-        ) : rows.map((row) => {
-          const stats = TEAM_BOX_SCORE_FIELDS
-            .map(([key, label, mode]) => {
-              const value = row[key];
-              return typeof value === 'number' ? { label, value: formatTeamBoxScoreValue(value, mode) } : null;
-            })
-            .filter(Boolean) as Array<{ label: string; value: string }>;
-          return (
-            <div key={row.game_id} className="rounded-[16px] border border-border bg-white/[0.025] px-3 py-3">
-              <div className="grid gap-3 md:grid-cols-[170px_minmax(0,1fr)] md:items-center">
-                <div className="min-w-0 border-b border-border pb-2 md:border-b-0 md:border-r md:pb-0 md:pr-3">
-                  <div className="truncate text-sm font-semibold text-ink">
-                    {row.home_away === 'Away' ? '@' : 'vs'} {row.opponent}
-                  </div>
-                  <div className="mt-0.5 truncate text-[11px] text-muted">{formatBoxScoreDate(row.game_date)}{row.season ? ` · ${row.season}` : ''}</div>
-                </div>
-                <div className="grid grid-cols-[repeat(auto-fit,minmax(92px,1fr))] gap-px overflow-hidden rounded-[12px] border border-border bg-border">
-                  {stats.map((stat) => (
-                    <div key={`${row.game_id}-${stat.label}`} className="min-w-0 bg-[#081421] px-3 py-2">
-                      <div className="truncate text-[8px] font-semibold uppercase tracking-[0.1em] text-muted">{stat.label}</div>
-                      <div className="mt-0.5 truncate text-xs font-semibold tabular-nums text-ink">{stat.value}</div>
+        ) : (
+          <div className="overflow-hidden rounded-[16px] border border-border bg-white/[0.03]">
+            {rows.map((row, index) => {
+              const stats = [
+                { label: 'PTS', value: typeof row.points === 'number' ? formatTeamBoxScoreValue(row.points, 'number') : '—' },
+                { label: 'REB', value: typeof row.rebounds === 'number' ? formatTeamBoxScoreValue(row.rebounds, 'number') : '—' },
+                { label: 'AST', value: typeof row.assists === 'number' ? formatTeamBoxScoreValue(row.assists, 'number') : '—' },
+                { label: 'TO', value: typeof row.turnovers === 'number' ? formatTeamBoxScoreValue(row.turnovers, 'number') : '—' },
+                { label: 'FG%', value: typeof row.fg_pct === 'number' ? formatTeamBoxScoreValue(row.fg_pct, 'percent') : '—' },
+                { label: '3P%', value: typeof row.fg3_pct === 'number' ? formatTeamBoxScoreValue(row.fg3_pct, 'percent') : '—' },
+              ];
+              const tone = teamBoxScoreTone(row.result);
+              const score = row.team_score != null && row.opponent_score != null
+                ? `${row.team_score}–${row.opponent_score}`
+                : '—';
+
+              return (
+                <div key={row.game_id}>
+                  <div className="px-3 py-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-semibold text-ink">
+                          {row.home_away === 'Away' ? '@' : 'vs'} {row.opponent}
+                        </div>
+                        <div className="mt-0.5 truncate text-[11px] text-muted">{formatBoxScoreDate(row.game_date)}</div>
+                      </div>
+                      <div className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold tabular-nums ${tone.bg} ${tone.border} ${tone.text}`}>
+                        {(row.result ?? '—')} {score}
+                      </div>
                     </div>
-                  ))}
+
+                    <div className="mt-2 grid grid-cols-3 gap-x-3 gap-y-1 md:grid-cols-6 md:gap-x-2">
+                      {stats.map((stat) => (
+                        <div key={`${row.game_id}-${stat.label}`} className="min-w-0 text-left">
+                          <div className="text-[8px] font-semibold uppercase tracking-[0.1em] text-muted">{stat.label}</div>
+                          <div className="text-[14px] font-semibold tabular-nums text-ink">{stat.value}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  {index < rows.length - 1 ? <div className="border-t border-white/10" /> : null}
                 </div>
-              </div>
-            </div>
-          );
-        })}
+              );
+            })}
+          </div>
+        )}
       </div>
     </section>
   );
@@ -111,16 +116,16 @@ export function TeamDetailPage() {
   const { id = '' } = useParams();
   const currentUser = useAuthStore((state) => state.currentUser);
   const openAuth = useAuthStore((state) => state.openAuth);
-  const fetchProfile = useSignalStore((state) => state.fetchProfile);
-  const toggleFollowTeam = useSignalStore((state) => state.toggleFollowTeam);
-  const setSignalGroupCommentCount = useSignalStore((state) => state.setSignalGroupCommentCount);
-  const mergeSignalMeta = useSignalStore((state) => state.mergeSignalMeta);
-  const profile = useSignalStore((state) => state.profile);
-  const signalMetaById = useSignalStore((state) => state.signalMetaById);
+  const fetchProfile = useShyftStore((state) => state.fetchProfile);
+  const toggleFollowTeam = useShyftStore((state) => state.toggleFollowTeam);
+  const setShyftGroupCommentCount = useShyftStore((state) => state.setShyftGroupCommentCount);
+  const mergeShyftMeta = useShyftStore((state) => state.mergeShyftMeta);
+  const profile = useShyftStore((state) => state.profile);
+  const shyftMetaById = useShyftStore((state) => state.shyftMetaById);
   const [team, setTeam] = useState<TeamDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [detailSignalId, setDetailSignalId] = useState<number | null>(null);
+  const [detailShyftId, setDetailSignalId] = useState<number | null>(null);
   const [commentThread, setCommentThread] = useState<CommentThread | null>(null);
 
   useEffect(() => {
@@ -135,7 +140,7 @@ export function TeamDetailPage() {
       try {
         const loadedTeam = await api.getTeam(id);
         setTeam(loadedTeam);
-        loadedTeam.recent_signals.forEach(mergeSignalMeta);
+        loadedTeam.recent_shyfts.forEach(mergeShyftMeta);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error');
       } finally {
@@ -144,16 +149,16 @@ export function TeamDetailPage() {
     }
 
     void load();
-  }, [id, mergeSignalMeta]);
+  }, [id, mergeShyftMeta]);
 
   useEffect(() => {
     setTeam((prev) => {
       if (!prev) return prev;
-      const nextSignals = prev.recent_signals.map((signal) => {
-        const meta = signalMetaById[signal.id];
-        if (!meta) return signal;
+      const nextSignals = prev.recent_shyfts.map((shyft) => {
+        const meta = shyftMetaById[shyft.id];
+        if (!meta) return shyft;
         return {
-          ...signal,
+          ...shyft,
           comment_count: meta.comment_count,
           reaction_summary: meta.reaction_summary,
           user_reaction: meta.user_reaction,
@@ -161,12 +166,12 @@ export function TeamDetailPage() {
           user_reactions: meta.user_reactions,
         };
       });
-      return { ...prev, recent_signals: nextSignals };
+      return { ...prev, recent_shyfts: nextSignals };
     });
-  }, [signalMetaById]);
+  }, [shyftMetaById]);
 
-  const groupedSignals = useMemo(
-    () => (team ? groupSignalsByPlayerGame(team.recent_signals) : []),
+  const groupedShyfts = useMemo(
+    () => (team ? groupSignalsByPlayerGame(team.recent_shyfts) : []),
     [team],
   );
 
@@ -197,7 +202,7 @@ export function TeamDetailPage() {
           <div className="min-w-0">
             <div className="eyebrow">Team Profile</div>
             <h1 className="mt-2 text-3xl font-semibold text-ink sm:text-4xl">{team.name}</h1>
-            <p className="mt-2 max-w-3xl text-sm text-muted sm:text-[15px]">Track the latest signals tied to this team.</p>
+            <p className="mt-2 max-w-3xl text-sm text-muted sm:text-[15px]">Track the latest shyfts tied to this team.</p>
           </div>
           <button
             type="button"
@@ -218,8 +223,8 @@ export function TeamDetailPage() {
             <div className="mt-2 text-2xl font-semibold text-ink">{team.league_name}</div>
           </div>
           <div className="rounded-[20px] bg-white/[0.03] px-4 py-4">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Active Signals</div>
-            <div className="mt-2 text-2xl font-semibold text-ink">{team.signal_count ?? team.recent_signals.length}</div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Active Shyfts</div>
+            <div className="mt-2 text-2xl font-semibold text-ink">{team.shyft_count ?? team.recent_shyfts.length}</div>
           </div>
           <div className="rounded-[20px] bg-white/[0.03] px-4 py-4">
             <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Tracked Players</div>
@@ -232,22 +237,22 @@ export function TeamDetailPage() {
 
       <section className="panel-surface px-4 py-4">
         <SectionHeader
-          title="Latest Signals"
+          title="Latest Shyfts"
           description="This page now leads with the newest team activity instead of roster browsing."
         />
         <div className="mt-4 space-y-4">
-          {groupedSignals.length === 0 ? (
+          {groupedShyfts.length === 0 ? (
             <div className="rounded-[20px] bg-white/[0.03] px-4 py-5 text-sm text-muted">
-              No recent signals are active for this team yet.
+              No recent shyfts are active for this team yet.
             </div>
           ) : (
-            groupedSignals.map((group) => (
-              <LastGameSignalCard
+            groupedShyfts.map((group) => (
+              <LastGameShyftCard
                 key={`${group[0]?.player_id ?? group[0]?.team_id ?? 'unknown'}-${group[0]?.game_id ?? group[0]?.event_date ?? 'game'}`}
-                signals={group}
-                onOpenDetail={(signalId) => setDetailSignalId(signalId)}
-                onOpenComments={(signalId, title, subtitle, signalIds) =>
-                  setCommentThread({ signalId, title, subtitle, signalIds: signalIds?.length ? signalIds : [signalId] })
+                shyfts={group}
+                onOpenDetail={(shyftId) => setDetailSignalId(shyftId)}
+                onOpenComments={(shyftId, title, subtitle, shyftIds) =>
+                  setCommentThread({ shyftId, title, subtitle, shyftIds: shyftIds?.length ? shyftIds : [shyftId] })
                 }
               />
             ))
@@ -258,7 +263,7 @@ export function TeamDetailPage() {
       <section className="panel-surface px-4 py-4">
         <SectionHeader
           title="Players Live Elsewhere"
-          description="Use the Players tab when you want roster-level exploration instead of the team signal board."
+          description="Use the Players tab when you want roster-level exploration instead of the team shyft board."
         />
         <div className="mt-4 flex flex-col gap-3 rounded-[20px] bg-white/[0.03] px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -278,23 +283,23 @@ export function TeamDetailPage() {
         </div>
       </section>
 
-      {detailSignalId != null ? (
-        <SignalDetailDrawer signalId={detailSignalId} onClose={() => setDetailSignalId(null)} />
+      {detailShyftId != null ? (
+        <ShyftDetailDrawer shyftId={detailShyftId} onClose={() => setDetailSignalId(null)} />
       ) : null}
       {commentThread ? (
-        <SignalCommentsDrawer
-          signalId={commentThread.signalId}
+        <ShyftCommentsDrawer
+          shyftId={commentThread.shyftId}
           title={commentThread.title}
           subtitle={commentThread.subtitle}
           onCountChange={(count) => {
-            const ids = new Set(commentThread.signalIds);
-            setSignalGroupCommentCount(commentThread.signalIds, count);
+            const ids = new Set(commentThread.shyftIds);
+            setShyftGroupCommentCount(commentThread.shyftIds, count);
             setTeam((prev) => {
               if (!prev) return prev;
               return {
                 ...prev,
-                recent_signals: prev.recent_signals.map((signal) =>
-                  ids.has(signal.id) ? { ...signal, comment_count: count } : signal,
+                recent_shyfts: prev.recent_shyfts.map((shyft) =>
+                  ids.has(shyft.id) ? { ...shyft, comment_count: count } : shyft,
                 ),
               };
             });

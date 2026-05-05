@@ -5,12 +5,12 @@ import { EmptyState } from '../components/EmptyState';
 import { LoadingState } from '../components/LoadingState';
 import { SearchInput } from '../components/SearchInput';
 import { SectionHeader } from '../components/SectionHeader';
-import { useSignalStore } from '../store/useSignalStore';
+import { useShyftStore } from "../store/useShyftStore";
 
 const LEAGUES = ['All', 'NBA', 'NFL'] as const;
 
 export function PlayersPage() {
-  const { players, loading, fetchPlayers } = useSignalStore();
+  const { players, loading, fetchPlayers } = useShyftStore();
   const [query, setQuery] = useState('');
   const [teamFilter, setTeamFilter] = useState('');
   const [positionFilter, setPositionFilter] = useState('');
@@ -135,10 +135,10 @@ export function PlayersPage() {
                             <span className="block truncate text-[17px] font-bold leading-tight text-ink">{player.name}</span>
                             <span className="mt-0.5 flex items-center gap-2 text-[12px] text-muted">
                               <span>{player.team_name} · {player.position}</span>
-                              {(player.signal_count ?? 0) > 0 ? (
+                              {(player.shyft_count ?? 0) > 0 ? (
                                 <>
                                   <span className="text-white/15">•</span>
-                                  <span>{player.signal_count} signal{player.signal_count !== 1 ? 's' : ''}</span>
+                                  <span>{player.shyft_count} shyft{player.shyft_count !== 1 ? 's' : ''}</span>
                                 </>
                               ) : null}
                             </span>

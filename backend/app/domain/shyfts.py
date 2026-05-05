@@ -7,7 +7,7 @@ import math
 from statistics import mean, pstdev
 from typing import Optional
 
-from app.core.signal_config import get_signal_config, signal_config_path
+from app.core.shyft_config import get_shyft_config, shyft_config_path
 METRICS_BY_LEAGUE = {
     "NBA": ["points", "rebounds", "assists", "steals", "blocks", "turnovers", "minutes_played", "usage_rate"],
     "NFL": ["passing_yards", "rushing_yards", "receiving_yards", "touchdowns"],
@@ -17,9 +17,9 @@ TEAM_METRICS_BY_LEAGUE = {
     "NBA": ["points", "pace", "fg_pct", "turnovers", "off_rating"],
 }
 
-BASELINE_WINDOW_SIZE = get_signal_config().windows.short_window
+BASELINE_WINDOW_SIZE = get_shyft_config().windows.short_window
 
-MIN_SIGNAL_SAMPLE_SIZE = 3
+MIN_SHYFT_SAMPLE_SIZE = 3
 Z_SCORE_EPSILON = 1.0
 LOW_FREQUENCY_STATS = {"steals", "blocks"}
 VOLUME_STATS = {"points", "rebounds", "assists", "minutes", "minutes_played", "turnovers"}
@@ -33,7 +33,7 @@ SEVERITY_OUTLIER_SCORE = 8.0
 
 
 @dataclass(frozen=True)
-class StatSignalThreshold:
+class StatShyftThreshold:
     min_baseline: float
     min_delta: float
     min_z: float
@@ -41,34 +41,34 @@ class StatSignalThreshold:
     min_actual: Optional[float] = None
 
 
-STAT_SIGNAL_CONFIG: dict[str, StatSignalThreshold] = {
-    "points": StatSignalThreshold(min_baseline=8, min_delta=8, min_z=1.4, weight=1.0),
-    "rebounds": StatSignalThreshold(min_baseline=4, min_delta=3, min_z=1.4, weight=0.9),
-    "assists": StatSignalThreshold(min_baseline=3, min_delta=3, min_z=1.4, weight=0.9),
-    "steals": StatSignalThreshold(min_baseline=0, min_actual=3, min_delta=2, min_z=1.3, weight=0.7),
-    "blocks": StatSignalThreshold(min_baseline=0, min_actual=3, min_delta=2, min_z=1.3, weight=0.7),
-    "turnovers": StatSignalThreshold(min_baseline=2, min_delta=2, min_z=1.3, weight=0.6),
-    "minutes_played": StatSignalThreshold(min_baseline=12, min_delta=6, min_z=1.4, weight=0.7),
-    "usage_rate": StatSignalThreshold(min_baseline=12, min_delta=5, min_z=1.4, weight=0.8),
-    "passing_yards": StatSignalThreshold(min_baseline=120, min_delta=60, min_z=1.4, weight=0.9),
-    "rushing_yards": StatSignalThreshold(min_baseline=25, min_delta=25, min_z=1.4, weight=0.8),
-    "receiving_yards": StatSignalThreshold(min_baseline=25, min_delta=25, min_z=1.4, weight=0.8),
-    "touchdowns": StatSignalThreshold(min_baseline=0, min_actual=2, min_delta=1, min_z=1.3, weight=0.6),
-    "pace": StatSignalThreshold(min_baseline=90, min_delta=5, min_z=1.4, weight=0.6),
-    "fg_pct": StatSignalThreshold(min_baseline=0.35, min_delta=0.08, min_z=1.4, weight=0.6),
-    "fg3_pct": StatSignalThreshold(min_baseline=0.25, min_delta=0.10, min_z=1.4, weight=0.6),
-    "off_rating": StatSignalThreshold(min_baseline=95, min_delta=10, min_z=1.4, weight=0.7),
+STAT_SHYFT_CONFIG: dict[str, StatShyftThreshold] = {
+    "points": StatShyftThreshold(min_baseline=8, min_delta=8, min_z=1.4, weight=1.0),
+    "rebounds": StatShyftThreshold(min_baseline=4, min_delta=3, min_z=1.4, weight=0.9),
+    "assists": StatShyftThreshold(min_baseline=3, min_delta=3, min_z=1.4, weight=0.9),
+    "steals": StatShyftThreshold(min_baseline=0, min_actual=3, min_delta=2, min_z=1.3, weight=0.7),
+    "blocks": StatShyftThreshold(min_baseline=0, min_actual=3, min_delta=2, min_z=1.3, weight=0.7),
+    "turnovers": StatShyftThreshold(min_baseline=2, min_delta=2, min_z=1.3, weight=0.6),
+    "minutes_played": StatShyftThreshold(min_baseline=12, min_delta=6, min_z=1.4, weight=0.7),
+    "usage_rate": StatShyftThreshold(min_baseline=12, min_delta=5, min_z=1.4, weight=0.8),
+    "passing_yards": StatShyftThreshold(min_baseline=120, min_delta=60, min_z=1.4, weight=0.9),
+    "rushing_yards": StatShyftThreshold(min_baseline=25, min_delta=25, min_z=1.4, weight=0.8),
+    "receiving_yards": StatShyftThreshold(min_baseline=25, min_delta=25, min_z=1.4, weight=0.8),
+    "touchdowns": StatShyftThreshold(min_baseline=0, min_actual=2, min_delta=1, min_z=1.3, weight=0.6),
+    "pace": StatShyftThreshold(min_baseline=90, min_delta=5, min_z=1.4, weight=0.6),
+    "fg_pct": StatShyftThreshold(min_baseline=0.35, min_delta=0.08, min_z=1.4, weight=0.6),
+    "fg3_pct": StatShyftThreshold(min_baseline=0.25, min_delta=0.10, min_z=1.4, weight=0.6),
+    "off_rating": StatShyftThreshold(min_baseline=95, min_delta=10, min_z=1.4, weight=0.7),
 }
 
-DEFAULT_STAT_SIGNAL_CONFIG = StatSignalThreshold(min_baseline=1, min_delta=1, min_z=1.4, weight=0.5)
+DEFAULT_STAT_SHYFT_CONFIG = StatShyftThreshold(min_baseline=1, min_delta=1, min_z=1.4, weight=0.5)
 
 
-def stat_signal_config(metric_name: str) -> StatSignalThreshold:
-    return STAT_SIGNAL_CONFIG.get(metric_name, DEFAULT_STAT_SIGNAL_CONFIG)
+def stat_shyft_config(metric_name: str) -> StatShyftThreshold:
+    return STAT_SHYFT_CONFIG.get(metric_name, DEFAULT_STAT_SHYFT_CONFIG)
 
 
 def minutes_eligible(current: float, baseline: float) -> tuple[bool, str]:
-    cfg = get_signal_config().minutes_eligibility
+    cfg = get_shyft_config().minutes_eligibility
     if current >= cfg.min_absolute:
         return True, ""
     if baseline > 0 and current >= baseline * cfg.min_fraction_of_baseline:
@@ -132,7 +132,7 @@ class MetricSnapshot:
         minutes_current: Optional[float] = None,
         minutes_baseline: Optional[float] = None,
     ) -> "MetricSnapshot":
-        thresholds = get_signal_config().thresholds
+        thresholds = get_shyft_config().thresholds
         return replace(
             self,
             opponent_average_allowed=opponent_average_allowed,
@@ -152,7 +152,7 @@ def movement_pct(current: float, baseline: float) -> Optional[float]:
 
 
 def meaningful_movement_pct(metric_name: str, current: float, baseline: float) -> Optional[float]:
-    config = stat_signal_config(metric_name)
+    config = stat_shyft_config(metric_name)
     if baseline < config.min_baseline * 1.5:
         return None
     return movement_pct(current, baseline)
@@ -315,7 +315,7 @@ def build_metric_snapshots(
     *,
     game_dates_by_game_id: Optional[dict[int, date]] = None,
 ) -> list[MetricSnapshot]:
-    windows = get_signal_config().windows
+    windows = get_shyft_config().windows
     observations = [
         (stat.id, stat.game_id, float(value))
         for stat in stats
@@ -370,8 +370,8 @@ def _clamp(value: float, minimum: float, maximum: float) -> float:
     return max(minimum, min(value, maximum))
 
 
-def signal_score_value(snapshot: MetricSnapshot, metric_name: str) -> float:
-    config = stat_signal_config(metric_name)
+def shyft_score_value(snapshot: MetricSnapshot, metric_name: str) -> float:
+    config = stat_shyft_config(metric_name)
     z_component = _clamp(abs(snapshot.z_score) / 3.0, 0.0, 1.0)
     delta_component = _clamp(abs(snapshot.delta) / max(config.min_delta * 2.0, 1.0), 0.0, 1.0)
     raw_score = (z_component * 0.6) + (delta_component * 0.3) + (config.weight * 0.1)
@@ -386,8 +386,8 @@ def severity_for_score(score: float) -> str:
     return "SHIFT"
 
 
-def signal_gate_trace(snapshot: MetricSnapshot, metric_name: str) -> dict[str, object]:
-    config = stat_signal_config(metric_name)
+def shyft_gate_trace(snapshot: MetricSnapshot, metric_name: str) -> dict[str, object]:
+    config = stat_shyft_config(metric_name)
     sample_size = snapshot.short_window.sample_size
     delta = snapshot.delta
     previous_value = snapshot.short_window.values[-1] if snapshot.short_window.values else None
@@ -398,7 +398,7 @@ def signal_gate_trace(snapshot: MetricSnapshot, metric_name: str) -> dict[str, o
         baseline_or_actual = snapshot.baseline_value >= config.min_baseline
         baseline_condition_name = "baseline"
     conditions = {
-        "sample_size": sample_size >= MIN_SIGNAL_SAMPLE_SIZE,
+        "sample_size": sample_size >= MIN_SHYFT_SAMPLE_SIZE,
         baseline_condition_name: baseline_or_actual,
         "delta": abs(delta) >= config.min_delta,
         "z_score": abs(snapshot.z_score) >= config.min_z,
@@ -420,7 +420,7 @@ def signal_gate_trace(snapshot: MetricSnapshot, metric_name: str) -> dict[str, o
         "z_score": snapshot.z_score,
         "sample_size": sample_size,
         "thresholds": {
-            "min_sample_size": MIN_SIGNAL_SAMPLE_SIZE,
+            "min_sample_size": MIN_SHYFT_SAMPLE_SIZE,
             "min_baseline": config.min_baseline,
             "min_actual": config.min_actual,
             "min_delta": config.min_delta,
@@ -443,16 +443,16 @@ def signal_gate_trace(snapshot: MetricSnapshot, metric_name: str) -> dict[str, o
 
 
 def passes_meaningfulness_gate(snapshot: MetricSnapshot, metric_name: str) -> bool:
-    return bool(signal_gate_trace(snapshot, metric_name)["passed"])
+    return bool(shyft_gate_trace(snapshot, metric_name)["passed"])
 
 
 def _classify_from_snapshot(snapshot: MetricSnapshot, metric_name: str) -> Optional[str]:
     if not passes_meaningfulness_gate(snapshot, metric_name):
         return None
-    return severity_for_score(signal_score_value(snapshot, metric_name))
+    return severity_for_score(shyft_score_value(snapshot, metric_name))
 
 
-def classify_signal(
+def classify_shyft(
     snapshot_or_z_score,
     variance_or_metric_name,
     metric_name: Optional[str] = None,
@@ -474,9 +474,9 @@ def classify_signal(
         baseline_value=baseline_value if baseline_value is not None else 0.0,
         rolling_stddev=variance,
         z_score=z_score,
-        short_window=WindowSnapshot([], [baseline_value if baseline_value is not None else 0.0] * MIN_SIGNAL_SAMPLE_SIZE, baseline_value if baseline_value is not None else 0.0, variance, z_score),
-        medium_window=WindowSnapshot([], [baseline_value if baseline_value is not None else 0.0] * MIN_SIGNAL_SAMPLE_SIZE, baseline_value if baseline_value is not None else 0.0, variance, z_score),
-        season_window=WindowSnapshot([], [baseline_value if baseline_value is not None else 0.0] * MIN_SIGNAL_SAMPLE_SIZE, baseline_value if baseline_value is not None else 0.0, variance, z_score),
+        short_window=WindowSnapshot([], [baseline_value if baseline_value is not None else 0.0] * MIN_SHYFT_SAMPLE_SIZE, baseline_value if baseline_value is not None else 0.0, variance, z_score),
+        medium_window=WindowSnapshot([], [baseline_value if baseline_value is not None else 0.0] * MIN_SHYFT_SAMPLE_SIZE, baseline_value if baseline_value is not None else 0.0, variance, z_score),
+        season_window=WindowSnapshot([], [baseline_value if baseline_value is not None else 0.0] * MIN_SHYFT_SAMPLE_SIZE, baseline_value if baseline_value is not None else 0.0, variance, z_score),
         ewma=baseline_value if baseline_value is not None else 0.0,
         recent_delta=(current_value or 0.0) - (baseline_value or 0.0),
         trend_slope=0.0,
@@ -488,8 +488,8 @@ def classify_signal(
     return _classify_from_snapshot(fallback_snapshot, metric_name)
 
 
-def _classification_reason_from_snapshot(signal_type: Optional[str], snapshot: MetricSnapshot, metric_name: str) -> str:
-    trace = signal_gate_trace(snapshot, metric_name)
+def _classification_reason_from_snapshot(shyft_type: Optional[str], snapshot: MetricSnapshot, metric_name: str) -> str:
+    trace = shyft_gate_trace(snapshot, metric_name)
     context_parts: list[str] = []
     if snapshot.opponent_rank is not None:
         context_parts.append(f"opponent rank={snapshot.opponent_rank}")
@@ -505,7 +505,7 @@ def _classification_reason_from_snapshot(signal_type: Optional[str], snapshot: M
         minutes_gate = trace.get("minutes_gate") or {}
         minutes_note = f" {minutes_gate['reason']}" if minutes_gate.get("suppressed") and minutes_gate.get("reason") else ""
         return (
-            f"No signal: failed meaningfulness gate ({failed}).{minutes_note} "
+            f"No shyft: failed meaningfulness gate ({failed}).{minutes_note} "
             f"baseline={snapshot.baseline_value:.2f}, actual={snapshot.current_value:.2f}, "
             f"delta={snapshot.delta:+.2f}, z={snapshot.z_score:+.2f}; "
             f"required sample_size>={thresholds['min_sample_size']}, "
@@ -514,20 +514,20 @@ def _classification_reason_from_snapshot(signal_type: Optional[str], snapshot: M
 
     direction = "above" if snapshot.delta > 0 else "below"
     return (
-        f"{signal_type or 'Signal'} passed meaningfulness gate: actual {snapshot.current_value:.2f} is "
+        f"{shyft_type or 'Shyft'} passed meaningfulness gate: actual {snapshot.current_value:.2f} is "
         f"{abs(snapshot.delta):.2f} {direction} baseline {snapshot.baseline_value:.2f} "
         f"(z={snapshot.z_score:+.2f}, sample_size={trace['sample_size']}).{suffix}"
     )
 
 
 def classification_reason(
-    signal_type: Optional[str],
+    shyft_type: Optional[str],
     snapshot_or_z_score,
     variance_or_metric_name,
     metric_name: Optional[str] = None,
 ) -> str:
     if isinstance(snapshot_or_z_score, MetricSnapshot):
-        return _classification_reason_from_snapshot(signal_type, snapshot_or_z_score, str(variance_or_metric_name))
+        return _classification_reason_from_snapshot(shyft_type, snapshot_or_z_score, str(variance_or_metric_name))
 
     z_score = float(snapshot_or_z_score)
     variance = float(variance_or_metric_name)
@@ -551,18 +551,18 @@ def classification_reason(
         volatility_delta=0.0,
         high_volatility=False,
     )
-    return _classification_reason_from_snapshot(signal_type, fallback_snapshot, metric_name)
+    return _classification_reason_from_snapshot(shyft_type, fallback_snapshot, metric_name)
 
 
 def build_narrative_summary(
-    signal_type: str,
+    shyft_type: str,
     snapshot: MetricSnapshot,
     metric_name: str,
 ) -> str:
     """Punchy, emotionally compelling one-liner for card display."""
     metric = _metric_phrase(metric_name).lower()
     direction = "above" if snapshot.delta > 0 else "below"
-    return f"{signal_type.title()} {metric} move - {abs(snapshot.delta):.1f} {direction} recent baseline"
+    return f"{shyft_type.title()} {metric} move - {abs(snapshot.delta):.1f} {direction} recent baseline"
 
 
 def build_explanation(
@@ -571,7 +571,7 @@ def build_explanation(
     current: float,
     baseline: float,
     z_score: float,
-    signal_type: Optional[str] = None,
+    shyft_type: Optional[str] = None,
     snapshot: Optional[MetricSnapshot] = None,
 ) -> str:
     metric_phrase = _metric_phrase(metric_name)
@@ -585,18 +585,18 @@ def build_explanation(
     )
 
 
-def score_signal(
+def score_shyft(
     snapshot: MetricSnapshot,
     *,
-    signal_type: str,
+    shyft_type: str,
     metric_name: str,
     event_date: Optional[date],
     latest_event_date: Optional[date],
 ) -> tuple[float, str]:
-    config = stat_signal_config(metric_name)
+    config = stat_shyft_config(metric_name)
     z_component = _clamp(abs(snapshot.z_score) / 3.0, 0.0, 1.0)
     delta_component = _clamp(abs(snapshot.delta) / max(config.min_delta * 2.0, 1.0), 0.0, 1.0)
-    bounded = signal_score_value(snapshot, metric_name)
+    bounded = shyft_score_value(snapshot, metric_name)
     explanation = (
         f"Score {bounded:.1f}/10 from z={abs(snapshot.z_score):.2f}, "
         f"z_component={z_component:.2f}, delta={abs(snapshot.delta):.2f}, "
@@ -605,8 +605,8 @@ def score_signal(
     return bounded, explanation
 
 
-def load_signal_threshold_payload() -> dict[str, object]:
-    path = signal_config_path()
+def load_shyft_threshold_payload() -> dict[str, object]:
+    path = shyft_config_path()
     if not path.exists():
         return {}
     return json.loads(path.read_text(encoding="utf-8"))

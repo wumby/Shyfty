@@ -34,11 +34,11 @@ final class APIClient {
 
     // MARK: - Signals
 
-    func fetchSignals(league: String? = nil, signalType: String? = nil, player: String? = nil, feed: String? = nil, cursor: Int? = nil) async throws -> PaginatedSignals {
-        var components = URLComponents(url: baseURL.appendingPathComponent("signals"), resolvingAgainstBaseURL: false)!
+    func fetchShyfts(league: String? = nil, shyftType: String? = nil, player: String? = nil, feed: String? = nil, cursor: Int? = nil) async throws -> PaginatedShyfts {
+        var components = URLComponents(url: baseURL.appendingPathComponent("shyfts"), resolvingAgainstBaseURL: false)!
         components.queryItems = [
             league.map { URLQueryItem(name: "league", value: $0) },
-            signalType.map { URLQueryItem(name: "signal_type", value: $0) },
+            shyftType.map { URLQueryItem(name: "shyft_type", value: $0) },
             player.map { URLQueryItem(name: "player", value: $0) },
             feed.map { URLQueryItem(name: "feed", value: $0) },
             cursor.map { URLQueryItem(name: "before_id", value: String($0)) },
@@ -47,15 +47,15 @@ final class APIClient {
         return try await get(components.url!)
     }
 
-    func fetchTrendingSignals() async throws -> [Signal] {
-        let url = baseURL.appendingPathComponent("signals/trending").appending(queryItems: [
+    func fetchTrendingShyfts() async throws -> [Shyft] {
+        let url = baseURL.appendingPathComponent("shyfts/trending").appending(queryItems: [
             URLQueryItem(name: "limit", value: "12")
         ])
         return try await get(url)
     }
 
-    func fetchSignalDetail(id: Int) async throws -> SignalTrace {
-        return try await get(baseURL.appendingPathComponent("signals/\(id)"))
+    func fetchShyftDetail(id: Int) async throws -> ShyftTrace {
+        return try await get(baseURL.appendingPathComponent("shyfts/\(id)"))
     }
 
     // MARK: - Players
@@ -80,8 +80,8 @@ final class APIClient {
         _ = try validateResponse(response, data: data)
     }
 
-    func fetchPlayerSignals(id: Int) async throws -> [Signal] {
-        return try await get(baseURL.appendingPathComponent("players/\(id)/signals"))
+    func fetchPlayerShyfts(id: Int) async throws -> [Shyft] {
+        return try await get(baseURL.appendingPathComponent("players/\(id)/shyfts"))
     }
 
     func fetchPlayerMetrics(id: Int) async throws -> [MetricSeriesPoint] {
@@ -121,24 +121,54 @@ final class APIClient {
         return try await post(baseURL.appendingPathComponent("auth/signin"), body: body)
     }
 
-    func signUp(email: String, password: String) async throws -> AuthSession {
-        let body = ["email": email, "password": password]
-        return try await post(baseURL.appendingPathComponent("auth/signup"), body: body)
+    func signUp(email: String, password: String, displayName: String? = nil) async throws -> AuthSession {
+        struct SignUpPayload: Encodable {
+            let email: String
+            let password: String
+            let display_name: String?
+        }
+        let payload = SignUpPayload(
+            email: email,
+            password: password,
+            display_name: displayName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+                ? displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+                : nil
+        )
+        return try await post(baseURL.appendingPathComponent("auth/signup"), body: payload)
     }
 
     func signOut() async throws {
         let _: EmptyResponse = try await post(baseURL.appendingPathComponent("auth/signout"), body: EmptyBody())
     }
 
-    // MARK: - Reactions
+    func changePassword(currentPassword: String, newPassword: String, confirmNewPassword: String) async throws -> String {
+        struct PasswordChangePayload: Encodable {
+            let current_password: String
+            let new_password: String
+            let confirm_new_password: String
+        }
+        struct MessageResponse: Decodable {
+            let message: String
+        }
 
-    func setReaction(signalId: Int, type: ShyftReaction) async throws {
-        let body = ["type": type.rawValue]
-        let _: EmptyResponse = try await put(baseURL.appendingPathComponent("signals/\(signalId)/reaction"), body: body)
+        let payload = PasswordChangePayload(
+            current_password: currentPassword,
+            new_password: newPassword,
+            confirm_new_password: confirmNewPassword
+        )
+        let response: MessageResponse = try await put(baseURL.appendingPathComponent("auth/password"), body: payload)
+        return response.message
     }
 
-    func clearReaction(signalId: Int) async throws {
-        var request = URLRequest(url: baseURL.appendingPathComponent("signals/\(signalId)/reaction"))
+    // MARK: - Reactions
+
+    func setReaction(shyftId: Int, type: ShyftReaction) async throws {
+        let body = ["type": type.rawValue]
+        let _: EmptyResponse = try await put(baseURL.appendingPathComponent("shyfts/\(shyftId)/reaction"), body: body)
+    }
+
+    func clearReaction(shyftId: Int) async throws {
+        var request = URLRequest(url: baseURL.appendingPathComponent("shyfts/\(shyftId)/reaction"))
         request.httpMethod = "DELETE"
         try attachCSRFToken(to: &request)
         let (data, response) = try await session.data(for: request)
@@ -147,12 +177,12 @@ final class APIClient {
 
     // MARK: - Comments
 
-    func fetchComments(signalId: Int) async throws -> [Comment] {
-        try await get(baseURL.appendingPathComponent("signals/\(signalId)/comments"))
+    func fetchComments(shyftId: Int) async throws -> [Comment] {
+        try await get(baseURL.appendingPathComponent("shyfts/\(shyftId)/comments"))
     }
 
-    func postComment(signalId: Int, body: String) async throws -> Comment {
-        try await post(baseURL.appendingPathComponent("signals/\(signalId)/comments"), body: ["body": body])
+    func postComment(shyftId: Int, body: String) async throws -> Comment {
+        try await post(baseURL.appendingPathComponent("shyfts/\(shyftId)/comments"), body: ["body": body])
     }
 
     func updateComment(commentId: Int, body: String) async throws -> Comment {
@@ -179,6 +209,17 @@ final class APIClient {
 
     func updatePreferences(payload: [String: AnyEncodable]) async throws -> ProfilePreferences {
         try await put(baseURL.appendingPathComponent("profile/preferences"), body: payload)
+    }
+
+    func updateProfile(displayName: String?) async throws -> UserProfile {
+        struct ProfilePayload: Encodable {
+            let display_name: String?
+        }
+        let clean = displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return try await put(
+            baseURL.appendingPathComponent("profile"),
+            body: ProfilePayload(display_name: (clean?.isEmpty == false) ? clean : "")
+        )
     }
 
     // MARK: - Ingest

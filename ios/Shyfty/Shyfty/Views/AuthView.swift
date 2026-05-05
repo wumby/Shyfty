@@ -6,6 +6,7 @@ struct AuthView: View {
 
     @State private var email = ""
     @State private var password = ""
+    @State private var displayName = ""
 
     var body: some View {
         NavigationStack {
@@ -25,7 +26,7 @@ struct AuthView: View {
                             Text(auth.isSignUp ? "Create account" : "Welcome back")
                                 .shyftyHeadline(32)
                             Text(auth.isSignUp
-                                 ? "Track player signals and build your personalized feed."
+                                 ? "Track player shyfts and build your personalized feed."
                                  : "Sign in to react, comment, and follow players.")
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundStyle(ShyftyTheme.muted)
@@ -34,6 +35,13 @@ struct AuthView: View {
                         }
 
                         VStack(spacing: 12) {
+                            if auth.isSignUp {
+                                TextField("Display Name (optional)", text: $displayName)
+                                    .autocorrectionDisabled()
+                                    .textInputAutocapitalization(.words)
+                                    .shyftyField()
+                            }
+
                             TextField("Email", text: $email)
                                 .keyboardType(.emailAddress)
                                 .autocorrectionDisabled()
@@ -53,7 +61,7 @@ struct AuthView: View {
                             Button {
                                 Task {
                                     if auth.isSignUp {
-                                        await auth.signUp(email: email, password: password)
+                                        await auth.signUp(email: email, password: password, displayName: displayName)
                                     } else {
                                         await auth.signIn(email: email, password: password)
                                     }

@@ -6,12 +6,12 @@ enum FeedMode: String, Equatable {
 }
 
 enum FeedDisplayItem: Identifiable {
-    case signalGroup(GroupedSignal)
-    case cascade(CascadeSignal)
+    case shyftGroup(GroupedShyft)
+    case cascade(CascadeShyft)
 
     var id: String {
         switch self {
-        case .signalGroup(let group): return "group-\(group.id)"
+        case .shyftGroup(let group): return "group-\(group.id)"
         case .cascade(let cascade): return cascade.id
         }
     }
@@ -35,13 +35,13 @@ final class FeedViewModel: ObservableObject {
         self.feedMode = initialFeedMode
     }
 
-    var signals: [Signal] {
+    var shyfts: [Shyft] {
         feedItems.flatMap { item in
             switch item {
-            case .signal(let signal):
-                return [signal]
+            case .shyft(let shyft):
+                return [shyft]
             case .cascade(let cascade):
-                return cascade.underlyingSignals
+                return cascade.underlyingShyfts
             }
         }
     }
@@ -49,7 +49,7 @@ final class FeedViewModel: ObservableObject {
     var groupedFeedItems: [FeedDisplayItem] {
         var seen: [String: Int] = [:]
         var keys: [String] = []
-        var groups: [[Signal]] = []
+        var groups: [[Shyft]] = []
         var displayItems: [FeedDisplayItem] = []
 
         for item in feedItems {
@@ -58,45 +58,45 @@ final class FeedViewModel: ObservableObject {
                 continue
             }
 
-            guard case .signal(let signal) = item else { continue }
+            guard case .shyft(let shyft) = item else { continue }
             let key: String
-            if let pid = signal.playerID {
-                key = "p\(pid)_\(signal.eventDate)"
+            if let pid = shyft.playerID {
+                key = "p\(pid)_\(shyft.eventDate)"
             } else {
-                key = "t\(signal.teamID)_\(signal.eventDate)"
+                key = "t\(shyft.teamID)_\(shyft.eventDate)"
             }
             if let idx = seen[key] {
-                groups[idx].append(signal)
+                groups[idx].append(shyft)
             } else {
                 seen[key] = groups.count
                 keys.append(key)
-                groups.append([signal])
+                groups.append([shyft])
             }
         }
 
         displayItems += zip(keys, groups).map { key, sigs in
-            GroupedSignal(id: key, signals: sigs.sorted { $0.importance > $1.importance })
-        }.map(FeedDisplayItem.signalGroup)
+            GroupedShyft(id: key, shyfts: sigs.sorted { $0.importance > $1.importance })
+        }.map(FeedDisplayItem.shyftGroup)
         return displayItems
     }
 
-    var groupedSignals: [GroupedSignal] {
+    var groupedShyfts: [GroupedShyft] {
         groupedFeedItems.compactMap {
-            if case .signalGroup(let group) = $0 { return group }
+            if case .shyftGroup(let group) = $0 { return group }
             return nil
         }
     }
 
-    func loadSignals() async {
+    func loadShyfts() async {
         isLoading = true
         errorMessage = nil
         hasMore = false
         nextCursor = nil
         lastLoadMoreCursor = nil
         do {
-            let page = try await APIClient.shared.fetchSignals(
+            let page = try await APIClient.shared.fetchShyfts(
                 league: selectedLeague == "ALL" ? nil : selectedLeague,
-                signalType: selectedType == "ALL" ? nil : selectedType,
+                shyftType: selectedType == "ALL" ? nil : selectedType,
                 feed: feedMode == .following ? "following" : nil
             )
             feedItems = page.items
@@ -114,9 +114,9 @@ final class FeedViewModel: ObservableObject {
         isLoadingMore = true
         lastLoadMoreCursor = cursor
         do {
-            let page = try await APIClient.shared.fetchSignals(
+            let page = try await APIClient.shared.fetchShyfts(
                 league: selectedLeague == "ALL" ? nil : selectedLeague,
-                signalType: selectedType == "ALL" ? nil : selectedType,
+                shyftType: selectedType == "ALL" ? nil : selectedType,
                 feed: feedMode == .following ? "following" : nil,
                 cursor: cursor
             )
@@ -140,23 +140,23 @@ final class FeedViewModel: ObservableObject {
         }
     }
 
-    func applySignalEngagementChange(_ notification: Notification) {
-        guard let signalId = notification.userInfo?["signalId"] as? Int else { return }
+    func applyShyftEngagementChange(_ notification: Notification) {
+        guard let shyftId = notification.userInfo?["shyftId"] as? Int else { return }
         let reactionSummary = notification.userInfo?["reactionSummary"] as? ReactionSummary
         let rawUserReaction = notification.userInfo?["userReaction"]
         let userReaction: ShyftReaction? = (rawUserReaction is NSNull) ? nil : (rawUserReaction as? String).flatMap(ShyftReaction.init(rawValue:))
         let commentCount = notification.userInfo?["commentCount"] as? Int
-        let sourceSignal = signals.first { $0.id == signalId }
+        let sourceSignal = shyfts.first { $0.id == shyftId }
 
         feedItems = feedItems.map { item in
             switch item {
-            case .signal(let signal):
-                return .signal(patchSignal(signal, id: signalId, sourceSignal: sourceSignal, reactionSummary: reactionSummary, userReaction: userReaction, commentCount: commentCount))
+            case .shyft(let shyft):
+                return .shyft(patchShyft(shyft, id: shyftId, sourceSignal: sourceSignal, reactionSummary: reactionSummary, userReaction: userReaction, commentCount: commentCount))
             case .cascade(let cascade):
-                let signals = cascade.underlyingSignals.map {
-                    patchSignal($0, id: signalId, sourceSignal: sourceSignal, reactionSummary: reactionSummary, userReaction: userReaction, commentCount: commentCount)
+                let shyfts = cascade.underlyingShyfts.map {
+                    patchShyft($0, id: shyftId, sourceSignal: sourceSignal, reactionSummary: reactionSummary, userReaction: userReaction, commentCount: commentCount)
                 }
-                return .cascade(CascadeSignal(
+                return .cascade(CascadeShyft(
                     id: cascade.id,
                     gameID: cascade.gameID,
                     teamID: cascade.teamID,
@@ -166,18 +166,18 @@ final class FeedViewModel: ObservableObject {
                     createdAt: cascade.createdAt,
                     trigger: cascade.trigger,
                     contributors: cascade.contributors,
-                    underlyingSignals: signals,
+                    underlyingShyfts: shyfts,
                     narrativeSummary: cascade.narrativeSummary
                 ))
             }
         }
     }
 
-    private func patchSignal(_ signal: Signal, id: Int, sourceSignal: Signal?, reactionSummary: ReactionSummary?, userReaction: ShyftReaction?, commentCount: Int?) -> Signal {
-        let isExactSignal = signal.id == id
-        let isSameCommentGroup = sourceSignal.map { signal.isInSameDisplayGroup(as: $0) } ?? isExactSignal
-        guard isExactSignal || (commentCount != nil && isSameCommentGroup) else { return signal }
-        var next = signal
+    private func patchShyft(_ shyft: Shyft, id: Int, sourceSignal: Shyft?, reactionSummary: ReactionSummary?, userReaction: ShyftReaction?, commentCount: Int?) -> Shyft {
+        let isExactSignal = shyft.id == id
+        let isSameCommentGroup = sourceSignal.map { shyft.isInSameDisplayGroup(as: $0) } ?? isExactSignal
+        guard isExactSignal || (commentCount != nil && isSameCommentGroup) else { return shyft }
+        var next = shyft
         if isExactSignal, let reactionSummary {
             next = next.withReaction(reactionSummary: reactionSummary, userReaction: userReaction)
         }
@@ -187,15 +187,15 @@ final class FeedViewModel: ObservableObject {
         return next
     }
 
-    func isFollowed(signal: Signal) -> Bool {
+    func isFollowed(shyft: Shyft) -> Bool {
         guard let profile else { return false }
-        if let playerID = signal.playerID {
+        if let playerID = shyft.playerID {
             return profile.follows.players.contains(playerID)
         }
-        return profile.follows.teams.contains(signal.teamID)
+        return profile.follows.teams.contains(shyft.teamID)
     }
 
-    func isFollowed(cascade: CascadeSignal) -> Bool {
+    func isFollowed(cascade: CascadeShyft) -> Bool {
         guard let profile else { return false }
         if let playerID = cascade.trigger.player.id {
             return profile.follows.players.contains(playerID)
@@ -203,16 +203,16 @@ final class FeedViewModel: ObservableObject {
         return profile.follows.teams.contains(cascade.teamID)
     }
 
-    func toggleFollow(for signal: Signal) async {
+    func toggleFollow(for shyft: Shyft) async {
         guard let profile else { return }
-        if let playerID = signal.playerID {
+        if let playerID = shyft.playerID {
             await toggleFollowPlayer(id: playerID, profile: profile)
         } else {
-            await toggleFollowTeam(id: signal.teamID, profile: profile)
+            await toggleFollowTeam(id: shyft.teamID, profile: profile)
         }
     }
 
-    func toggleFollow(for cascade: CascadeSignal) async {
+    func toggleFollow(for cascade: CascadeShyft) async {
         guard let profile else { return }
         if let playerID = cascade.trigger.player.id {
             await toggleFollowPlayer(id: playerID, profile: profile)
@@ -228,7 +228,8 @@ final class FeedViewModel: ObservableObject {
             : profile.follows.players + [id]
         self.profile = UserProfile(
             preferences: profile.preferences,
-            follows: UserProfile.Follows(players: nextPlayers, teams: profile.follows.teams)
+            follows: UserProfile.Follows(players: nextPlayers, teams: profile.follows.teams),
+            displayName: profile.displayName
         )
         do {
             if wasFollowed {
@@ -248,7 +249,8 @@ final class FeedViewModel: ObservableObject {
             : profile.follows.teams + [id]
         self.profile = UserProfile(
             preferences: profile.preferences,
-            follows: UserProfile.Follows(players: profile.follows.players, teams: nextTeams)
+            follows: UserProfile.Follows(players: profile.follows.players, teams: nextTeams),
+            displayName: profile.displayName
         )
         do {
             if wasFollowed {
@@ -261,15 +263,15 @@ final class FeedViewModel: ObservableObject {
         }
     }
 
-    func setReaction(on signalId: Int, type: ShyftReaction) async {
+    func setReaction(on shyftId: Int, type: ShyftReaction) async {
         let previous = feedItems
         do {
-            if signals.first(where: { $0.id == signalId })?.userReaction == type {
-                try await APIClient.shared.clearReaction(signalId: signalId)
+            if shyfts.first(where: { $0.id == shyftId })?.userReaction == type {
+                try await APIClient.shared.clearReaction(shyftId: shyftId)
             } else {
-                try await APIClient.shared.setReaction(signalId: signalId, type: type)
+                try await APIClient.shared.setReaction(shyftId: shyftId, type: type)
             }
-            await loadSignals()
+            await loadShyfts()
         } catch {
             feedItems = previous
             errorMessage = error.localizedDescription

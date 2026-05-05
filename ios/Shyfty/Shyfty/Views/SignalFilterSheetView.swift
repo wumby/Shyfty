@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct SignalFilterSheetView: View {
+struct ShyftFilterSheetView: View {
     @ObservedObject var viewModel: FeedViewModel
     @Environment(\.dismiss) private var dismiss
 
@@ -26,7 +26,7 @@ struct SignalFilterSheetView: View {
 
                         VStack(alignment: .leading, spacing: 16) {
                             FilterChipsView(title: "League", options: leagues, selection: $viewModel.selectedLeague)
-                            FilterChipsView(title: "Signal Type", options: signalTypes, selection: $viewModel.selectedType)
+                            FilterChipsView(title: "Shyft Type", options: signalTypes, selection: $viewModel.selectedType)
                         }
                         .padding(18)
                         .shyftyPanel(strong: true)
@@ -65,7 +65,7 @@ struct SignalFilterSheetView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Apply") {
                         Task {
-                            await viewModel.loadSignals()
+                            await viewModel.loadShyfts()
                             dismiss()
                         }
                     }

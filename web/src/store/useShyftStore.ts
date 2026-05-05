@@ -9,17 +9,17 @@ import type {
   ProfilePreferences,
   ReactionType,
   ShyftReaction,
-  Signal,
-  SignalFilters,
+  Shyft,
+  ShyftFilters,
   Team,
   UserProfile,
   ReactionEntry,
 } from '../types';
 import { SHYFT_REACTION_ORDER } from '../types';
 
-interface SignalStore {
-  filters: SignalFilters;
-  signals: FeedItem[];
+interface ShyftStore {
+  filters: ShyftFilters;
+  shyfts: FeedItem[];
   hasMore: boolean;
   nextCursor: number | null;
   loadingInitial: boolean;
@@ -31,17 +31,17 @@ interface SignalStore {
   ingestStatus: IngestStatus | null;
   feedContext: FeedContext | null;
   profile: UserProfile | null;
-  signalMetaById: Record<number, Pick<Signal, 'comment_count' | 'reaction_summary' | 'user_reaction' | 'reactions' | 'user_reactions'>>;
+  shyftMetaById: Record<number, Pick<Shyft, 'comment_count' | 'reaction_summary' | 'user_reaction' | 'reactions' | 'user_reactions'>>;
 
-  setFilters: (filters: SignalFilters) => void;
-  fetchSignals: () => Promise<void>;
+  setFilters: (filters: ShyftFilters) => void;
+  fetchShyfts: () => Promise<void>;
   loadMore: () => Promise<void>;
   fetchPlayers: () => Promise<void>;
   fetchTeams: () => Promise<void>;
-  reactToSignal: (signalId: number, reactionType: ReactionType) => Promise<void>;
-  setSignalCommentCount: (signalId: number, count: number) => void;
-  setSignalGroupCommentCount: (signalIds: number[], count: number) => void;
-  mergeSignalMeta: (signal: Signal) => void;
+  reactToShyft: (shyftId: number, reactionType: ReactionType) => Promise<void>;
+  setShyftCommentCount: (shyftId: number, count: number) => void;
+  setShyftGroupCommentCount: (signalIds: number[], count: number) => void;
+  mergeShyftMeta: (signal: Shyft) => void;
   fetchIngestStatus: () => Promise<void>;
   triggerIngest: () => Promise<void>;
   fetchProfile: () => Promise<void>;
@@ -50,7 +50,7 @@ interface SignalStore {
   updatePreferences: (payload: Partial<ProfilePreferences>) => Promise<void>;
 }
 
-function normalizeReactions(signal: Signal): ReactionEntry[] {
+function normalizeReactions(signal: Shyft): ReactionEntry[] {
   const userSet = new Set<ShyftReaction>(signal.user_reactions ?? (signal.user_reaction ? [signal.user_reaction] : []));
 
   if (signal.reactions && signal.reactions.length > 0) {
@@ -75,7 +75,7 @@ function normalizeReactions(signal: Signal): ReactionEntry[] {
   });
 }
 
-function applyReactionChange(signal: Signal, reactionType: ReactionType) {
+function applyReactionChange(signal: Shyft, reactionType: ReactionType) {
   const reactions = normalizeReactions(signal);
   const isTogglingOff = reactions.find((r) => r.type === reactionType)?.reactedByCurrentUser ?? false;
 
@@ -107,26 +107,26 @@ function applyReactionChange(signal: Signal, reactionType: ReactionType) {
   };
 }
 
-function isSignal(item: FeedItem): item is Signal {
+function isShyft(item: FeedItem): item is Shyft {
   return item.type !== 'cascade';
 }
 
-function patchFeedItemSignal(item: FeedItem, signalId: number, patch: Partial<Pick<Signal, 'comment_count' | 'reaction_summary' | 'user_reaction' | 'reactions' | 'user_reactions'>>): FeedItem {
-  if (isSignal(item)) {
-    return item.id === signalId ? { ...item, ...patch } : item;
+function patchFeedItem(item: FeedItem, shyftId: number, patch: Partial<Pick<Shyft, 'comment_count' | 'reaction_summary' | 'user_reaction' | 'reactions' | 'user_reactions'>>): FeedItem {
+  if (isShyft(item)) {
+    return item.id === shyftId ? { ...item, ...patch } : item;
   }
 
   return {
     ...item,
-    underlying_signals: item.underlying_signals.map((signal) =>
-      signal.id === signalId ? { ...signal, ...patch } : signal,
+    underlying_shyfts: item.underlying_shyfts.map((signal) =>
+      signal.id === shyftId ? { ...signal, ...patch } : signal,
     ),
   };
 }
 
 let fetchSeq = 0;
 
-function extractSignalMeta(signal: Signal): Pick<Signal, 'comment_count' | 'reaction_summary' | 'user_reaction' | 'reactions' | 'user_reactions'> {
+function extractShyftMeta(signal: Shyft): Pick<Shyft, 'comment_count' | 'reaction_summary' | 'user_reaction' | 'reactions' | 'user_reactions'> {
   const reactions = normalizeReactions(signal);
   return {
     comment_count: signal.comment_count ?? 0,
@@ -137,21 +137,21 @@ function extractSignalMeta(signal: Signal): Pick<Signal, 'comment_count' | 'reac
   };
 }
 
-function mergeSignalMeta(
-  current: Record<number, Pick<Signal, 'comment_count' | 'reaction_summary' | 'user_reaction' | 'reactions' | 'user_reactions'>>,
-  signals: FeedItem[],
+function mergeShyftMeta(
+  current: Record<number, Pick<Shyft, 'comment_count' | 'reaction_summary' | 'user_reaction' | 'reactions' | 'user_reactions'>>,
+  shyfts: FeedItem[],
 ) {
   const next = { ...current };
-  for (const item of signals) {
-    if (!isSignal(item)) continue;
-    next[item.id] = extractSignalMeta(item);
+  for (const item of shyfts) {
+    if (!isShyft(item)) continue;
+    next[item.id] = extractShyftMeta(item);
   }
   return next;
 }
 
-export const useSignalStore = create<SignalStore>((set, get) => ({
+export const useShyftStore = create<ShyftStore>((set, get) => ({
   filters: { sort: 'newest', feed: 'all' },
-  signals: [],
+  shyfts: [],
   hasMore: false,
   nextCursor: null,
   loadingInitial: false,
@@ -163,22 +163,22 @@ export const useSignalStore = create<SignalStore>((set, get) => ({
   ingestStatus: null,
   feedContext: null,
   profile: null,
-  signalMetaById: {},
+  shyftMetaById: {},
 
-  setFilters: (filters) => set({ filters, signals: [], hasMore: false, nextCursor: null }),
+  setFilters: (filters) => set({ filters, shyfts: [], hasMore: false, nextCursor: null }),
 
-  fetchSignals: async () => {
+  fetchShyfts: async () => {
     const seq = ++fetchSeq;
-    set({ loadingInitial: true, loading: true, error: null, signals: [], hasMore: false, nextCursor: null });
+    set({ loadingInitial: true, loading: true, error: null, shyfts: [], hasMore: false, nextCursor: null });
     try {
-      const page = await api.getSignals(get().filters);
+      const page = await api.getShyfts(get().filters);
       if (seq !== fetchSeq) return;
       set({
-        signals: page.items,
+        shyfts: page.items,
         hasMore: page.has_more,
         nextCursor: page.next_cursor,
         feedContext: page.feed_context,
-        signalMetaById: mergeSignalMeta(get().signalMetaById, page.items),
+        shyftMetaById: mergeShyftMeta(get().shyftMetaById, page.items),
         loadingInitial: false,
         loading: false,
       });
@@ -189,17 +189,17 @@ export const useSignalStore = create<SignalStore>((set, get) => ({
   },
 
   loadMore: async () => {
-    const { loadingMore, hasMore, nextCursor, filters, signals } = get();
+    const { loadingMore, hasMore, nextCursor, filters, shyfts } = get();
     if (loadingMore || !hasMore || nextCursor == null) return;
     set({ loadingMore: true });
     try {
-      const page = await api.getSignals(filters, nextCursor);
+      const page = await api.getShyfts(filters, nextCursor);
       set({
-        signals: [...signals, ...page.items],
+        shyfts: [...shyfts, ...page.items],
         hasMore: page.has_more,
         nextCursor: page.next_cursor,
         feedContext: page.feed_context,
-        signalMetaById: mergeSignalMeta(get().signalMetaById, page.items),
+        shyftMetaById: mergeShyftMeta(get().shyftMetaById, page.items),
         loadingMore: false,
       });
     } catch (error) {
@@ -227,17 +227,17 @@ export const useSignalStore = create<SignalStore>((set, get) => ({
     }
   },
 
-  reactToSignal: async (signalId, reactionType) => {
-    const previousSignals = get().signals;
-    const previousMeta = get().signalMetaById;
-    const target = previousSignals.find((signal): signal is Signal => isSignal(signal) && signal.id === signalId);
-    const metaTarget = previousMeta[signalId];
-    const sourceSignal: Signal | null = target
+  reactToShyft: async (shyftId, reactionType) => {
+    const previousShyfts = get().shyfts;
+    const previousMeta = get().shyftMetaById;
+    const target = previousShyfts.find((signal): signal is Shyft => isShyft(signal) && signal.id === shyftId);
+    const metaTarget = previousMeta[shyftId];
+    const sourceSignal: Shyft | null = target
       ? target
       : metaTarget
         ? {
-            id: signalId,
-            type: 'signal',
+            id: shyftId,
+            type: 'shyft',
             subject_type: 'player',
             player_id: null,
             team_id: 0,
@@ -245,7 +245,7 @@ export const useSignalStore = create<SignalStore>((set, get) => ({
             player_name: '',
             team_name: '',
             league_name: '',
-            signal_type: 'SHIFT',
+            shyft_type: 'SHIFT',
             severity: 'SHIFT',
             metric_name: '',
             current_value: 0,
@@ -253,7 +253,7 @@ export const useSignalStore = create<SignalStore>((set, get) => ({
             performance: null,
             deviation: null,
             z_score: 0,
-            signal_score: 0,
+            shyft_score: 0,
             explanation: '',
             movement_pct: null,
             streak: 1,
@@ -268,46 +268,46 @@ export const useSignalStore = create<SignalStore>((set, get) => ({
     if (!sourceSignal) return;
 
     const optimisticSignal = applyReactionChange(sourceSignal, reactionType);
-    const optimisticMeta = extractSignalMeta(optimisticSignal);
-    const optimisticSignals = previousSignals.map((signal) => patchFeedItemSignal(signal, signalId, optimisticMeta));
+    const optimisticMeta = extractShyftMeta(optimisticSignal);
+    const optimisticSignals = previousShyfts.map((signal) => patchFeedItem(signal, shyftId, optimisticMeta));
     set({
-      signals: optimisticSignals,
-      signalMetaById: {
+      shyfts: optimisticSignals,
+      shyftMetaById: {
         ...previousMeta,
-        [signalId]: optimisticMeta,
+        [shyftId]: optimisticMeta,
       },
     });
 
     const wasReacted = normalizeReactions(sourceSignal).some((item) => item.type === reactionType && item.reactedByCurrentUser);
     try {
       if (wasReacted) {
-        await api.clearSignalReaction(signalId);
+        await api.clearShyftReaction(shyftId);
       } else {
-        await api.setSignalReaction(signalId, reactionType);
+        await api.setShyftReaction(shyftId, reactionType);
       }
     } catch (error) {
       set({
-        signals: previousSignals,
-        signalMetaById: previousMeta,
+        shyfts: previousShyfts,
+        shyftMetaById: previousMeta,
         error: error instanceof Error ? error.message : 'Reaction update failed.',
       });
       throw error;
     }
   },
 
-  setSignalCommentCount: (signalId, count) => {
-    get().setSignalGroupCommentCount([signalId], count);
+  setShyftCommentCount: (shyftId, count) => {
+    get().setShyftGroupCommentCount([shyftId], count);
   },
 
-  setSignalGroupCommentCount: (signalIds, count) => {
+  setShyftGroupCommentCount: (signalIds, count) => {
     const ids = [...new Set(signalIds)].filter((id) => Number.isFinite(id));
     if (ids.length === 0) return;
-    const prevMeta = get().signalMetaById;
+    const prevMeta = get().shyftMetaById;
     const patch = { comment_count: count };
     const nextMeta = { ...prevMeta };
-    for (const signalId of ids) {
-      const existing = prevMeta[signalId];
-      nextMeta[signalId] = {
+    for (const shyftId of ids) {
+      const existing = prevMeta[shyftId];
+      nextMeta[shyftId] = {
         comment_count: count,
         reaction_summary: existing?.reaction_summary ?? { shyft_up: 0, shyft_down: 0, shyft_eye: 0 },
         user_reaction: existing?.user_reaction ?? null,
@@ -316,17 +316,17 @@ export const useSignalStore = create<SignalStore>((set, get) => ({
       };
     }
     set({
-      signals: get().signals.map((item) => ids.reduce((nextItem, signalId) => patchFeedItemSignal(nextItem, signalId, patch), item)),
-      signalMetaById: nextMeta,
+      shyfts: get().shyfts.map((item) => ids.reduce((nextItem, shyftId) => patchFeedItem(nextItem, shyftId, patch), item)),
+      shyftMetaById: nextMeta,
     });
   },
 
-  mergeSignalMeta: (signal) => {
-    const meta = extractSignalMeta(signal);
+  mergeShyftMeta: (signal) => {
+    const meta = extractShyftMeta(signal);
     set({
-      signals: get().signals.map((item) => patchFeedItemSignal(item, signal.id, meta)),
-      signalMetaById: {
-        ...get().signalMetaById,
+      shyfts: get().shyfts.map((item) => patchFeedItem(item, signal.id, meta)),
+      shyftMetaById: {
+        ...get().shyftMetaById,
         [signal.id]: meta,
       },
     });
@@ -373,25 +373,25 @@ export const useSignalStore = create<SignalStore>((set, get) => ({
   toggleFollowPlayer: async (playerId, currentlyFollowed) => {
     const profile = get().profile;
     if (!profile) return;
-    const previousSignals = get().signals;
+    const previousShyfts = get().shyfts;
     const nextPlayers = currentlyFollowed
       ? profile.follows.players.filter((id) => id !== playerId)
       : [...profile.follows.players, playerId];
     const nextProfile = { ...profile, follows: { ...profile.follows, players: nextPlayers } };
     const isFollowingFeed = get().filters.feed === 'following';
     const hasAnyFollows = nextProfile.follows.players.length > 0 || nextProfile.follows.teams.length > 0;
-    const nextSignals =
+    const nextShyfts =
       isFollowingFeed && currentlyFollowed
-        ? previousSignals.filter(
+        ? previousShyfts.filter(
             (signal) =>
-              !isSignal(signal) ||
+              !isShyft(signal) ||
               signal.player_id !== playerId ||
               (signal.subject_type === 'team' && nextProfile.follows.teams.includes(signal.team_id)),
           )
-        : previousSignals;
+        : previousShyfts;
     set({
       profile: nextProfile,
-      signals: isFollowingFeed && !hasAnyFollows ? [] : nextSignals,
+      shyfts: isFollowingFeed && !hasAnyFollows ? [] : nextShyfts,
       hasMore: isFollowingFeed && !hasAnyFollows ? false : get().hasMore,
       nextCursor: isFollowingFeed && !hasAnyFollows ? null : get().nextCursor,
     });
@@ -402,32 +402,32 @@ export const useSignalStore = create<SignalStore>((set, get) => ({
         await api.followPlayer(playerId);
       }
     } catch {
-      set({ profile, signals: previousSignals });
+      set({ profile, shyfts: previousShyfts });
     }
   },
 
   toggleFollowTeam: async (teamId, currentlyFollowed) => {
     const profile = get().profile;
     if (!profile) return;
-    const previousSignals = get().signals;
+    const previousShyfts = get().shyfts;
     const nextTeams = currentlyFollowed
       ? profile.follows.teams.filter((id) => id !== teamId)
       : [...profile.follows.teams, teamId];
     const nextProfile = { ...profile, follows: { ...profile.follows, teams: nextTeams } };
     const isFollowingFeed = get().filters.feed === 'following';
     const hasAnyFollows = nextProfile.follows.players.length > 0 || nextProfile.follows.teams.length > 0;
-    const nextSignals =
+    const nextShyfts =
       isFollowingFeed && currentlyFollowed
-        ? previousSignals.filter(
+        ? previousShyfts.filter(
             (signal) =>
-              !isSignal(signal) ||
+              !isShyft(signal) ||
               signal.team_id !== teamId ||
               (signal.subject_type === 'player' && nextProfile.follows.players.includes(signal.player_id ?? -1)),
           )
-        : previousSignals;
+        : previousShyfts;
     set({
       profile: nextProfile,
-      signals: isFollowingFeed && !hasAnyFollows ? [] : nextSignals,
+      shyfts: isFollowingFeed && !hasAnyFollows ? [] : nextShyfts,
       hasMore: isFollowingFeed && !hasAnyFollows ? false : get().hasMore,
       nextCursor: isFollowingFeed && !hasAnyFollows ? null : get().nextCursor,
     });
@@ -438,7 +438,7 @@ export const useSignalStore = create<SignalStore>((set, get) => ({
         await api.followTeam(teamId);
       }
     } catch {
-      set({ profile, signals: previousSignals });
+      set({ profile, shyfts: previousShyfts });
     }
   },
 

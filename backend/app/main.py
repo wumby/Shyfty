@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
-from app.api.routes import auth, comments, debug, health, ingest, players, profile, reactions, signals, teams
+from app.api.routes import auth, comments, debug, health, ingest, players, profile, reactions, shyfts, teams
 from app.core.config import settings
 from app.services.auth_service import SESSION_COOKIE_NAME
 
@@ -81,7 +81,7 @@ def create_app() -> FastAPI:
 
     app.include_router(health.router, prefix="/api", tags=["health"])
     app.include_router(auth.router, prefix="/api", tags=["auth"])
-    app.include_router(signals.router, prefix="/api", tags=["signals"])
+    app.include_router(shyfts.router, prefix="/api", tags=["shyfts"])
     app.include_router(reactions.router, prefix="/api", tags=["reactions"])
     app.include_router(comments.router, prefix="/api", tags=["comments"])
     app.include_router(players.router, prefix="/api", tags=["players"])

@@ -45,8 +45,8 @@ class TeamGameStat(Base):
     team = relationship("Team", foreign_keys=[team_id], back_populates="team_game_stats")
     opponent_team = relationship("Team", foreign_keys=[opponent_team_id])
     game = relationship("Game", back_populates="team_stats")
-    source_signals = relationship(
-        "Signal",
+    source_shyfts = relationship(
+        "Shyft",
         back_populates="source_team_stat",
-        foreign_keys="Signal.source_team_stat_id",
+        foreign_keys="Shyft.source_team_stat_id",
     )

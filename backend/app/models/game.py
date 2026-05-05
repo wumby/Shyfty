@@ -35,4 +35,4 @@ class Game(Base):
     stats = relationship("PlayerGameStat", back_populates="game")
     team_stats = relationship("TeamGameStat", back_populates="game")
     rolling_metrics = relationship("RollingMetric", back_populates="game")
-    signals = relationship("Signal", back_populates="game")
+    shyfts = relationship("Shyft", back_populates="game")

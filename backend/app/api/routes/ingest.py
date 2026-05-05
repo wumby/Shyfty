@@ -4,7 +4,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, s
 
 from app.api.dependencies import get_current_user
 from app.models.user import User
-from app.schemas.signal import IngestStatusRead
+from app.schemas.shyft import IngestStatusRead
 from app.services.scheduler import get_ingest_state, run_ingest_once
 from app.services.sync_service import get_default_sync_sources
 

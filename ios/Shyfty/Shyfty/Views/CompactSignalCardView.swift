@@ -5,16 +5,16 @@ enum CompactSignalCardEmphasis {
     case featured
 }
 
-struct CompactSignalCardView: View {
-    let signal: Signal
+struct CompactShyftCardView: View {
+    let shyft: Shyft
     let emphasis: CompactSignalCardEmphasis
 
-    private var tint: Color { SignalFormatting.tint(for: signal.signalType) }
+    private var tint: Color { ShyftFormatting.tint(for: shyft.shyftType) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: emphasis == .featured ? 14 : 10) {
             HStack {
-                Text(SignalFormatting.signalLabel(signal.signalType).uppercased())
+                Text(ShyftFormatting.signalLabel(shyft.shyftType).uppercased())
                     .font(.system(size: 10, weight: .semibold))
                     .kerning(1.5)
                     .padding(.horizontal, 10)
@@ -29,20 +29,20 @@ struct CompactSignalCardView: View {
 
                 Spacer()
 
-                Text(SignalFormatting.deltaText(current: signal.currentValue, baseline: signal.baselineValue, movementPct: signal.movementPct))
+                Text(ShyftFormatting.deltaText(current: shyft.currentValue, baseline: shyft.baselineValue, movementPct: shyft.movementPct))
                     .font(.system(size: emphasis == .featured ? 24 : 20, weight: .semibold))
                     .foregroundStyle(tint)
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                Text(signal.playerName)
+                Text(shyft.playerName)
                     .font(.system(size: emphasis == .featured ? 28 : 20, weight: .semibold, design: .serif))
                     .foregroundStyle(ShyftyTheme.ink)
-                Text(SignalFormatting.signalSummary(for: signal))
+                Text(ShyftFormatting.signalSummary(for: shyft))
                     .font(.system(size: emphasis == .featured ? 14 : 13, weight: .medium))
                     .foregroundStyle(ShyftyTheme.ink.opacity(0.95))
                     .lineSpacing(2)
-                Text("\(signal.teamName) • \(SignalFormatting.metricLabel(for: signal)) • \(SignalFormatting.relativeTime(from: signal.createdAt))")
+                Text("\(shyft.teamName) • \(ShyftFormatting.metricLabel(for: shyft)) • \(ShyftFormatting.relativeTime(from: shyft.createdAt))")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(ShyftyTheme.muted)
             }
@@ -52,15 +52,15 @@ struct CompactSignalCardView: View {
     }
 }
 
-struct SignalListRowView: View {
-    let signal: Signal
+struct ShyftListRowView: View {
+    let shyft: Shyft
     var isFollowed: Bool? = nil
     var onFollowToggle: (() -> Void)? = nil
 
-    private var tint: Color { SignalFormatting.tint(for: signal.signalType) }
+    private var tint: Color { ShyftFormatting.tint(for: shyft.shyftType) }
 
     private var displayName: String {
-        signal.subjectType == "team" ? signal.teamName : signal.playerName
+        shyft.subjectType == "team" ? shyft.teamName : shyft.playerName
     }
 
     var body: some View {
@@ -91,18 +91,18 @@ struct SignalListRowView: View {
                         }
                         .buttonStyle(.plain)
                     }
-                    Text(SignalFormatting.deltaText(current: signal.currentValue, baseline: signal.baselineValue, movementPct: signal.movementPct))
+                    Text(ShyftFormatting.deltaText(current: shyft.currentValue, baseline: shyft.baselineValue, movementPct: shyft.movementPct))
                         .font(.system(size: 22, weight: .semibold))
                         .foregroundStyle(tint)
                 }
 
-                Text(SignalFormatting.signalSummary(for: signal))
+                Text(ShyftFormatting.signalSummary(for: shyft))
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(ShyftyTheme.ink.opacity(0.96))
                     .lineSpacing(2)
 
                 HStack(spacing: 8) {
-                    Text(SignalFormatting.signalLabel(signal.signalType).uppercased())
+                    Text(ShyftFormatting.signalLabel(shyft.shyftType).uppercased())
                         .font(.system(size: 10, weight: .semibold))
                         .kerning(1.4)
                         .padding(.horizontal, 8)
@@ -111,12 +111,12 @@ struct SignalListRowView: View {
                         .background(tint.opacity(0.12))
                         .clipShape(Capsule())
 
-                    Text("\(signal.teamName) • \(signal.leagueName)")
+                    Text("\(shyft.teamName) • \(shyft.leagueName)")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(ShyftyTheme.muted)
                 }
 
-                Text("\(SignalFormatting.metricLabel(for: signal)) • \(SignalFormatting.eventDateText(signal.eventDate)) • \(SignalFormatting.relativeTime(from: signal.createdAt))")
+                Text("\(ShyftFormatting.metricLabel(for: shyft)) • \(ShyftFormatting.eventDateText(shyft.eventDate)) • \(ShyftFormatting.relativeTime(from: shyft.createdAt))")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(ShyftyTheme.muted.opacity(0.9))
             }

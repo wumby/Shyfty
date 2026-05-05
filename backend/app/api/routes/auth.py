@@ -9,11 +9,13 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import get_current_user, get_db, get_session_token
 from app.core.config import settings
 from app.models.user import User
-from app.schemas.auth import AuthSessionRead, UserCreate, UserRead, UserSignIn
+from app.schemas.auth import AuthMessageRead, AuthSessionRead, PasswordChange, UserCreate, UserRead, UserSignIn
+from app.services.abuse_service import enforce_rate_limit
 from app.services.auth_service import (
     AuthError,
     SESSION_COOKIE_NAME,
     authenticate_user,
+    change_password,
     create_user,
     create_user_session,
     revoke_session,
@@ -25,7 +27,7 @@ _auth_attempts: dict[str, Deque[float]] = defaultdict(deque)
 
 
 def _user_read(user: User) -> UserRead:
-    return UserRead(id=user.id, email=user.email, created_at=user.created_at)
+    return UserRead(id=user.id, email=user.email, display_name=user.display_name, created_at=user.created_at)
 
 
 def _rate_limit_key(request: Request, email: str) -> str:
@@ -63,7 +65,7 @@ def sign_up(payload: UserCreate, request: Request, response: Response, db: Sessi
     if not _record_and_check_attempt(_rate_limit_key(request, payload.email)):
         raise HTTPException(status_code=429, detail="Too many auth attempts. Try again later.")
     try:
-        user = create_user(db, email=payload.email, password=payload.password)
+        user = create_user(db, email=payload.email, password=payload.password, display_name=payload.display_name)
     except AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -104,3 +106,36 @@ def sign_out(
 @router.get("/me", response_model=AuthSessionRead)
 def get_session(current_user: Optional[User] = Depends(get_current_user)) -> AuthSessionRead:
     return AuthSessionRead(user=_user_read(current_user) if current_user is not None else None)
+
+
+@router.put("/password", response_model=AuthMessageRead)
+def update_password(
+    payload: PasswordChange,
+    request: Request,
+    response: Response,
+    current_user: Optional[User] = Depends(get_current_user),
+    session_token: Optional[str] = Depends(get_session_token),
+    db: Session = Depends(get_db),
+) -> AuthMessageRead:
+    if current_user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required.")
+
+    subject = f"user:{current_user.id}"
+    client = request.client.host if request.client else "unknown"
+    enforce_rate_limit(f"{subject}:{client}", "password_change", limit=6, per_seconds=15 * 60)
+    try:
+        change_password(
+            db,
+            user_id=current_user.id,
+            current_password=payload.current_password,
+            new_password=payload.new_password,
+            confirm_new_password=payload.confirm_new_password,
+        )
+    except AuthError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # Force re-login after password rotation by revoking current session.
+    revoke_session(db, session_token)
+    response.delete_cookie(SESSION_COOKIE_NAME, path="/")
+    response.delete_cookie(settings.csrf_cookie_name, path="/")
+    return AuthMessageRead(message="Password changed successfully. Please sign in again.")

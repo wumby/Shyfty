@@ -16,7 +16,7 @@ class PlayerRead(BaseModel):
 
 
 class PlayerDetail(PlayerRead):
-    signal_count: int
+    shyft_count: int
     recent_box_scores: list["PlayerBoxScore"] = []
 
 
@@ -56,6 +56,9 @@ class PlayerBoxScore(BaseModel):
     season: Optional[str] = None
     opponent: str
     home_away: str
+    team_score: Optional[int] = None
+    opponent_score: Optional[int] = None
+    result: Optional[str] = None
     points: Optional[int] = None
     rebounds: Optional[int] = None
     assists: Optional[int] = None

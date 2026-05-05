@@ -8,27 +8,27 @@ struct TeamDetailViewIOS: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
 
-    private func groupSignals(_ signals: [Signal]) -> [GroupedSignal] {
+    private func groupShyfts(_ shyfts: [Shyft]) -> [GroupedShyft] {
         var seen: [String: Int] = [:]
-        var groups: [[Signal]] = []
+        var groups: [[Shyft]] = []
         var keys: [String] = []
-        for signal in signals {
+        for shyft in shyfts {
             let key: String
-            if let pid = signal.playerID {
-                key = "p\(pid)_\(signal.eventDate)"
+            if let pid = shyft.playerID {
+                key = "p\(pid)_\(shyft.eventDate)"
             } else {
-                key = "t\(signal.teamID)_\(signal.eventDate)"
+                key = "t\(shyft.teamID)_\(shyft.eventDate)"
             }
             if let idx = seen[key] {
-                groups[idx].append(signal)
+                groups[idx].append(shyft)
             } else {
                 seen[key] = groups.count
                 keys.append(key)
-                groups.append([signal])
+                groups.append([shyft])
             }
         }
         return zip(keys, groups).map { key, sigs in
-            GroupedSignal(id: key, signals: sigs.sorted { $0.importance > $1.importance })
+            GroupedShyft(id: key, shyfts: sigs.sorted { $0.importance > $1.importance })
         }
     }
 
@@ -52,7 +52,7 @@ struct TeamDetailViewIOS: View {
                     } else if let team {
                         header(team)
                         teamBoxScores(team.recentBoxScores)
-                        recentSignals(team)
+                        recentShyfts(team)
                         roster(team)
                     }
                 }
@@ -63,15 +63,15 @@ struct TeamDetailViewIOS: View {
         .navigationDestination(for: Int.self) { playerID in
             PlayerDetailView(playerID: playerID)
         }
-        .navigationDestination(for: Signal.self) { signal in
-            SignalDetailView(signalId: signal.id, signal: signal)
+        .navigationDestination(for: Shyft.self) { shyft in
+            ShyftDetailView(shyftId: shyft.id, shyft: shyft)
         }
         .navigationTitle("Team")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
         .task { await load() }
-        .onReceive(NotificationCenter.default.publisher(for: .signalEngagementDidChange)) { notification in
-            applySignalEngagementChange(notification)
+        .onReceive(NotificationCenter.default.publisher(for: .shyftEngagementDidChange)) { notification in
+            applyShyftEngagementChange(notification)
         }
     }
 
@@ -81,7 +81,7 @@ struct TeamDetailViewIOS: View {
                 .shyftyEyebrow()
             Text(team.name)
                 .shyftyHeadline(34)
-            Text("\(team.playerCount) players · \(team.recentSignals.count) recent signals")
+            Text("\(team.playerCount) players · \(team.recentShyfts.count) recent shyfts")
                 .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(ShyftyTheme.muted)
         }
@@ -89,21 +89,21 @@ struct TeamDetailViewIOS: View {
         .shyftyPanel()
     }
 
-    private func recentSignals(_ team: TeamDetail) -> some View {
+    private func recentShyfts(_ team: TeamDetail) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Recent Signals")
+            Text("Recent Shyfts")
                 .shyftyEyebrow()
                 .padding(.horizontal, 6)
-            if team.recentSignals.isEmpty {
-                Text("No recent signals are active for this team yet.")
+            if team.recentShyfts.isEmpty {
+                Text("No recent shyfts are active for this team yet.")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(ShyftyTheme.muted)
                     .padding(18)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .shyftyPanel(strong: true)
             } else {
-                ForEach(groupSignals(team.recentSignals)) { group in
-                    GroupedSignalCardView(signals: group.signals)
+                ForEach(groupShyfts(team.recentShyfts)) { group in
+                    GroupedShyftCardView(shyfts: group.shyfts)
                 }
             }
         }
@@ -169,44 +169,47 @@ struct TeamDetailViewIOS: View {
     }
 
     private func compactTeamGameRow(_ row: TeamBoxScore) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("\(row.homeAway == "Away" ? "@" : "vs") \(compactTeamName(row.opponent)) • \(shortDate(row.gameDate))")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(ShyftyTheme.ink.opacity(0.9))
-                .lineLimit(1)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 10) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("\(row.homeAway == "Away" ? "@" : "vs") \(row.opponent)")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(ShyftyTheme.ink)
+                        .lineLimit(1)
+                    Text(shortDate(row.gameDate))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(ShyftyTheme.muted)
+                }
+                Spacer()
+                outcomeBadge(row)
+            }
 
-            statLine(primaryTeamStats(row), primary: true)
+            statLine(primaryTeamStats(row), emphasized: true)
             if !secondaryTeamStats(row).isEmpty {
-                statLine(secondaryTeamStats(row), primary: false)
+                statLine(secondaryTeamStats(row), emphasized: false)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
         .contentShape(Rectangle())
     }
 
-    private func statLine(_ stats: [(label: String, value: String)], primary: Bool) -> some View {
-        HStack(spacing: 6) {
-            ForEach(Array(stats.enumerated()), id: \.offset) { index, stat in
-                HStack(spacing: 3) {
+    private func statLine(_ stats: [(label: String, value: String)], emphasized: Bool) -> some View {
+        HStack(spacing: 8) {
+            ForEach(Array(stats.enumerated()), id: \.offset) { _, stat in
+                VStack(alignment: .leading, spacing: 2) {
                     Text(stat.label)
-                        .font(.system(size: primary ? 10 : 9, weight: .semibold))
-                        .foregroundStyle(primary ? ShyftyTheme.muted.opacity(0.9) : ShyftyTheme.muted.opacity(0.7))
+                        .font(.system(size: emphasized ? 9 : 8, weight: .semibold))
+                        .foregroundStyle(ShyftyTheme.muted.opacity(emphasized ? 0.9 : 0.75))
                     Text(stat.value)
-                        .font(.system(size: stat.label == "PTS" ? 13 : (primary ? 11 : 10), weight: stat.label == "PTS" ? .bold : .semibold, design: .monospaced))
-                        .foregroundStyle(primary ? ShyftyTheme.ink : ShyftyTheme.muted.opacity(0.95))
-                        .frame(minWidth: stat.label == "PTS" ? 24 : 20, alignment: .trailing)
+                        .font(.system(size: emphasized ? 13 : 12, weight: emphasized ? .semibold : .medium, design: .monospaced))
+                        .foregroundStyle(ShyftyTheme.ink)
                 }
-                if index < stats.count - 1 {
-                    Text("•")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(ShyftyTheme.muted.opacity(primary ? 0.5 : 0.35))
-                }
+                .frame(width: 58, alignment: .leading)
             }
             Spacer(minLength: 0)
         }
-        .lineLimit(1)
     }
 
     private func primaryTeamStats(_ row: TeamBoxScore) -> [(label: String, value: String)] {
@@ -215,8 +218,6 @@ struct TeamDetailViewIOS: View {
         appendInt(&stats, "REB", row.rebounds)
         appendInt(&stats, "AST", row.assists)
         appendInt(&stats, "TO", row.turnovers)
-        appendDouble(&stats, "PACE", row.pace)
-        appendDouble(&stats, "OFF RTG", row.offRating)
         return stats
     }
 
@@ -227,13 +228,24 @@ struct TeamDetailViewIOS: View {
         return stats
     }
 
-    private func compactTeamName(_ team: String) -> String {
-        let words = team
-            .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { !$0.isEmpty }
-        guard words.count > 1 else { return team }
-        let abbr = words.prefix(3).compactMap(\.first).map { String($0).uppercased() }.joined()
-        return abbr.count >= 2 ? abbr : team
+    private func outcomeBadge(_ row: TeamBoxScore) -> some View {
+        let result = row.result ?? "—"
+        let scoreText: String
+        if let team = row.teamScore, let opponent = row.opponentScore {
+            scoreText = "\(team)–\(opponent)"
+        } else {
+            scoreText = "—"
+        }
+
+        let tone: Color = result == "W" ? ShyftyTheme.success : result == "L" ? ShyftyTheme.danger : ShyftyTheme.muted
+        return Text("\(result) \(scoreText)")
+            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
+            .foregroundStyle(tone)
+            .background(tone.opacity(0.14))
+            .overlay(Capsule().strokeBorder(tone.opacity(0.3), lineWidth: 1))
+            .clipShape(Capsule())
     }
 
     private func shortDate(_ isoDate: String) -> String {
@@ -246,7 +258,7 @@ struct TeamDetailViewIOS: View {
             formatter.dateFormat = "MMM d"
             return formatter.string(from: date)
         }
-        return SignalFormatting.eventDateText(isoDate)
+        return ShyftFormatting.eventDateText(isoDate)
     }
 
     private func appendInt(_ stats: inout [(String, String)], _ label: String, _ value: Int?) {
@@ -275,19 +287,19 @@ struct TeamDetailViewIOS: View {
         isLoading = false
     }
 
-    private func applySignalEngagementChange(_ notification: Notification) {
-        guard let team, let signalId = notification.userInfo?["signalId"] as? Int else { return }
+    private func applyShyftEngagementChange(_ notification: Notification) {
+        guard let team, let shyftId = notification.userInfo?["shyftId"] as? Int else { return }
         let reactionSummary = notification.userInfo?["reactionSummary"] as? ReactionSummary
         let rawUserReaction = notification.userInfo?["userReaction"]
         let userReaction: ShyftReaction? = (rawUserReaction is NSNull) ? nil : (rawUserReaction as? String).flatMap(ShyftReaction.init(rawValue:))
         let commentCount = notification.userInfo?["commentCount"] as? Int
-        let sourceSignal = team.recentSignals.first { $0.id == signalId }
+        let sourceSignal = team.recentShyfts.first { $0.id == shyftId }
 
-        let nextSignals = team.recentSignals.map { signal in
-            let isExactSignal = signal.id == signalId
-            let isSameCommentGroup = sourceSignal.map { signal.isInSameDisplayGroup(as: $0) } ?? isExactSignal
-            guard isExactSignal || (commentCount != nil && isSameCommentGroup) else { return signal }
-            var next = signal
+        let nextSignals = team.recentShyfts.map { shyft in
+            let isExactSignal = shyft.id == shyftId
+            let isSameCommentGroup = sourceSignal.map { shyft.isInSameDisplayGroup(as: $0) } ?? isExactSignal
+            guard isExactSignal || (commentCount != nil && isSameCommentGroup) else { return shyft }
+            var next = shyft
             if isExactSignal, let reactionSummary {
                 next = next.withReaction(reactionSummary: reactionSummary, userReaction: userReaction)
             }
@@ -302,10 +314,10 @@ struct TeamDetailViewIOS: View {
             name: team.name,
             leagueName: team.leagueName,
             playerCount: team.playerCount,
-            signalCount: team.signalCount,
+            shyftCount: team.shyftCount,
             isFollowed: team.isFollowed,
             players: team.players,
-            recentSignals: nextSignals,
+            recentShyfts: nextSignals,
             recentBoxScores: team.recentBoxScores
         )
     }

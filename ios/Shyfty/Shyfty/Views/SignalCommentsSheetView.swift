@@ -1,7 +1,7 @@
 import SwiftUI
 
-struct SignalCommentsSheetView: View {
-    let signal: Signal
+struct ShyftCommentsSheetView: View {
+    let shyft: Shyft
 
     @EnvironmentObject private var auth: AuthViewModel
     @Environment(\.dismiss) private var dismiss
@@ -37,10 +37,10 @@ struct SignalCommentsSheetView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(signal.subjectType == "team" ? signal.teamName : signal.playerName)
+            Text(shyft.subjectType == "team" ? shyft.teamName : shyft.playerName)
                 .font(.system(size: 22, weight: .semibold, design: .serif))
                 .foregroundStyle(ShyftyTheme.ink)
-            Text("\(signal.teamName) · \(SignalFormatting.eventDateShort(signal.eventDate))")
+            Text("\(shyft.teamName) · \(ShyftFormatting.eventDateShort(shyft.eventDate))")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(ShyftyTheme.muted)
         }
@@ -108,7 +108,7 @@ struct SignalCommentsSheetView: View {
     private func commentRow(_ comment: Comment) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 8) {
-                Text(comment.userEmail.split(separator: "@").first.map(String.init) ?? comment.userEmail)
+                Text(comment.userDisplayName?.isEmpty == false ? comment.userDisplayName! : (comment.userEmail.split(separator: "@").first.map(String.init) ?? comment.userEmail))
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(ShyftyTheme.ink)
                 Text(relativeTime(comment.createdAt))
@@ -146,7 +146,7 @@ struct SignalCommentsSheetView: View {
         isLoading = true
         errorMessage = nil
         do {
-            comments = try await APIClient.shared.fetchComments(signalId: signal.id)
+            comments = try await APIClient.shared.fetchComments(shyftId: shyft.id)
             postCommentCount(comments.count)
         } catch {
             errorMessage = error.localizedDescription
@@ -165,7 +165,7 @@ struct SignalCommentsSheetView: View {
         isPosting = true
         errorMessage = nil
         do {
-            let comment = try await APIClient.shared.postComment(signalId: signal.id, body: body)
+            let comment = try await APIClient.shared.postComment(shyftId: shyft.id, body: body)
             comments.append(comment)
             draft = ""
             postCommentCount(comments.count)
@@ -190,12 +190,12 @@ struct SignalCommentsSheetView: View {
     }
 
     private func postCommentCount(_ count: Int) {
-        let patched = signal.withCommentCount(count)
+        let patched = shyft.withCommentCount(count)
         NotificationCenter.default.post(
-            name: .signalEngagementDidChange,
+            name: .shyftEngagementDidChange,
             object: nil,
             userInfo: [
-                "signalId": patched.id,
+                "shyftId": patched.id,
                 "reactionSummary": patched.reactionSummary,
                 "userReaction": patched.userReaction?.rawValue ?? NSNull(),
                 "commentCount": patched.commentCount,

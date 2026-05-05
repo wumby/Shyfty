@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct CascadeCardView: View {
-    let cascade: CascadeSignal
+    let cascade: CascadeShyft
     var isFollowed: Bool? = nil
     var onFollowToggle: (() -> Void)? = nil
 
@@ -48,7 +48,7 @@ struct CascadeCardView: View {
                     .font(.system(size: 10, weight: .bold))
                     .tracking(1.5)
                     .foregroundStyle(ShyftyTheme.danger)
-                Text("\(cascade.team) • \(SignalFormatting.eventDateText(cascade.gameDate))")
+                Text("\(cascade.team) • \(ShyftFormatting.eventDateText(cascade.gameDate))")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(ShyftyTheme.muted)
             }
@@ -59,7 +59,7 @@ struct CascadeCardView: View {
 
     private var contributors: some View {
         VStack(alignment: .leading, spacing: 8) {
-            ForEach(cascade.contributors.prefix(3), id: \.signalID) { contributor in
+            ForEach(cascade.contributors.prefix(3), id: \.shyftID) { contributor in
                 HStack(spacing: 8) {
                     Text(contributor.player.name)
                         .font(.system(size: 14, weight: .semibold))
@@ -91,7 +91,7 @@ struct CascadeCardView: View {
         case "assists": return "ast"
         case "minutes_played", "minutes": return "min"
         case "usage_rate": return "usage"
-        default: return SignalFormatting.metricLabel(metric).lowercased()
+        default: return ShyftFormatting.metricLabel(metric).lowercased()
         }
     }
 }

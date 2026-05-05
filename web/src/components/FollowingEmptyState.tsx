@@ -1,13 +1,13 @@
 import { Link } from 'react-router-dom';
 
 import { useAuthStore } from '../store/useAuthStore';
-import { useSignalStore } from '../store/useSignalStore';
+import { useShyftStore } from '../store/useShyftStore';
 
 export function FollowingEmptyState() {
   const currentUser = useAuthStore((state) => state.currentUser);
   const authLoading = useAuthStore((state) => state.authLoading);
   const openAuth = useAuthStore((state) => state.openAuth);
-  const profile = useSignalStore((state) => state.profile);
+  const profile = useShyftStore((state) => state.profile);
 
   if (authLoading) return null;
 
@@ -54,7 +54,7 @@ export function FollowingEmptyState() {
 
   return (
     <div className="rounded-[22px] border border-white/[0.07] bg-white/[0.025] px-4 py-10 text-center text-sm text-muted">
-      No signals from your follows yet.
+      No shyfts from your follows yet.
     </div>
   );
 }

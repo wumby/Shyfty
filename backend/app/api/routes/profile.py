@@ -8,12 +8,14 @@ from app.models.user import User
 from app.schemas.profile import (
     ProfilePreferencesRead,
     ProfilePreferencesUpdate,
+    UserProfileUpdate,
     UserProfileRead,
 )
 from app.services.profile_service import (
     get_profile,
     remove_follow,
     set_follow,
+    update_profile,
     update_preferences,
 )
 
@@ -33,6 +35,16 @@ def get_profile_route(
 ) -> UserProfileRead:
     user = _require_user(current_user)
     return get_profile(db, user.id)
+
+
+@router.put("/profile", response_model=UserProfileRead)
+def update_profile_route(
+    payload: UserProfileUpdate,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user),
+) -> UserProfileRead:
+    user = _require_user(current_user)
+    return update_profile(db, user.id, payload)
 
 
 @router.put("/profile/preferences", response_model=ProfilePreferencesRead)

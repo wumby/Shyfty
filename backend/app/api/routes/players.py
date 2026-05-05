@@ -6,13 +6,13 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.player import GameLogRow, MetricSeriesPoint, PlayerDetail, PlayerRead, SeasonAveragesRow
-from app.schemas.signal import SignalRead
+from app.schemas.shyft import ShyftRead
 from app.services.player_service import (
     get_player_detail,
     get_player_gamelog,
     get_player_metric_series,
     get_player_season_averages,
-    get_player_signals,
+    get_player_shyfts,
     list_players,
 )
 
@@ -39,9 +39,9 @@ def get_player(
     return player
 
 
-@router.get("/players/{player_id}/signals", response_model=list[SignalRead])
-def get_player_signal_feed(player_id: int, db: Session = Depends(get_db)) -> list[SignalRead]:
-    return get_player_signals(db, player_id)
+@router.get("/players/{player_id}/shyfts", response_model=list[ShyftRead])
+def get_player_signal_feed(player_id: int, db: Session = Depends(get_db)) -> list[ShyftRead]:
+    return get_player_shyfts(db, player_id)
 
 
 @router.get("/players/{player_id}/gamelog", response_model=list[GameLogRow])

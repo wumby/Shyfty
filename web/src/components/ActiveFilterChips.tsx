@@ -1,8 +1,8 @@
-import type { SignalFilters } from '../types';
+import type { ShyftFilters } from '../types';
 
 interface ActiveFilterChipsProps {
-  filters: SignalFilters;
-  onRemove: (key: 'league' | 'signal_type' | 'sort') => void;
+  filters: ShyftFilters;
+  onRemove: (key: 'league' | 'shyft_type' | 'sort') => void;
 }
 
 const severityLabels: Record<string, string> = {
@@ -13,18 +13,18 @@ const severityLabels: Record<string, string> = {
 
 const sortLabels: Record<string, string> = {
   newest: 'Newest',
-  most_important: 'Signal score',
+  most_important: 'Shyft score',
   biggest_deviation: 'Biggest deviation',
 };
 
 export function ActiveFilterChips({ filters, onRemove }: ActiveFilterChipsProps) {
   const chips = [
     filters.league ? { key: 'league' as const, label: filters.league } : null,
-    filters.signal_type ? { key: 'signal_type' as const, label: severityLabels[filters.signal_type] ?? filters.signal_type } : null,
+    filters.shyft_type ? { key: 'shyft_type' as const, label: severityLabels[filters.shyft_type] ?? filters.shyft_type } : null,
     filters.sort && filters.sort !== 'newest'
       ? { key: 'sort' as const, label: sortLabels[filters.sort] ?? filters.sort }
       : null,
-  ].filter(Boolean) as Array<{ key: 'league' | 'signal_type' | 'sort'; label: string }>;
+  ].filter(Boolean) as Array<{ key: 'league' | 'shyft_type' | 'sort'; label: string }>;
 
   if (chips.length === 0) return null;
 

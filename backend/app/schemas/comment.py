@@ -10,9 +10,10 @@ class CommentCreate(BaseModel):
 
 class CommentRead(BaseModel):
     id: int
-    signal_id: int
+    shyft_id: int
     user_id: int
     user_email: str
+    user_display_name: str
     body: str
     created_at: datetime
     updated_at: datetime

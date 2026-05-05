@@ -11,15 +11,15 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.domain.signals import (
+from app.domain.shyfts import (
     METRICS_BY_LEAGUE,
     build_metric_snapshots,
-    classify_signal,
+    classify_shyft,
     deviation_from_expected,
     load_signal_threshold_payload,
     metric_success,
     recommend_thresholds_from_samples,
-    score_signal,
+    score_shyft,
 )
 from app.models.game import Game
 from app.models.player import Player
@@ -115,17 +115,17 @@ def run_signal_backtest(
                     minutes_current=minutes_snapshot.current_value if minutes_snapshot else None,
                     minutes_baseline=minutes_snapshot.baseline_value if minutes_snapshot else None,
                 )
-                signal_type = classify_signal(contextual_snapshot, metric_name)
-                if signal_type is None:
+                shyft_type = classify_shyft(contextual_snapshot, metric_name)
+                if shyft_type is None:
                     continue
                 deviation = deviation_from_expected(
                     contextual_snapshot.current_value,
                     contextual_snapshot.baseline_value,
                 )
 
-                signal_score, _ = score_signal(
+                signal_score, _ = score_shyft(
                     contextual_snapshot,
-                    signal_type=signal_type,
+                    shyft_type=shyft_type,
                     metric_name=metric_name,
                     event_date=contextual_snapshot.event_date,
                     latest_event_date=latest_event_date,
@@ -138,7 +138,7 @@ def run_signal_backtest(
                 for horizon in horizons:
                     future_values = _future_values(metric_name, metric_rows, stat_index, horizon)
                     outcomes[f"continued_{horizon}g"] = metric_success(
-                        signal_type,
+                        shyft_type,
                         baseline_value=contextual_snapshot.baseline_value,
                         future_values=future_values,
                     )
@@ -149,7 +149,7 @@ def run_signal_backtest(
                         "player_name": player.name,
                         "league": player.league.name,
                         "metric_name": metric_name,
-                        "signal_type": signal_type,
+                        "shyft_type": shyft_type,
                         "signal_score": round(signal_score, 1),
                         "deviation": round(deviation or 0.0, 4),
                         "short_z": round(contextual_snapshot.short_window.z_score, 4),
@@ -174,17 +174,17 @@ def run_signal_backtest(
     by_type: dict[str, list[dict[str, Any]]] = defaultdict(list)
     by_bucket: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for sample in signal_samples:
-        by_type[sample["signal_type"]].append(sample)
+        by_type[sample["shyft_type"]].append(sample)
         by_bucket[_score_bucket(sample["signal_score"])].append(sample)
 
     signal_type_metrics = {
-        signal_type: {
+        shyft_type: {
             "count": len(samples),
             "precision_next_game": round(mean(sample["continued_1g"] for sample in samples), 4) if samples else 0.0,
             "precision_next_3_games": round(mean(sample["continued_3g"] for sample in samples), 4) if samples else 0.0,
             "avg_signal_score": round(mean(sample["signal_score"] for sample in samples), 2) if samples else 0.0,
         }
-        for signal_type, samples in sorted(by_type.items())
+        for shyft_type, samples in sorted(by_type.items())
     }
 
     calibration = [

@@ -31,11 +31,11 @@ final class AuthViewModel: ObservableObject {
         isLoading = false
     }
 
-    func signUp(email: String, password: String) async {
+    func signUp(email: String, password: String, displayName: String? = nil) async {
         isLoading = true
         errorMessage = nil
         do {
-            let session = try await APIClient.shared.signUp(email: email, password: password)
+            let session = try await APIClient.shared.signUp(email: email, password: password, displayName: displayName)
             currentUser = session.user
             showAuthSheet = false
         } catch {

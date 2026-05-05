@@ -3,7 +3,7 @@ from datetime import date
 from typing import Optional
 
 from app.schemas.player import PlayerRead
-from app.schemas.signal import SignalRead
+from app.schemas.shyft import ShyftRead
 
 
 class TeamRead(BaseModel):
@@ -11,13 +11,13 @@ class TeamRead(BaseModel):
     name: str
     league_name: str
     player_count: int
-    signal_count: int = 0
+    shyft_count: int = 0
     is_followed: bool = False
 
 
 class TeamDetail(TeamRead):
     players: list[PlayerRead]
-    recent_signals: list[SignalRead]
+    recent_shyfts: list[ShyftRead]
     recent_box_scores: list["TeamBoxScore"] = []
 
 
@@ -43,3 +43,6 @@ class TeamBoxScore(BaseModel):
     turnovers_lost: Optional[int] = None
     third_down_pct: Optional[float] = None
     redzone_pct: Optional[float] = None
+    team_score: Optional[int] = None
+    opponent_score: Optional[int] = None
+    result: Optional[str] = None

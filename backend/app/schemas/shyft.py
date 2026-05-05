@@ -33,7 +33,7 @@ class FeedContextRead(BaseModel):
     personalization_reason: Optional[str] = None
 
 
-class SignalSummaryTemplateInputs(BaseModel):
+class ShyftSummaryTemplateInputs(BaseModel):
     current_value: float
     baseline_value: float
     movement_pct: Optional[float]
@@ -53,7 +53,7 @@ class WindowContextRead(BaseModel):
     z_score: float
 
 
-class SignalDebugTraceRead(BaseModel):
+class ShyftDebugTraceRead(BaseModel):
     baseline: float
     actual: float
     delta: float
@@ -64,8 +64,8 @@ class SignalDebugTraceRead(BaseModel):
     passed: bool
 
 
-class SignalRead(BaseModel):
-    type: Literal["signal"] = "signal"
+class ShyftRead(BaseModel):
+    type: Literal["shyft"] = "shyft"
     id: int
     subject_type: str = "player"
     player_id: Optional[int] = None
@@ -74,7 +74,7 @@ class SignalRead(BaseModel):
     player_name: str
     team_name: str
     league_name: str
-    signal_type: str
+    shyft_type: str
     severity: str
     metric_name: str
     current_value: float
@@ -82,7 +82,7 @@ class SignalRead(BaseModel):
     performance: Optional[float] = None
     deviation: Optional[float] = None
     z_score: float
-    signal_score: float
+    shyft_score: float
     score_explanation: Optional[str] = None
     explanation: str
     importance: float
@@ -99,9 +99,9 @@ class SignalRead(BaseModel):
     game_result: Optional[str] = None
     final_score: Optional[str] = None
     classification_reason: str
-    debug_trace: SignalDebugTraceRead
+    debug_trace: ShyftDebugTraceRead
     summary_template: str
-    summary_template_inputs: SignalSummaryTemplateInputs
+    summary_template_inputs: ShyftSummaryTemplateInputs
     narrative_summary: Optional[str] = None
     streak: int = 1
     reaction_summary: ReactionSummaryRead
@@ -119,27 +119,27 @@ class CascadePlayerRead(BaseModel):
 
 class CascadeTriggerRead(BaseModel):
     player: CascadePlayerRead
-    signal_id: int
+    shyft_id: int
     stat: str
     metric_label: str
     delta: float
     delta_percent: Optional[float] = None
-    signal_type: str
-    signal_score: float
+    shyft_type: str
+    shyft_score: float
 
 
 class CascadeContributorRead(BaseModel):
     player: CascadePlayerRead
-    signal_id: int
+    shyft_id: int
     stat: str
     metric_label: str
     delta: float
     delta_percent: Optional[float] = None
-    signal_type: str
-    signal_score: float
+    shyft_type: str
+    shyft_score: float
 
 
-class CascadeSignalRead(BaseModel):
+class CascadeShyftRead(BaseModel):
     type: Literal["cascade"] = "cascade"
     id: str
     game_id: int
@@ -150,11 +150,11 @@ class CascadeSignalRead(BaseModel):
     created_at: datetime
     trigger: CascadeTriggerRead
     contributors: list[CascadeContributorRead]
-    underlying_signals: list[SignalRead]
+    underlying_shyfts: list[ShyftRead]
     narrative_summary: Optional[str] = None
 
 
-FeedItemRead = Union[SignalRead, CascadeSignalRead]
+FeedItemRead = Union[ShyftRead, CascadeShyftRead]
 
 
 class BaselineSampleRead(BaseModel):
@@ -213,8 +213,8 @@ class RollingMetricTraceRead(BaseModel):
     high_volatility: Optional[bool] = None
 
 
-class SignalTraceRead(BaseModel):
-    signal: SignalRead
+class ShyftTraceRead(BaseModel):
+    shyft: ShyftRead
     rolling_metric: RollingMetricTraceRead
     source_stat: SourceStatContextRead
     baseline_samples: list[BaselineSampleRead]
@@ -222,7 +222,7 @@ class SignalTraceRead(BaseModel):
     feed_context: Optional[FeedContextRead] = None
 
 
-class PaginatedSignals(BaseModel):
+class PaginatedShyfts(BaseModel):
     items: list[FeedItemRead]
     has_more: bool
     next_cursor: Optional[int]

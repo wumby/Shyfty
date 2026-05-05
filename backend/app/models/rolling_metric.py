@@ -54,4 +54,4 @@ class RollingMetric(Base):
         back_populates="rolling_metric",
         order_by="RollingMetricBaselineSample.sample_order",
     )
-    signals = relationship("Signal", back_populates="rolling_metric")
+    shyfts = relationship("Shyft", back_populates="rolling_metric")

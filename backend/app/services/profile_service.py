@@ -5,10 +5,12 @@ from sqlalchemy.orm import Session
 
 from app.models.user_follow import UserFollow
 from app.models.user_preference import UserPreference
+from app.models.user import User
 from app.schemas.profile import (
     FollowSummaryRead,
     ProfilePreferencesRead,
     ProfilePreferencesUpdate,
+    UserProfileUpdate,
     UserProfileRead,
 )
 
@@ -24,12 +26,14 @@ def _get_or_create_preferences(db: Session, user_id: int) -> UserPreference:
 
 
 def get_profile(db: Session, user_id: int) -> UserProfileRead:
+    user = db.get(User, user_id)
     prefs = _get_or_create_preferences(db, user_id)
     follows = db.execute(select(UserFollow).where(UserFollow.user_id == user_id)).scalars().all()
     return UserProfileRead(
+        display_name=user.display_name if user is not None else None,
         preferences=ProfilePreferencesRead(
             preferred_league=prefs.preferred_league,
-            preferred_signal_type=prefs.preferred_signal_type,
+            preferred_shyft_type=prefs.preferred_shyft_type,
             default_sort_mode=prefs.default_sort_mode,
             default_feed_mode=prefs.default_feed_mode,
             notification_releases=prefs.notification_releases,
@@ -42,6 +46,21 @@ def get_profile(db: Session, user_id: int) -> UserProfileRead:
     )
 
 
+def update_profile(db: Session, user_id: int, payload: UserProfileUpdate) -> UserProfileRead:
+    user = db.get(User, user_id)
+    if user is None:
+        raise LookupError("User not found.")
+
+    if payload.display_name is not None:
+        cleaned = payload.display_name.strip()
+        user.display_name = cleaned[:80] if cleaned else None
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+    return get_profile(db, user_id)
+
+
 def update_preferences(db: Session, user_id: int, payload: ProfilePreferencesUpdate) -> ProfilePreferencesRead:
     prefs = _get_or_create_preferences(db, user_id)
     for field, value in payload.model_dump(exclude_unset=True).items():
@@ -51,7 +70,7 @@ def update_preferences(db: Session, user_id: int, payload: ProfilePreferencesUpd
     db.refresh(prefs)
     return ProfilePreferencesRead(
         preferred_league=prefs.preferred_league,
-        preferred_signal_type=prefs.preferred_signal_type,
+        preferred_shyft_type=prefs.preferred_shyft_type,
         default_sort_mode=prefs.default_sort_mode,
         default_feed_mode=prefs.default_feed_mode,
         notification_releases=prefs.notification_releases,
@@ -82,4 +101,3 @@ def remove_follow(db: Session, user_id: int, entity_type: str, entity_id: int) -
         )
     )
     db.commit()
-

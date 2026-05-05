@@ -1,41 +1,41 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 
-import type { ReactionEntry, ShyftReaction, Signal } from '../types';
+import type { ReactionEntry, ShyftReaction, Shyft } from '../types';
 import { SHYFT_REACTION_ORDER } from '../types';
-import { formatDelta, formatEventDate, getMetricLabel, getSignalDirection } from '../lib/signalFormat';
+import { formatDelta, formatEventDate, getMetricLabel, getShyftDirection } from "../lib/shyftFormat";
 import { useAuthStore } from '../store/useAuthStore';
-import { useSignalStore } from '../store/useSignalStore';
+import { useShyftStore } from "../store/useShyftStore";
 
-interface LastGameSignalCardProps {
-  signals: Signal[];
-  onOpenDetail?: (signalId: number) => void;
-  onOpenComments?: (signalId: number, title: string, subtitle?: string, signalIds?: number[]) => void;
+interface LastGameShyftCardProps {
+  shyfts: Shyft[];
+  onOpenDetail?: (shyftId: number) => void;
+  onOpenComments?: (shyftId: number, title: string, subtitle?: string, shyftIds?: number[]) => void;
 }
 
-function getSignalPriority(signal: Signal): number {
-  if (typeof signal.signal_score === 'number') return signal.signal_score;
+function getShyftPriority(signal: Shyft): number {
+  if (typeof signal.shyft_score === 'number') return signal.shyft_score;
   if (typeof signal.importance === 'number') return signal.importance;
   return Math.abs(signal.z_score);
 }
 
-function getSignalSeverity(signal: Signal): Signal['severity'] {
-  return signal.severity ?? signal.signal_type;
+function getSignalSeverity(signal: Shyft): Shyft['severity'] {
+  return signal.severity ?? signal.shyft_type;
 }
 
-function getSeverityTone(severity: Signal['severity']): string {
+function getSeverityTone(severity: Shyft['severity']): string {
   if (severity === 'OUTLIER') return 'border-red-400/35 bg-red-400/10 text-red-200';
   if (severity === 'SWING') return 'border-amber-300/35 bg-amber-400/10 text-amber-200';
   return 'border-white/10 bg-white/[0.04] text-white/50';
 }
 
-function getSeverityRail(severity: Signal['severity']): string {
+function getSeverityRail(severity: Shyft['severity']): string {
   if (severity === 'OUTLIER') return 'bg-red-400/80';
   if (severity === 'SWING') return 'bg-amber-400/80';
   return 'bg-white/25';
 }
 
-function formatStatValue(signal: Signal, value: number): string {
+function formatStatValue(signal: Shyft, value: number): string {
   if (signal.metric_name === 'usage_rate') {
     const normalized = Math.abs(value) <= 1 ? value * 100 : value;
     const rounded = Number.isInteger(normalized) ? normalized.toFixed(0) : normalized.toFixed(1);
@@ -49,12 +49,12 @@ function formatSignedValue(value: number): string {
   return `${value >= 0 ? '+' : ''}${formatted}`;
 }
 
-function formatScore(signal: Signal): string {
-  const score = typeof signal.signal_score === 'number' ? signal.signal_score : signal.importance;
+function formatScore(signal: Shyft): string {
+  const score = typeof signal.shyft_score === 'number' ? signal.shyft_score : signal.importance;
   return typeof score === 'number' ? score.toFixed(1) : '0.0';
 }
 
-function getOpponentLabel(signal: Signal): string | null {
+function getOpponentLabel(signal: Shyft): string | null {
   if (!signal.opponent) return null;
   const cleaned = signal.opponent.trim();
   if (!cleaned) return null;
@@ -62,7 +62,7 @@ function getOpponentLabel(signal: Signal): string | null {
   return parts.length > 1 ? parts[parts.length - 1] : cleaned;
 }
 
-function getMatchupLabel(signal: Signal): string | null {
+function getMatchupLabel(signal: Shyft): string | null {
   const opponent = getOpponentLabel(signal);
   if (!opponent) return null;
   const homeAway = signal.home_away === 'Away' || signal.home_away === '@' ? '@' : 'vs';
@@ -122,7 +122,7 @@ function ReactionIcon({ type, size }: { type: ShyftReaction; size?: number }) {
   return <ShyftEyeIcon size={size} />;
 }
 
-function normalizeReactionEntries(signal: Signal): ReactionEntry[] {
+function normalizeReactionEntries(signal: Shyft): ReactionEntry[] {
   const userSet = new Set<ShyftReaction>(
     signal.user_reactions ?? (signal.user_reaction ? [signal.user_reaction as ShyftReaction] : [])
   );
@@ -149,33 +149,33 @@ function normalizeReactionEntries(signal: Signal): ReactionEntry[] {
   });
 }
 
-export function LastGameSignalCard({ signals, onOpenDetail, onOpenComments }: LastGameSignalCardProps) {
+export function LastGameShyftCard({ shyfts, onOpenDetail, onOpenComments }: LastGameShyftCardProps) {
   const currentUser = useAuthStore((state) => state.currentUser);
   const openAuth = useAuthStore((state) => state.openAuth);
-  const toggleFollowPlayer = useSignalStore((state) => state.toggleFollowPlayer);
-  const toggleFollowTeam = useSignalStore((state) => state.toggleFollowTeam);
-  const reactToSignal = useSignalStore((state) => state.reactToSignal);
-  const profile = useSignalStore((state) => state.profile);
+  const toggleFollowPlayer = useShyftStore((state) => state.toggleFollowPlayer);
+  const toggleFollowTeam = useShyftStore((state) => state.toggleFollowTeam);
+  const reactToShyft = useShyftStore((state) => state.reactToShyft);
+  const profile = useShyftStore((state) => state.profile);
 
-  if (!signals[0]) return null;
+  if (!shyfts[0]) return null;
 
-  const sorted = [...signals].sort(
-    (a, b) => getSignalPriority(b) - getSignalPriority(a),
+  const sorted = [...(shyfts)].sort(
+    (a, b) => getShyftPriority(b) - getShyftPriority(a),
   );
-  const primarySignal = sorted[0]!;
+  const primaryShyft = sorted[0]!;
 
-  const isTeamSignal = primarySignal.subject_type === 'team' || primarySignal.player_id == null;
-  const isPlayerFollowed = primarySignal.player_id != null ? (profile?.follows.players.includes(primarySignal.player_id) ?? false) : false;
-  const isTeamFollowed = profile?.follows.teams.includes(primarySignal.team_id) ?? false;
+  const isTeamSignal = primaryShyft.subject_type === 'team' || primaryShyft.player_id == null;
+  const isPlayerFollowed = primaryShyft.player_id != null ? (profile?.follows.players.includes(primaryShyft.player_id) ?? false) : false;
+  const isTeamFollowed = profile?.follows.teams.includes(primaryShyft.team_id) ?? false;
   const isTracked = isPlayerFollowed || isTeamFollowed;
 
   async function handleFollowClick(e: React.MouseEvent) {
     e.stopPropagation();
     if (!currentUser) { openAuth('signin'); return; }
     if (isTeamSignal) {
-      await toggleFollowTeam(primarySignal.team_id, isTeamFollowed);
-    } else if (primarySignal.player_id != null) {
-      await toggleFollowPlayer(primarySignal.player_id, isPlayerFollowed);
+      await toggleFollowTeam(primaryShyft.team_id, isTeamFollowed);
+    } else if (primaryShyft.player_id != null) {
+      await toggleFollowPlayer(primaryShyft.player_id, isPlayerFollowed);
     }
   }
 
@@ -183,7 +183,7 @@ export function LastGameSignalCard({ signals, onOpenDetail, onOpenComments }: La
     ? (isTeamFollowed ? '✓ Following' : '+ Follow')
     : (isPlayerFollowed ? '✓ Following' : '+ Follow');
 
-  const primaryDirection = getSignalDirection(primarySignal);
+  const primaryDirection = getShyftDirection(primaryShyft);
   const isPositive = primaryDirection === 'positive';
   const isNegative = primaryDirection === 'negative';
 
@@ -193,10 +193,10 @@ export function LastGameSignalCard({ signals, onOpenDetail, onOpenComments }: La
       ? 'border-danger/30 hover:border-danger/55'
       : 'hover:border-borderStrong';
 
-  const matchupLabel = getMatchupLabel(primarySignal);
-  const result = primarySignal.game_result;
-  const score = primarySignal.final_score?.replace(/\s*-\s*/g, '–') ?? null;
-  const eventDate = primarySignal.event_date ? formatEventDate(primarySignal.event_date) : null;
+  const matchupLabel = getMatchupLabel(primaryShyft);
+  const result = primaryShyft.game_result;
+  const score = primaryShyft.final_score?.replace(/\s*-\s*/g, '–') ?? null;
+  const eventDate = primaryShyft.event_date ? formatEventDate(primaryShyft.event_date) : null;
   const resultTone =
     result === 'W'
       ? 'text-success'
@@ -204,13 +204,13 @@ export function LastGameSignalCard({ signals, onOpenDetail, onOpenComments }: La
         ? 'text-danger'
         : 'text-muted';
 
-  const subjectPath = primarySignal.subject_type === 'team'
-    ? `/teams/${primarySignal.team_id}`
-    : `/players/${primarySignal.player_id}`;
+  const subjectPath = primaryShyft.subject_type === 'team'
+    ? `/teams/${primaryShyft.team_id}`
+    : `/players/${primaryShyft.player_id}`;
 
   const reactions = useMemo(
-    () => normalizeReactionEntries(primarySignal),
-    [primarySignal],
+    () => normalizeReactionEntries(primaryShyft),
+    [primaryShyft],
   );
 
   const userReaction = reactions.find((r) => r.reactedByCurrentUser)?.type ?? null;
@@ -219,7 +219,7 @@ export function LastGameSignalCard({ signals, onOpenDetail, onOpenComments }: La
   async function handleReactionClick(e: React.MouseEvent, type: ShyftReaction) {
     e.stopPropagation();
     if (!currentUser) { openAuth('signin'); return; }
-    await reactToSignal(primarySignal.id, type);
+    await reactToShyft(primaryShyft.id, type);
   }
 
   return (
@@ -230,7 +230,7 @@ export function LastGameSignalCard({ signals, onOpenDetail, onOpenComments }: La
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
           <Link to={subjectPath} className="shrink-0 max-w-full">
             <span className="block truncate text-[20px] font-bold leading-tight text-ink sm:text-[22px]">
-              {primarySignal.subject_type === 'team' ? primarySignal.team_name : primarySignal.player_name}
+              {primaryShyft.subject_type === 'team' ? primaryShyft.team_name : primaryShyft.player_name}
             </span>
           </Link>
           <button
@@ -262,7 +262,7 @@ export function LastGameSignalCard({ signals, onOpenDetail, onOpenComments }: La
       </div>
       <div className="border-t border-white/[0.06] pt-2">
         {sorted.map((signal) => {
-          const dir = getSignalDirection(signal);
+          const dir = getShyftDirection(signal);
           const severity = getSignalSeverity(signal);
           const deltaTone = dir === 'positive' ? 'text-green-400' : dir === 'negative' ? 'text-red-400' : 'text-white/40';
           const railTone = getSeverityRail(severity);
@@ -349,8 +349,8 @@ export function LastGameSignalCard({ signals, onOpenDetail, onOpenComments }: La
           type="button"
           onClick={() =>
             onOpenComments?.(
-              primarySignal.id,
-              primarySignal.subject_type === 'team' ? primarySignal.team_name : primarySignal.player_name,
+              primaryShyft.id,
+              primaryShyft.subject_type === 'team' ? primaryShyft.team_name : primaryShyft.player_name,
               matchupLabel ?? undefined,
               sorted.map((signal) => signal.id),
             )
@@ -361,9 +361,9 @@ export function LastGameSignalCard({ signals, onOpenDetail, onOpenComments }: La
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <path d="M2 3.5C2 2.67 2.67 2 3.5 2h9C13.33 2 14 2.67 14 3.5v6C14 10.33 13.33 11 12.5 11H9l-3 3v-3H3.5C2.67 11 2 10.33 2 9.5v-6Z" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          {primarySignal.comment_count > 0 ? (
+          {primaryShyft.comment_count > 0 ? (
             <span className="text-[12px] font-semibold tabular-nums leading-none">
-              {primarySignal.comment_count}
+              {primaryShyft.comment_count}
             </span>
           ) : null}
         </button>

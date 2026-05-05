@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 
-import { useSignalStore } from '../store/useSignalStore';
+import { useShyftStore } from "../store/useShyftStore";
 
 interface SearchResult {
   id: number;
@@ -21,7 +21,7 @@ function SearchModalContent({ onClose }: SearchModalProps) {
   const [cursor, setCursor] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
-  const { players, teams, fetchPlayers, fetchTeams } = useSignalStore();
+  const { players, teams, fetchPlayers, fetchTeams } = useShyftStore();
 
   useEffect(() => {
     inputRef.current?.focus();

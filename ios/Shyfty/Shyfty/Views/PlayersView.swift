@@ -45,7 +45,7 @@ struct PlayersView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Players")
                 .shyftyHeadline(30)
-            Text("Browse player signal context by name, team, or league.")
+            Text("Browse players and jump into their active shyft context.")
                 .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(ShyftyTheme.muted)
         }
@@ -99,18 +99,20 @@ struct PlayersView: View {
                 Text(player.name)
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(ShyftyTheme.ink)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                    .frame(height: 38, alignment: .topLeading)
 
                 HStack(spacing: 5) {
                     Text("\(player.teamName) · \(player.position)")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(ShyftyTheme.muted)
                         .lineLimit(1)
-                    if let count = player.signalCount, count > 0 {
+                    if let count = player.shyftCount, count > 0 {
                         Text("•")
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundStyle(Color.white.opacity(0.2))
-                        Text("\(count) signal\(count == 1 ? "" : "s")")
+                        Text("\(count) shyft\(count == 1 ? "" : "s")")
                             .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(ShyftyTheme.muted)
                             .lineLimit(1)
@@ -133,7 +135,7 @@ struct PlayersView: View {
         }
         .padding(.horizontal, 13)
         .padding(.vertical, 12)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 92, alignment: .leading)
         .shyftyPanel(strong: true)
     }
 

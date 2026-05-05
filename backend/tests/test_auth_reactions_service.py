@@ -9,6 +9,7 @@ from app.db.base import Base
 from app.services.auth_service import (
     AuthError,
     authenticate_user,
+    change_password,
     create_user,
     create_user_session,
     get_user_by_session_token,
@@ -160,6 +161,40 @@ class AuthReactionServiceTests(unittest.TestCase):
         self.assertEqual(result.reaction_summary.shyft_up, 0)
         self.assertEqual(result.reaction_summary.shyft_eye, 1)
         self.assertEqual(result.user_reaction, "SHYFT_EYE")
+
+    def test_change_password_requires_current_and_updates_credentials(self) -> None:
+        user = create_user(self.session, email="pwchange@example.com", password="password123")
+
+        with self.assertRaises(AuthError):
+            change_password(
+                self.session,
+                user_id=user.id,
+                current_password="wrongpass123",
+                new_password="newpass456",
+                confirm_new_password="newpass456",
+            )
+
+        with self.assertRaises(AuthError):
+            change_password(
+                self.session,
+                user_id=user.id,
+                current_password="password123",
+                new_password="short",
+                confirm_new_password="short",
+            )
+
+        change_password(
+            self.session,
+            user_id=user.id,
+            current_password="password123",
+            new_password="newpass456",
+            confirm_new_password="newpass456",
+        )
+
+        with self.assertRaises(AuthError):
+            authenticate_user(self.session, email="pwchange@example.com", password="password123")
+        authenticated = authenticate_user(self.session, email="pwchange@example.com", password="newpass456")
+        self.assertEqual(authenticated.id, user.id)
 
     def test_follow_round_trip_updates_profile_and_following_feed(self) -> None:
         user = create_user(self.session, email="follower@example.com", password="password123")

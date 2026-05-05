@@ -132,7 +132,9 @@ struct SearchSheetView: View {
                 Text(player.name)
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(ShyftyTheme.ink)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text("\(player.teamName) · \(player.position) · \(player.leagueName)")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(ShyftyTheme.muted)
@@ -141,7 +143,7 @@ struct SearchSheetView: View {
 
             Spacer()
 
-            if let count = player.signalCount, count > 0 {
+            if let count = player.shyftCount, count > 0 {
                 Text("\(count)")
                     .font(.system(size: 11, weight: .semibold))
                     .tracking(0.5)

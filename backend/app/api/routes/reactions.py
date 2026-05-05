@@ -7,7 +7,7 @@ from app.api.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.reaction import ReactionRead, ReactionWrite, ShyftReaction
 from app.services.abuse_service import enforce_rate_limit
-from app.services.reaction_service import remove_signal_reaction, set_signal_reaction
+from app.services.reaction_service import remove_shyft_reaction, set_shyft_reaction
 
 router = APIRouter()
 
@@ -18,9 +18,9 @@ def _require_user(user: Optional[User]) -> User:
     return user
 
 
-@router.put("/signals/{signal_id}/reaction", response_model=ReactionRead)
+@router.put("/shyfts/{shyft_id}/reaction", response_model=ReactionRead)
 def put_signal_reaction(
-    signal_id: int,
+    shyft_id: int,
     payload: ReactionWrite,
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user),
@@ -28,7 +28,7 @@ def put_signal_reaction(
     user = _require_user(current_user)
     enforce_rate_limit(f"user:{user.id}", "reaction_write", limit=60, per_seconds=300)
     try:
-        reaction = set_signal_reaction(db, signal_id=signal_id, user_id=user.id, reaction_type=payload.type.value)
+        reaction = set_shyft_reaction(db, shyft_id=shyft_id, user_id=user.id, reaction_type=payload.type.value)
     except LookupError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except ValueError as exc:
@@ -36,7 +36,7 @@ def put_signal_reaction(
 
     return ReactionRead(
         id=reaction.id,
-        signal_id=reaction.signal_id,
+        shyft_id=reaction.shyft_id,
         user_id=reaction.user_id,
         type=ShyftReaction(reaction.type),
         created_at=reaction.created_at,
@@ -44,13 +44,13 @@ def put_signal_reaction(
     )
 
 
-@router.delete("/signals/{signal_id}/reaction", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/shyfts/{shyft_id}/reaction", status_code=status.HTTP_204_NO_CONTENT)
 def delete_signal_reaction(
-    signal_id: int,
+    shyft_id: int,
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user),
 ) -> Response:
     user = _require_user(current_user)
     enforce_rate_limit(f"user:{user.id}", "reaction_write", limit=60, per_seconds=300)
-    remove_signal_reaction(db, signal_id=signal_id, user_id=user.id)
+    remove_shyft_reaction(db, shyft_id=shyft_id, user_id=user.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -4,14 +4,14 @@ import { useSearchParams } from 'react-router-dom';
 import { FeedToolbar } from '../components/FeedToolbar';
 import { FilterDrawer } from '../components/FilterDrawer';
 import { FollowingEmptyState } from '../components/FollowingEmptyState';
-import { LastGameSignalCard } from '../components/LastGameSignalCard';
+import { LastGameShyftCard } from "../components/LastGameShyftCard";
 import { LoadingState } from '../components/LoadingState';
-import { SignalCommentsDrawer } from '../components/SignalCommentsDrawer';
-import { SignalDetailDrawer } from '../components/SignalDetailDrawer';
-import { formatEventDate } from '../lib/signalFormat';
+import { ShyftCommentsDrawer } from "../components/ShyftCommentsDrawer";
+import { ShyftDetailDrawer } from "../components/ShyftDetailDrawer";
+import { formatEventDate } from "../lib/shyftFormat";
 import { useAuthStore } from '../store/useAuthStore';
-import { useSignalStore } from '../store/useSignalStore';
-import type { CascadeSignal, FeedItem, Signal, SignalFilters, SortMode } from '../types';
+import { useShyftStore } from "../store/useShyftStore";
+import type { CascadeShyft, FeedItem, Shyft, ShyftFilters, SortMode } from '../types';
 
 const LEAGUES = ['All', 'NBA', 'NFL'];
 const SORTS: SortMode[] = ['newest', 'most_important', 'biggest_deviation'];
@@ -25,16 +25,16 @@ const SIGNAL_TYPE_FILTERS = [
 
 type SignalTypeFilterValue = (typeof SIGNAL_TYPE_FILTERS)[number]['value'];
 type FeedTab = 'forYou' | 'following';
-type CommentThread = { signalId: number; signalIds: number[]; title: string; subtitle?: string };
+type CommentThread = { shyftId: number; shyftIds: number[]; title: string; subtitle?: string };
 
-function getSignalPriority(signal: Signal): number {
-  if (typeof signal.signal_score === 'number') return signal.signal_score;
+function getSignalPriority(signal: Shyft): number {
+  if (typeof signal.shyft_score === 'number') return signal.shyft_score;
   if (typeof signal.importance === 'number') return signal.importance;
   return Math.abs(signal.z_score);
 }
 
-function groupSignalsByPlayerGame(signals: Signal[]): Signal[][] {
-  const grouped = new Map<string, Signal[]>();
+function groupSignalsByPlayerGame(signals: Shyft[]): Shyft[][] {
+  const grouped = new Map<string, Shyft[]>();
 
   for (const signal of signals) {
     const key = `${signal.subject_type ?? 'player'}:${signal.player_id ?? signal.team_id}:${signal.game_id}`;
@@ -53,11 +53,11 @@ function groupSignalsByPlayerGame(signals: Signal[]): Signal[][] {
   );
 }
 
-function isSignal(item: FeedItem): item is Signal {
+function isSignal(item: FeedItem): item is Shyft {
   return item.type !== 'cascade';
 }
 
-function CascadeSignalCard({ cascade, onOpenDetail }: { cascade: CascadeSignal; onOpenDetail?: (signalId: number) => void }) {
+function CascadeShyftCard({ cascade, onOpenDetail }: { cascade: CascadeShyft; onOpenDetail?: (shyftId: number) => void }) {
   const topContributors = cascade.contributors.slice(0, 3);
   return (
     <article className="panel-surface border-sky-300/25 px-5 py-5 transition hover:border-sky-300/45 hover:bg-white/[0.035]">
@@ -81,9 +81,9 @@ function CascadeSignalCard({ cascade, onOpenDetail }: { cascade: CascadeSignal; 
           <div className="mt-3 space-y-2">
             {topContributors.map((contributor) => (
               <button
-                key={contributor.signal_id}
+                key={contributor.shyft_id}
                 type="button"
-                onClick={() => onOpenDetail?.(contributor.signal_id)}
+                onClick={() => onOpenDetail?.(contributor.shyft_id)}
                 className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[14px] px-3 py-2 text-left transition hover:bg-white/[0.055]"
               >
                 <span className="truncate text-sm font-semibold text-ink">{contributor.player.name}</span>
@@ -102,11 +102,11 @@ function CascadeSignalCard({ cascade, onOpenDetail }: { cascade: CascadeSignal; 
   );
 }
 
-export function SignalFeedPage() {
-  const { filters, signals, loadingInitial, loadingMore, hasMore, ingestStatus, setFilters, fetchSignals, loadMore, fetchProfile, profile } = useSignalStore();
-  const setSignalGroupCommentCount = useSignalStore((state) => state.setSignalGroupCommentCount);
+export function ShyftFeedPage() {
+  const { filters, shyfts, loadingInitial, loadingMore, hasMore, ingestStatus, setFilters, fetchShyfts, loadMore, fetchProfile, profile } = useShyftStore();
+  const setShyftGroupCommentCount = useShyftStore((state) => state.setShyftGroupCommentCount);
   const currentUser = useAuthStore((state) => state.currentUser);
-  const [detailSignalId, setDetailSignalId] = useState<number | null>(null);
+  const [detailShyftId, setDetailShyftId] = useState<number | null>(null);
   const [commentThread, setCommentThread] = useState<CommentThread | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -123,7 +123,7 @@ export function SignalFeedPage() {
 
   const leagueFromUrl = searchParams.get('league') ?? 'All';
   const activeLeague = LEAGUES.includes(leagueFromUrl) ? leagueFromUrl : 'All';
-  const signalTypeFromUrl = searchParams.get('signal_type') ?? 'All';
+  const signalTypeFromUrl = searchParams.get('shyft_type') ?? 'All';
   const activeSignalType = (SIGNAL_TYPE_FILTERS.some((f) => f.value === signalTypeFromUrl)
     ? signalTypeFromUrl
     : 'All') as SignalTypeFilterValue;
@@ -135,10 +135,10 @@ export function SignalFeedPage() {
     followedPlayers.length > 0 ||
     followedTeams.length > 0;
   const visibleItems = useMemo(() => {
-    if (activeTab !== 'following') return signals;
+    if (activeTab !== 'following') return shyfts;
     if (!profile) return [];
 
-    return signals.filter((item) => {
+    return shyfts.filter((item) => {
       if (!isSignal(item)) {
         const triggerPlayerId = item.trigger.player.id;
         return (triggerPlayerId != null && followedPlayers.includes(triggerPlayerId)) || followedTeams.includes(item.team_id);
@@ -148,9 +148,9 @@ export function SignalFeedPage() {
         (item.subject_type === 'team' && followedTeams.includes(item.team_id))
       );
     });
-  }, [activeTab, followedPlayers, followedTeams, profile, signals]);
+  }, [activeTab, followedPlayers, followedTeams, profile, shyfts]);
   const feedDisplayItems = useMemo(() => {
-    const displays: Array<{ type: 'cascade'; cascade: CascadeSignal } | { type: 'signals'; signals: Signal[] }> = [];
+    const displays: Array<{ type: 'cascade'; cascade: CascadeShyft } | { type: 'shyfts'; shyfts: Shyft[] }> = [];
     const signalOnly = visibleItems.filter(isSignal);
     const groupedSignals = groupSignalsByPlayerGame(signalOnly);
     for (const item of visibleItems) {
@@ -158,14 +158,14 @@ export function SignalFeedPage() {
         displays.push({ type: 'cascade', cascade: item });
       }
     }
-    displays.push(...groupedSignals.map((group) => ({ type: 'signals' as const, signals: group })));
+    displays.push(...groupedSignals.map((group) => ({ type: 'shyfts' as const, shyfts: group })));
     return displays;
   }, [visibleItems]);
 
-  const activeFilters = useMemo<SignalFilters>(
+  const activeFilters = useMemo<ShyftFilters>(
     () => ({
       league: activeLeague === 'All' ? undefined : activeLeague,
-      signal_type: activeSignalType === 'All' ? undefined : activeSignalType,
+      shyft_type: activeSignalType === 'All' ? undefined : activeSignalType,
       sort: activeSort,
       feed: activeTab === 'following' ? 'following' : 'all',
     }),
@@ -177,8 +177,8 @@ export function SignalFeedPage() {
   }, [activeFilters, setFilters]);
 
   useEffect(() => {
-    void fetchSignals();
-  }, [fetchSignals, filters]);
+    void fetchShyfts();
+  }, [fetchShyfts, filters]);
 
   useEffect(() => {
     void fetchProfile();
@@ -196,7 +196,7 @@ export function SignalFeedPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  function updateParams(next: SignalFilters) {
+  function updateParams(next: ShyftFilters) {
     const params = new URLSearchParams(searchParams);
     if (!next.league) {
       params.delete('league');
@@ -204,10 +204,10 @@ export function SignalFeedPage() {
       params.set('league', next.league);
     }
 
-    if (!next.signal_type) {
-      params.delete('signal_type');
+    if (!next.shyft_type) {
+      params.delete('shyft_type');
     } else {
-      params.set('signal_type', next.signal_type);
+      params.set('shyft_type', next.shyft_type);
     }
 
     if (!next.sort || next.sort === 'newest') {
@@ -219,7 +219,7 @@ export function SignalFeedPage() {
     setSearchParams(params, { replace: true });
   }
 
-  function removeFilter(key: 'league' | 'signal_type' | 'sort') {
+  function removeFilter(key: 'league' | 'shyft_type' | 'sort') {
     updateParams({
       ...activeFilters,
       [key]: key === 'sort' ? 'newest' : undefined,
@@ -261,26 +261,26 @@ export function SignalFeedPage() {
               ) : (
                 <div className="rounded-[22px] border border-white/[0.07] bg-white/[0.025] px-4 py-10 text-center text-sm text-muted">
                   {ingestStatus?.last_updated
-                    ? 'No last-game signals are available for this view yet.'
-                    : 'No real data has been synced yet. Run a bootstrap or incremental sync to build the live signal board.'}
+                    ? 'No last-game shyfts are available for this view yet.'
+                    : 'No real data has been synced yet. Run a bootstrap or incremental sync to build the live shyft board.'}
                 </div>
               )
             ) : (
               <>
                 {feedDisplayItems.map((item) => (
                   item.type === 'cascade' ? (
-                    <CascadeSignalCard
+                    <CascadeShyftCard
                       key={item.cascade.id}
                       cascade={item.cascade}
-                      onOpenDetail={(signalId) => setDetailSignalId(signalId)}
+                      onOpenDetail={(shyftId) => setDetailShyftId(shyftId)}
                     />
                   ) : (
-                    <LastGameSignalCard
-                      key={`${item.signals[0]?.player_id ?? item.signals[0]?.team_id ?? 'unknown'}-${item.signals[0]?.game_id ?? 'game'}`}
-                      signals={item.signals}
-                      onOpenDetail={(signalId) => setDetailSignalId(signalId)}
-                      onOpenComments={(signalId, title, subtitle, signalIds) =>
-                        setCommentThread({ signalId, title, subtitle, signalIds: signalIds?.length ? signalIds : [signalId] })
+                    <LastGameShyftCard
+                      key={`${item.shyfts[0]?.player_id ?? item.shyfts[0]?.team_id ?? 'unknown'}-${item.shyfts[0]?.game_id ?? 'game'}`}
+                      shyfts={item.shyfts}
+                      onOpenDetail={(shyftId) => setDetailShyftId(shyftId)}
+                      onOpenComments={(shyftId, title, subtitle, shyftIds) =>
+                        setCommentThread({ shyftId, title, subtitle, shyftIds: shyftIds?.length ? shyftIds : [shyftId] })
                       }
                     />
                   )
@@ -300,15 +300,15 @@ export function SignalFeedPage() {
         </div>
       </div>
 
-      {detailSignalId != null ? (
-        <SignalDetailDrawer signalId={detailSignalId} onClose={() => setDetailSignalId(null)} />
+      {detailShyftId != null ? (
+        <ShyftDetailDrawer shyftId={detailShyftId} onClose={() => setDetailShyftId(null)} />
       ) : null}
       {commentThread ? (
-        <SignalCommentsDrawer
-          signalId={commentThread.signalId}
+        <ShyftCommentsDrawer
+          shyftId={commentThread.shyftId}
           title={commentThread.title}
           subtitle={commentThread.subtitle}
-          onCountChange={(count) => setSignalGroupCommentCount(commentThread.signalIds, count)}
+          onCountChange={(count) => setShyftGroupCommentCount(commentThread.shyftIds, count)}
           onClose={() => setCommentThread(null)}
         />
       ) : null}

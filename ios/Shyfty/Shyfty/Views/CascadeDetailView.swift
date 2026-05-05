@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct CascadeDetailView: View {
-    let cascade: CascadeSignal
+    let cascade: CascadeShyft
 
     var body: some View {
         ZStack {
@@ -14,7 +14,7 @@ struct CascadeDetailView: View {
                         Text("Minutes DROP → Usage redistributed")
                             .font(.system(size: 14, weight: .bold))
                             .foregroundStyle(ShyftyTheme.accent)
-                        Text("\(cascade.team) • \(SignalFormatting.eventDateText(cascade.gameDate))")
+                        Text("\(cascade.team) • \(ShyftFormatting.eventDateText(cascade.gameDate))")
                             .font(.system(size: 13, weight: .medium))
                             .foregroundStyle(ShyftyTheme.muted)
                     }
@@ -25,7 +25,7 @@ struct CascadeDetailView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Contributors")
                             .shyftyEyebrow()
-                        ForEach(cascade.contributors, id: \.signalID) { contributor in
+                        ForEach(cascade.contributors, id: \.shyftID) { contributor in
                             HStack {
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(contributor.player.name)
@@ -47,11 +47,11 @@ struct CascadeDetailView: View {
                     .shyftyPanel(strong: true)
 
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Underlying Signals")
+                        Text("Underlying Shyfts")
                             .shyftyEyebrow()
-                        ForEach(cascade.underlyingSignals) { signal in
-                            NavigationLink(value: signal) {
-                                SignalListRowView(signal: signal)
+                        ForEach(cascade.underlyingShyfts) { shyft in
+                            NavigationLink(value: shyft) {
+                                ShyftListRowView(shyft: shyft)
                             }
                             .buttonStyle(.plain)
                         }

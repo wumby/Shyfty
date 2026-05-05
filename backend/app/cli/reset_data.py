@@ -23,7 +23,7 @@ def main() -> int:
 
     print(
         f"{'Dry run' if args.dry_run else 'Reset complete'}: mode={result.mode} leagues={result.leagues_deleted} teams={result.teams_deleted} "
-        f"players={result.players_deleted} games={result.games_deleted} signals={result.signals_deleted} "
+        f"players={result.players_deleted} games={result.games_deleted} shyfts={result.shyfts_deleted} "
         f"player_stats={result.player_stats_deleted} team_stats={result.team_stats_deleted}"
     )
     return 0

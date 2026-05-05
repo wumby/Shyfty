@@ -13,7 +13,7 @@ class UserPreference(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, unique=True, index=True)
     preferred_league: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
-    preferred_signal_type: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    preferred_shyft_type: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     default_sort_mode: Mapped[str] = mapped_column(String(32), default="newest", nullable=False)
     default_feed_mode: Mapped[str] = mapped_column(String(32), default="all", nullable=False)
     notification_releases: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

@@ -8,11 +8,12 @@ from app.models.league import League
 from app.models.player import Player
 from app.models.player_game_stat import PlayerGameStat
 from app.models.rolling_metric import RollingMetric
-from app.models.signal import Signal
+from app.models.shyft import Shyft
 from app.models.team import Team
+from app.models.team_game_stat import TeamGameStat
 from app.models.user_follow import UserFollow
 from app.schemas.player import GameLogRow, MetricSeriesPoint, PlayerBoxScore, PlayerDetail, PlayerRead, SeasonAveragesRow
-from app.services.signal_service import _comment_count_subquery, build_signal_read
+from app.services.shyft_service import _comment_count_subquery, build_shyft_read
 
 
 def list_players(db: Session, current_user_id: Optional[int] = None) -> list[PlayerRead]:
@@ -47,10 +48,10 @@ def list_players(db: Session, current_user_id: Optional[int] = None) -> list[Pla
 
 def get_player_detail(db: Session, player_id: int, current_user_id: Optional[int] = None) -> Optional[PlayerDetail]:
     row = db.execute(
-        select(Player, Team.name, League.name, func.count(Signal.id))
+        select(Player, Team.name, League.name, func.count(Shyft.id))
         .join(Team, Player.team_id == Team.id)
         .join(League, Player.league_id == League.id)
-        .outerjoin(Signal, Signal.player_id == Player.id)
+        .outerjoin(Shyft, Shyft.player_id == Player.id)
         .where(Player.id == player_id)
         .group_by(Player.id, Team.name, League.name)
     ).one_or_none()
@@ -58,14 +59,14 @@ def get_player_detail(db: Session, player_id: int, current_user_id: Optional[int
     if row is None:
         return None
 
-    player, team_name, league_name, signal_count = row
+    player, team_name, league_name, shyft_count = row
     return PlayerDetail(
         id=player.id,
         name=player.name,
         position=player.position,
         team_name=team_name,
         league_name=league_name,
-        signal_count=signal_count,
+        shyft_count=shyft_count,
         recent_box_scores=get_player_box_scores(db, player_id, limit=5),
         is_followed=(
             current_user_id is not None and db.execute(
@@ -82,6 +83,8 @@ def get_player_detail(db: Session, player_id: int, current_user_id: Optional[int
 def get_player_box_scores(db: Session, player_id: int, limit: int = 5) -> list[PlayerBoxScore]:
     HomeTeam = aliased(Team)
     AwayTeam = aliased(Team)
+    team_stat = aliased(TeamGameStat)
+    opponent_stat = aliased(TeamGameStat)
 
     rows = db.execute(
         select(
@@ -93,26 +96,41 @@ def get_player_box_scores(db: Session, player_id: int, limit: int = 5) -> list[P
             HomeTeam.name,
             AwayTeam.name,
             Player.team_id,
+            team_stat.points.label("team_points"),
+            opponent_stat.points.label("opponent_points"),
             PlayerGameStat,
         )
         .join(PlayerGameStat, PlayerGameStat.game_id == Game.id)
         .join(Player, Player.id == PlayerGameStat.player_id)
         .join(HomeTeam, Game.home_team_id == HomeTeam.id)
         .join(AwayTeam, Game.away_team_id == AwayTeam.id)
+        .outerjoin(team_stat, and_(team_stat.game_id == Game.id, team_stat.team_id == Player.team_id))
+        .outerjoin(opponent_stat, and_(opponent_stat.game_id == Game.id, opponent_stat.team_id != Player.team_id))
         .where(PlayerGameStat.player_id == player_id)
         .order_by(Game.game_date.desc(), Game.id.desc())
         .limit(limit)
     ).all()
 
     box_scores: list[PlayerBoxScore] = []
-    for game_id, game_date, game_season, home_team_id, _away_team_id, home_name, away_name, player_team_id, stat in rows:
+    for game_id, game_date, game_season, home_team_id, _away_team_id, home_name, away_name, player_team_id, team_points, opponent_points, stat in rows:
         is_home = player_team_id == home_team_id
+        result = None
+        if team_points is not None and opponent_points is not None:
+            if team_points > opponent_points:
+                result = "W"
+            elif team_points < opponent_points:
+                result = "L"
+            else:
+                result = "T"
         box_scores.append(PlayerBoxScore(
             game_id=game_id,
             game_date=game_date,
             season=game_season,
             opponent=away_name if is_home else home_name,
             home_away="Home" if is_home else "Away",
+            team_score=team_points,
+            opponent_score=opponent_points,
+            result=result,
             points=stat.points,
             rebounds=stat.rebounds,
             assists=stat.assists,
@@ -141,33 +159,33 @@ def get_player_box_scores(db: Session, player_id: int, limit: int = 5) -> list[P
     return box_scores
 
 
-def get_player_signals(db: Session, player_id: int):
+def get_player_shyfts(db: Session, player_id: int):
     comment_count_subq = _comment_count_subquery()
     rows = db.execute(
         select(
-            Signal, Player.name, Team.name, League.name, Game.game_date, RollingMetric,
+            Shyft, Player.name, Team.name, League.name, Game.game_date, RollingMetric,
             func.coalesce(comment_count_subq.c.comment_count, 0).label("comment_count"),
         )
-        .join(Player, Signal.player_id == Player.id)
-        .join(Team, Signal.team_id == Team.id)
-        .join(League, Signal.league_id == League.id)
-        .join(Game, Signal.game_id == Game.id)
+        .join(Player, Shyft.player_id == Player.id)
+        .join(Team, Shyft.team_id == Team.id)
+        .join(League, Shyft.league_id == League.id)
+        .join(Game, Shyft.game_id == Game.id)
         .outerjoin(
             RollingMetric,
             and_(
-                RollingMetric.player_id == Signal.player_id,
-                RollingMetric.game_id == Signal.game_id,
-                RollingMetric.metric_name == Signal.metric_name,
+                RollingMetric.player_id == Shyft.player_id,
+                RollingMetric.game_id == Shyft.game_id,
+                RollingMetric.metric_name == Shyft.metric_name,
             ),
         )
-        .outerjoin(comment_count_subq, comment_count_subq.c.signal_id == Signal.id)
+        .outerjoin(comment_count_subq, comment_count_subq.c.shyft_id == Shyft.id)
         .where(Player.id == player_id)
-        .order_by(Signal.created_at.desc())
+        .order_by(Shyft.created_at.desc())
     ).all()
     return [
-        build_signal_read(signal, player_name, team_name, league_name, event_date, rolling_metric,
+        build_shyft_read(shyft, player_name, team_name, league_name, event_date, rolling_metric,
                           comment_count=comment_count)
-        for signal, player_name, team_name, league_name, event_date, rolling_metric, comment_count in rows
+        for shyft, player_name, team_name, league_name, event_date, rolling_metric, comment_count in rows
     ]
 
 

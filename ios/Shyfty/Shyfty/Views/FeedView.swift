@@ -30,10 +30,10 @@ struct FeedView: View {
                 .navigationDestination(for: TeamNavigationTarget.self) { target in
                     TeamDetailViewIOS(teamID: target.teamID)
                 }
-                .navigationDestination(for: Signal.self) { signal in
-                    SignalDetailView(signalId: signal.id, signal: signal)
+                .navigationDestination(for: Shyft.self) { shyft in
+                    ShyftDetailView(shyftId: shyft.id, shyft: shyft)
                 }
-                .navigationDestination(for: CascadeSignal.self) { cascade in
+                .navigationDestination(for: CascadeShyft.self) { cascade in
                     CascadeDetailView(cascade: cascade)
                 }
                 .navigationTitle("")
@@ -43,27 +43,27 @@ struct FeedView: View {
                 .task {
                     guard !hasLoadedInitially else { return }
                     hasLoadedInitially = true
-                    await viewModel.loadSignals()
+                    await viewModel.loadShyfts()
                     await viewModel.loadProfile()
                 }
                 .onChange(of: viewModel.selectedLeague) { _, _ in
-                    Task { await viewModel.loadSignals() }
+                    Task { await viewModel.loadShyfts() }
                 }
                 .onChange(of: viewModel.selectedType) { _, _ in
-                    Task { await viewModel.loadSignals() }
+                    Task { await viewModel.loadShyfts() }
                 }
                 .onChange(of: viewModel.feedMode) { _, _ in
-                    Task { await viewModel.loadSignals() }
+                    Task { await viewModel.loadShyfts() }
                 }
-                .onReceive(NotificationCenter.default.publisher(for: .signalEngagementDidChange)) { notification in
-                    viewModel.applySignalEngagementChange(notification)
+                .onReceive(NotificationCenter.default.publisher(for: .shyftEngagementDidChange)) { notification in
+                    viewModel.applyShyftEngagementChange(notification)
                 }
                 .sheet(isPresented: $auth.showAuthSheet) {
                     AuthView()
                         .environmentObject(auth)
                 }
                 .sheet(isPresented: $showFilterSheet) {
-                    SignalFilterSheetView(viewModel: viewModel)
+                    ShyftFilterSheetView(viewModel: viewModel)
                         .presentationDetents([.medium, .large])
                 }
         }
@@ -130,7 +130,7 @@ struct FeedView: View {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {
                     ShyftyAccentDot()
-                    Text("Signal intelligence")
+                    Text("Shyft intelligence")
                         .shyftyEyebrow()
                 }
 
@@ -160,7 +160,7 @@ struct FeedView: View {
                 VStack(spacing: 14) {
                     ProgressView()
                         .tint(ShyftyTheme.accent)
-                    Text("Refreshing signal feed")
+                    Text("Refreshing shyft feed")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(ShyftyTheme.muted)
                 }
@@ -182,7 +182,7 @@ struct FeedView: View {
                 VStack(spacing: 10) {
                     Text("Nothing here yet")
                         .shyftyHeadline(24)
-                    Text("Follow players or teams to see their signals here.")
+                    Text("Follow players or teams to see their shyfts here.")
                         .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(ShyftyTheme.muted)
                         .multilineTextAlignment(.center)
@@ -191,9 +191,9 @@ struct FeedView: View {
                 .shyftyPanel(strong: true)
             } else if viewModel.feedItems.isEmpty {
                 VStack(spacing: 10) {
-                    Text("No signals in this view")
+                    Text("No shyfts in this view")
                         .shyftyHeadline(24)
-                    Text("Try widening the league or signal type filters.")
+                    Text("Try widening the league or shyft type filters.")
                         .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(ShyftyTheme.muted)
                 }
@@ -231,8 +231,6 @@ struct FeedView: View {
                 .scrollTargetLayout()
             }
         }
-        .padding(12)
-        .shyftyPanel(strong: true)
     }
 
     @ViewBuilder
@@ -244,10 +242,10 @@ struct FeedView: View {
                 isFollowed: viewModel.isFollowed(cascade: cascade),
                 onFollowToggle: { Task { await viewModel.toggleFollow(for: cascade) } }
             )
-        case .signalGroup(let group):
-            GroupedSignalCardView(
-                signals: group.signals,
-                isFollowed: viewModel.isFollowed(signal: group.primarySignal),
+        case .shyftGroup(let group):
+            GroupedShyftCardView(
+                shyfts: group.shyfts,
+                isFollowed: viewModel.isFollowed(shyft: group.primarySignal),
                 onFollowToggle: { Task { await viewModel.toggleFollow(for: group.primarySignal) } }
             )
         }
@@ -267,7 +265,7 @@ struct FeedView: View {
                 .lineSpacing(2)
 
             FilterChipsView(title: "League", options: leagues, selection: $viewModel.selectedLeague)
-            FilterChipsView(title: "Signal Type", options: signalTypes, selection: $viewModel.selectedType)
+            FilterChipsView(title: "Shyft Type", options: signalTypes, selection: $viewModel.selectedType)
         }
         .padding(18)
         .background {

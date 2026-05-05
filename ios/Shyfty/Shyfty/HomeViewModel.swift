@@ -2,29 +2,29 @@ import Foundation
 
 @MainActor
 final class HomeViewModel: ObservableObject {
-    @Published var signals: [Signal] = []
-    @Published var trendingSignals: [Signal] = []
+    @Published var shyfts: [Shyft] = []
+    @Published var trendingShyfts: [Shyft] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
 
-    var featuredSignal: Signal? {
-        trendingSignals.first ?? signals.first
+    var featuredSignal: Shyft? {
+        trendingShyfts.first ?? shyfts.first
     }
 
-    var topSignals: [Signal] {
-        Array((trendingSignals.isEmpty ? signals : trendingSignals).dropFirst().prefix(2))
+    var topSignals: [Shyft] {
+        Array((trendingShyfts.isEmpty ? shyfts : trendingShyfts).dropFirst().prefix(2))
     }
 
     var totalCountLabel: String {
-        "\(signals.count)"
+        "\(shyfts.count)"
     }
 
     var nbaCountLabel: String {
-        "\(signals.filter { $0.leagueName == "NBA" }.count)"
+        "\(shyfts.filter { $0.leagueName == "NBA" }.count)"
     }
 
     var highImpactLabel: String {
-        "\(signals.filter { SignalFormatting.importance(for: $0.importance) == "High" }.count)"
+        "\(shyfts.filter { ShyftFormatting.importance(for: $0.importance) == "High" }.count)"
     }
 
     func load() async {
@@ -32,11 +32,11 @@ final class HomeViewModel: ObservableObject {
         errorMessage = nil
 
         do {
-            async let signalRequest = APIClient.shared.fetchSignals()
-            async let trendingRequest = APIClient.shared.fetchTrendingSignals()
+            async let shyftRequest = APIClient.shared.fetchShyfts(feed: "for_you")
+            async let trendingRequest = APIClient.shared.fetchTrendingShyfts()
 
-            signals = try await signalRequest.signalItems
-            trendingSignals = try await trendingRequest
+            shyfts = try await shyftRequest.shyftItems
+            trendingShyfts = try await trendingRequest
         } catch {
             errorMessage = error.localizedDescription
         }

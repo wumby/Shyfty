@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct SignalsView: View {
+struct ShyftsView: View {
     @StateObject private var viewModel = FeedViewModel()
     @EnvironmentObject private var auth: AuthViewModel
     @State private var showFilters = false
@@ -19,18 +19,18 @@ struct SignalsView: View {
                     .padding(.vertical, 12)
                 }
             }
-            .navigationDestination(for: Signal.self) { signal in
-                SignalDetailView(signalId: signal.id, signal: signal)
+            .navigationDestination(for: Shyft.self) { shyft in
+                ShyftDetailView(shyftId: shyft.id, shyft: shyft)
             }
             .navigationDestination(for: Int.self) { playerID in
                 PlayerDetailView(playerID: playerID)
             }
-            .navigationTitle("Signals")
+            .navigationTitle("Shyfts")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Text("Signals")
+                    Text("Shyfts")
                         .font(.system(size: 20, weight: .semibold, design: .serif))
                         .foregroundStyle(ShyftyTheme.ink)
                 }
@@ -48,14 +48,14 @@ struct SignalsView: View {
             }
             .task {
                 await viewModel.loadProfile()
-                await viewModel.loadSignals()
+                await viewModel.loadShyfts()
             }
             .refreshable {
                 await viewModel.loadProfile()
-                await viewModel.loadSignals()
+                await viewModel.loadShyfts()
             }
             .sheet(isPresented: $showFilters) {
-                SignalFilterSheetView(viewModel: viewModel)
+                ShyftFilterSheetView(viewModel: viewModel)
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
             }
@@ -70,7 +70,7 @@ struct SignalsView: View {
     private var headerBar: some View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Signals")
+                Text("Shyfts")
                     .shyftyHeadline(28)
                 Text("Standout performances from recent games.")
                     .font(.system(size: 13, weight: .medium))
@@ -97,7 +97,7 @@ struct SignalsView: View {
         Button {
             guard viewModel.feedMode != mode else { return }
             viewModel.feedMode = mode
-            Task { await viewModel.loadSignals() }
+            Task { await viewModel.loadShyfts() }
         } label: {
             Text(title)
                 .font(.system(size: 12, weight: .semibold))
@@ -115,7 +115,7 @@ struct SignalsView: View {
                 VStack(spacing: 12) {
                     ProgressView()
                         .tint(ShyftyTheme.accent)
-                    Text("Loading signals")
+                    Text("Loading shyfts")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(ShyftyTheme.muted)
                 }
@@ -128,12 +128,12 @@ struct SignalsView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(18)
                     .shyftyPanel(strong: true)
-            } else if viewModel.signals.isEmpty {
+            } else if viewModel.shyfts.isEmpty {
                 if viewModel.feedMode == .following {
                     followingEmptyState
                 } else {
                     VStack(spacing: 10) {
-                        Text("No signals in this view")
+                        Text("No shyfts in this view")
                             .shyftyHeadline(24)
                         Text("Widen the filters to reopen the board.")
                             .font(.system(size: 14, weight: .medium))
@@ -144,18 +144,18 @@ struct SignalsView: View {
                 }
             } else {
                 VStack(spacing: 10) {
-                    ForEach(viewModel.signals) { signal in
-                        NavigationLink(value: signal) {
-                            SignalListRowView(
-                                signal: signal,
-                                isFollowed: auth.currentUser != nil ? viewModel.isFollowed(signal: signal) : nil,
+                    ForEach(viewModel.shyfts) { shyft in
+                        NavigationLink(value: shyft) {
+                            ShyftListRowView(
+                                shyft: shyft,
+                                isFollowed: auth.currentUser != nil ? viewModel.isFollowed(shyft: shyft) : nil,
                                 onFollowToggle: {
                                     guard auth.currentUser != nil else {
                                         auth.isSignUp = false
                                         auth.showAuthSheet = true
                                         return
                                     }
-                                    Task { await viewModel.toggleFollow(for: signal) }
+                                    Task { await viewModel.toggleFollow(for: shyft) }
                                 }
                             )
                         }
@@ -196,7 +196,7 @@ struct SignalsView: View {
                     .shyftyHeadline(22)
                     .multilineTextAlignment(.center)
                 HStack(spacing: 12) {
-                    Text("Browse Signals")
+                    Text("Browse Shyfts")
                         .font(.system(size: 12, weight: .semibold))
                         .padding(.horizontal, 18)
                         .padding(.vertical, 10)
@@ -206,7 +206,7 @@ struct SignalsView: View {
                         .clipShape(Capsule())
                         .onTapGesture {
                             viewModel.feedMode = .all
-                            Task { await viewModel.loadSignals() }
+                            Task { await viewModel.loadShyfts() }
                         }
                 }
             }
@@ -214,7 +214,7 @@ struct SignalsView: View {
             .shyftyPanel(strong: true)
         } else {
             VStack(spacing: 10) {
-                Text("No signals from your follows yet.")
+                Text("No shyfts from your follows yet.")
                     .shyftyHeadline(22)
                     .multilineTextAlignment(.center)
                 Text("Check back after the next game.")

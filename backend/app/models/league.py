@@ -13,5 +13,5 @@ class League(Base):
     teams = relationship("Team", back_populates="league")
     players = relationship("Player", back_populates="league")
     games = relationship("Game", back_populates="league")
-    signals = relationship("Signal", back_populates="league")
+    shyfts = relationship("Shyft", back_populates="league")
 

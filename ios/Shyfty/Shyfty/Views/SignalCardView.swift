@@ -1,11 +1,11 @@
 import SwiftUI
 
-struct SignalCardView: View {
-    let signal: Signal
+struct ShyftCardView: View {
+    let shyft: Shyft
 
-    private var tint: Color { SignalFormatting.tint(for: signal.signalType) }
+    private var tint: Color { ShyftFormatting.tint(for: shyft.shyftType) }
     private var importanceTone: Color {
-        switch SignalFormatting.importance(for: signal.importance) {
+        switch ShyftFormatting.importance(for: shyft.importance) {
         case "High":
             return ShyftyTheme.accent
         case "Medium":
@@ -18,7 +18,7 @@ struct SignalCardView: View {
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
             RoundedRectangle(cornerRadius: 2, style: .continuous)
-                .fill(tint.opacity(SignalFormatting.importance(for: signal.importance) == "Watch" ? 0.35 : 0.8))
+                .fill(tint.opacity(ShyftFormatting.importance(for: shyft.importance) == "Watch" ? 0.35 : 0.8))
                 .frame(width: 3)
                 .padding(.vertical, 14)
 
@@ -26,7 +26,7 @@ struct SignalCardView: View {
                 HStack(alignment: .top, spacing: 14) {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack(spacing: 8) {
-                            Text(SignalFormatting.signalLabel(signal.signalType).uppercased())
+                            Text(ShyftFormatting.signalLabel(shyft.shyftType).uppercased())
                                 .font(.system(size: 10, weight: .semibold))
                                 .kerning(1.6)
                                 .padding(.horizontal, 10)
@@ -39,7 +39,7 @@ struct SignalCardView: View {
                                 )
                                 .clipShape(Capsule())
 
-                            Text(SignalFormatting.importance(for: signal.importance).uppercased())
+                            Text(ShyftFormatting.importance(for: shyft.importance).uppercased())
                                 .font(.system(size: 10, weight: .semibold))
                                 .kerning(1.6)
                                 .padding(.horizontal, 10)
@@ -54,18 +54,18 @@ struct SignalCardView: View {
                         }
 
                         VStack(alignment: .leading, spacing: 6) {
-                            Text(signal.playerName)
+                            Text(shyft.playerName)
                                 .font(.system(size: 28, weight: .semibold, design: .serif))
                                 .foregroundStyle(ShyftyTheme.ink)
-                            Text(SignalFormatting.signalSummary(for: signal))
+                            Text(ShyftFormatting.signalSummary(for: shyft))
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundStyle(ShyftyTheme.ink)
                                 .lineSpacing(2)
-                            Text("\(signal.teamName)  •  \(signal.leagueName)  •  \(SignalFormatting.eventDateText(signal.eventDate))  •  Z \(signal.zScore, specifier: "%.2f")  •  \(SignalFormatting.relativeTime(from: signal.createdAt))")
+                            Text("\(shyft.teamName)  •  \(shyft.leagueName)  •  \(ShyftFormatting.eventDateText(shyft.eventDate))  •  Z \(shyft.zScore, specifier: "%.2f")  •  \(ShyftFormatting.relativeTime(from: shyft.createdAt))")
                                 .font(.system(size: 11, weight: .medium))
                                 .foregroundStyle(ShyftyTheme.muted)
-                            if signal.commentCount > 0 {
-                                Text("\(signal.commentCount) discussing")
+                            if shyft.commentCount > 0 {
+                                Text("\(shyft.commentCount) discussing")
                                     .font(.system(size: 11, weight: .semibold))
                                     .foregroundStyle(ShyftyTheme.accent)
                             }
@@ -75,33 +75,33 @@ struct SignalCardView: View {
                     Spacer(minLength: 12)
 
                     VStack(alignment: .trailing, spacing: 6) {
-                        Text(SignalFormatting.metricLabel(for: signal).uppercased())
+                        Text(ShyftFormatting.metricLabel(for: shyft).uppercased())
                             .font(.system(size: 10, weight: .semibold))
                             .kerning(1.6)
                             .foregroundStyle(ShyftyTheme.muted)
-                        Text(SignalFormatting.deltaText(current: signal.currentValue, baseline: signal.baselineValue, movementPct: signal.movementPct))
+                        Text(ShyftFormatting.deltaText(current: shyft.currentValue, baseline: shyft.baselineValue, movementPct: shyft.movementPct))
                             .font(.system(size: 28, weight: .semibold))
                             .foregroundStyle(tint)
-                        Text("\(signal.currentValue, specifier: "%.1f") / \(signal.baselineValue, specifier: "%.1f")")
+                        Text("\(shyft.currentValue, specifier: "%.1f") / \(shyft.baselineValue, specifier: "%.1f")")
                             .font(.system(size: 11, weight: .medium, design: .monospaced))
                             .foregroundStyle(ShyftyTheme.muted)
                     }
                 }
 
-                Text(signal.explanation)
+                Text(shyft.explanation)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(ShyftyTheme.muted.opacity(0.9))
                     .lineSpacing(2)
 
                 HStack(spacing: 12) {
-                    metricPill(title: "Current", value: signal.currentValue)
-                    metricPill(title: "Baseline", value: signal.baselineValue)
+                    metricPill(title: "Current", value: shyft.currentValue)
+                    metricPill(title: "Baseline", value: shyft.baselineValue)
                 }
 
                 HStack {
-                    Text(signal.baselineWindow)
+                    Text(shyft.baselineWindow)
                     Spacer()
-                    Text(SignalFormatting.movementText(metricName: signal.metricName, current: signal.currentValue, baseline: signal.baselineValue, movementPct: signal.movementPct, metricLabel: signal.metricLabel))
+                    Text(ShyftFormatting.movementText(metricName: shyft.metricName, current: shyft.currentValue, baseline: shyft.baselineValue, movementPct: shyft.movementPct, metricLabel: shyft.metricLabel))
                         .foregroundStyle(ShyftyTheme.muted.opacity(0.85))
                 }
                 .font(.system(size: 11, weight: .medium))

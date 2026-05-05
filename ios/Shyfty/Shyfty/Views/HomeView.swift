@@ -80,7 +80,7 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 8) {
                 ShyftyAccentDot()
-                Text("Signal intelligence")
+                Text("Shyft intelligence")
                     .shyftyEyebrow()
             }
             Text("A calmer front page for tonight’s biggest movement.")
@@ -96,7 +96,7 @@ struct HomeView: View {
 
     private var statRow: some View {
         HStack(spacing: 12) {
-            overviewStat(title: "Live", value: viewModel.totalCountLabel, subtitle: "signals")
+            overviewStat(title: "Live", value: viewModel.totalCountLabel, subtitle: "shyfts")
             overviewStat(title: "NBA", value: viewModel.nbaCountLabel, subtitle: "in feed")
             overviewStat(title: "High", value: viewModel.highImpactLabel, subtitle: "impact")
         }
@@ -118,19 +118,19 @@ struct HomeView: View {
         .shyftyPanel(strong: true)
     }
 
-    private func featuredModule(_ signal: Signal) -> some View {
+    private func featuredModule(_ shyft: Shyft) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Featured Signal")
+            Text("Featured Shyft")
                 .shyftyEyebrow()
                 .padding(.horizontal, 6)
 
-            if let playerID = signal.playerID {
+            if let playerID = shyft.playerID {
                 NavigationLink(value: playerID) {
-                    CompactSignalCardView(signal: signal, emphasis: .featured)
+                    CompactShyftCardView(shyft: shyft, emphasis: .featured)
                 }
                 .buttonStyle(.plain)
             } else {
-                CompactSignalCardView(signal: signal, emphasis: .featured)
+                CompactShyftCardView(shyft: shyft, emphasis: .featured)
             }
         }
     }
@@ -174,19 +174,19 @@ struct HomeView: View {
 
     private var topSignalsModule: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Top Signals")
+            Text("Top Shyfts")
                 .shyftyEyebrow()
                 .padding(.horizontal, 6)
 
             VStack(spacing: 10) {
-                ForEach(viewModel.topSignals) { signal in
-                    if let playerID = signal.playerID {
+                ForEach(viewModel.topSignals) { shyft in
+                    if let playerID = shyft.playerID {
                         NavigationLink(value: playerID) {
-                            CompactSignalCardView(signal: signal, emphasis: .compact)
+                            CompactShyftCardView(shyft: shyft, emphasis: .compact)
                         }
                         .buttonStyle(.plain)
                     } else {
-                        CompactSignalCardView(signal: signal, emphasis: .compact)
+                        CompactShyftCardView(shyft: shyft, emphasis: .compact)
                     }
                 }
             }

@@ -12,15 +12,15 @@ struct FeedContext: Decodable, Hashable {
     }
 }
 
-struct PaginatedSignals: Decodable {
+struct PaginatedShyfts: Decodable {
     let items: [FeedItem]
     let hasMore: Bool
     let nextCursor: Int?
     let feedContext: FeedContext?
 
-    var signalItems: [Signal] {
+    var shyftItems: [Shyft] {
         items.compactMap {
-            if case .signal(let signal) = $0 { return signal }
+            if case .shyft(let shyft) = $0 { return shyft }
             return nil
         }
     }
@@ -34,12 +34,12 @@ struct PaginatedSignals: Decodable {
 }
 
 enum FeedItem: Identifiable, Decodable, Hashable {
-    case signal(Signal)
-    case cascade(CascadeSignal)
+    case shyft(Shyft)
+    case cascade(CascadeShyft)
 
     var id: String {
         switch self {
-        case .signal(let signal): return "signal-\(signal.id)"
+        case .shyft(let shyft): return "shyft-\(shyft.id)"
         case .cascade(let cascade): return cascade.id
         }
     }
@@ -50,11 +50,11 @@ enum FeedItem: Identifiable, Decodable, Hashable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        let type = try container.decodeIfPresent(String.self, forKey: .type) ?? "signal"
+        let type = try container.decodeIfPresent(String.self, forKey: .type) ?? "shyft"
         if type == "cascade" {
-            self = .cascade(try CascadeSignal(from: decoder))
+            self = .cascade(try CascadeShyft(from: decoder))
         } else {
-            self = .signal(try Signal(from: decoder))
+            self = .shyft(try Shyft(from: decoder))
         }
     }
 }
@@ -66,49 +66,49 @@ struct CascadePlayer: Decodable, Hashable {
 
 struct CascadeTrigger: Decodable, Hashable {
     let player: CascadePlayer
-    let signalID: Int
+    let shyftID: Int
     let stat: String
     let metricLabel: String
     let delta: Double
     let deltaPercent: Double?
-    let signalType: String
-    let signalScore: Double
+    let shyftType: String
+    let shyftScore: Double
 
     enum CodingKeys: String, CodingKey {
         case player
-        case signalID = "signal_id"
+        case shyftID = "shyft_id"
         case stat
         case metricLabel = "metric_label"
         case delta
         case deltaPercent = "delta_percent"
-        case signalType = "signal_type"
-        case signalScore = "signal_score"
+        case shyftType = "shyft_type"
+        case shyftScore = "shyft_score"
     }
 }
 
 struct CascadeContributor: Decodable, Hashable {
     let player: CascadePlayer
-    let signalID: Int
+    let shyftID: Int
     let stat: String
     let metricLabel: String
     let delta: Double
     let deltaPercent: Double?
-    let signalType: String
-    let signalScore: Double
+    let shyftType: String
+    let shyftScore: Double
 
     enum CodingKeys: String, CodingKey {
         case player
-        case signalID = "signal_id"
+        case shyftID = "shyft_id"
         case stat
         case metricLabel = "metric_label"
         case delta
         case deltaPercent = "delta_percent"
-        case signalType = "signal_type"
-        case signalScore = "signal_score"
+        case shyftType = "shyft_type"
+        case shyftScore = "shyft_score"
     }
 }
 
-struct CascadeSignal: Identifiable, Decodable, Hashable {
+struct CascadeShyft: Identifiable, Decodable, Hashable {
     let id: String
     let gameID: Int
     let teamID: Int
@@ -118,7 +118,7 @@ struct CascadeSignal: Identifiable, Decodable, Hashable {
     let createdAt: String
     let trigger: CascadeTrigger
     let contributors: [CascadeContributor]
-    let underlyingSignals: [Signal]
+    let underlyingShyfts: [Shyft]
     let narrativeSummary: String?
 
     enum CodingKeys: String, CodingKey {
@@ -131,7 +131,7 @@ struct CascadeSignal: Identifiable, Decodable, Hashable {
         case createdAt = "created_at"
         case trigger
         case contributors
-        case underlyingSignals = "underlying_signals"
+        case underlyingShyfts = "underlying_shyfts"
         case narrativeSummary = "narrative_summary"
     }
 }
@@ -164,7 +164,7 @@ struct ReactionSummary: Decodable, Hashable {
     var total: Int { shyftUp + shyftDown + shyftEye }
 }
 
-struct Signal: Identifiable, Decodable, Hashable {
+struct Shyft: Identifiable, Decodable, Hashable {
     struct SummaryTemplateInputs: Decodable, Hashable {
         let currentValue: Double
         let baselineValue: Double
@@ -188,7 +188,7 @@ struct Signal: Identifiable, Decodable, Hashable {
     let playerName: String
     let teamName: String
     let leagueName: String
-    let signalType: String
+    let shyftType: String
     let metricName: String
     let currentValue: Double
     let baselineValue: Double
@@ -221,7 +221,7 @@ struct Signal: Identifiable, Decodable, Hashable {
         case playerName = "player_name"
         case teamName = "team_name"
         case leagueName = "league_name"
-        case signalType = "signal_type"
+        case shyftType = "shyft_type"
         case metricName = "metric_name"
         case currentValue = "current_value"
         case baselineValue = "baseline_value"
@@ -249,11 +249,11 @@ struct Signal: Identifiable, Decodable, Hashable {
 }
 
 extension Notification.Name {
-    static let signalEngagementDidChange = Notification.Name("signalEngagementDidChange")
+    static let shyftEngagementDidChange = Notification.Name("shyftEngagementDidChange")
 }
 
-extension Signal {
-    func isInSameDisplayGroup(as other: Signal) -> Bool {
+extension Shyft {
+    func isInSameDisplayGroup(as other: Shyft) -> Bool {
         guard eventDate == other.eventDate else { return false }
         if let playerID, let otherPlayerID = other.playerID {
             return playerID == otherPlayerID
@@ -261,17 +261,17 @@ extension Signal {
         return playerID == nil && other.playerID == nil && teamID == other.teamID
     }
 
-    func withReaction(reactionSummary: ReactionSummary, userReaction: ShyftReaction?) -> Signal {
-        var signal = self
-        signal.reactionSummary = reactionSummary
-        signal.userReaction = userReaction
-        return signal
+    func withReaction(reactionSummary: ReactionSummary, userReaction: ShyftReaction?) -> Shyft {
+        var shyft = self
+        shyft.reactionSummary = reactionSummary
+        shyft.userReaction = userReaction
+        return shyft
     }
 
-    func withCommentCount(_ commentCount: Int) -> Signal {
-        var signal = self
-        signal.commentCount = commentCount
-        return signal
+    func withCommentCount(_ commentCount: Int) -> Shyft {
+        var shyft = self
+        shyft.commentCount = commentCount
+        return shyft
     }
 }
 
@@ -281,7 +281,7 @@ struct Player: Identifiable, Decodable, Hashable {
     let position: String
     let teamName: String
     let leagueName: String
-    let signalCount: Int?
+    let shyftCount: Int?
     let isFollowed: Bool
     let recentBoxScores: [PlayerBoxScore]?
 
@@ -291,7 +291,7 @@ struct Player: Identifiable, Decodable, Hashable {
         case position
         case teamName = "team_name"
         case leagueName = "league_name"
-        case signalCount = "signal_count"
+        case shyftCount = "shyft_count"
         case isFollowed = "is_followed"
         case recentBoxScores = "recent_box_scores"
     }
@@ -303,6 +303,9 @@ struct PlayerBoxScore: Decodable, Hashable, Identifiable {
     let season: String?
     let opponent: String
     let homeAway: String
+    let teamScore: Int?
+    let opponentScore: Int?
+    let result: String?
     let points: Int?
     let rebounds: Int?
     let assists: Int?
@@ -328,6 +331,9 @@ struct PlayerBoxScore: Decodable, Hashable, Identifiable {
         case season
         case opponent
         case homeAway = "home_away"
+        case teamScore = "team_score"
+        case opponentScore = "opponent_score"
+        case result
         case points
         case rebounds
         case assists
@@ -352,7 +358,7 @@ struct Team: Identifiable, Decodable, Hashable {
     let name: String
     let leagueName: String
     let playerCount: Int
-    let signalCount: Int?
+    let shyftCount: Int?
     let isFollowed: Bool
 
     enum CodingKeys: String, CodingKey {
@@ -360,7 +366,7 @@ struct Team: Identifiable, Decodable, Hashable {
         case name
         case leagueName = "league_name"
         case playerCount = "player_count"
-        case signalCount = "signal_count"
+        case shyftCount = "shyft_count"
         case isFollowed = "is_followed"
     }
 }
@@ -370,10 +376,10 @@ struct TeamDetail: Decodable, Hashable {
     let name: String
     let leagueName: String
     let playerCount: Int
-    let signalCount: Int?
+    let shyftCount: Int?
     let isFollowed: Bool
     let players: [Player]
-    let recentSignals: [Signal]
+    let recentShyfts: [Shyft]
     let recentBoxScores: [TeamBoxScore]
 
     enum CodingKeys: String, CodingKey {
@@ -381,10 +387,10 @@ struct TeamDetail: Decodable, Hashable {
         case name
         case leagueName = "league_name"
         case playerCount = "player_count"
-        case signalCount = "signal_count"
+        case shyftCount = "shyft_count"
         case isFollowed = "is_followed"
         case players
-        case recentSignals = "recent_signals"
+        case recentShyfts = "recent_shyfts"
         case recentBoxScores = "recent_box_scores"
     }
 }
@@ -403,6 +409,9 @@ struct TeamBoxScore: Decodable, Hashable, Identifiable {
     let turnovers: Int?
     let pace: Double?
     let offRating: Double?
+    let teamScore: Int?
+    let opponentScore: Int?
+    let result: String?
 
     var id: Int { gameID }
 
@@ -420,6 +429,9 @@ struct TeamBoxScore: Decodable, Hashable, Identifiable {
         case turnovers
         case pace
         case offRating = "off_rating"
+        case teamScore = "team_score"
+        case opponentScore = "opponent_score"
+        case result
     }
 }
 
@@ -436,11 +448,13 @@ struct MetricSeriesPoint: Decodable, Hashable {
 struct AuthUser: Decodable, Hashable {
     let id: Int
     let email: String
+    let displayName: String?
     let createdAt: String
 
     enum CodingKeys: String, CodingKey {
         case id
         case email
+        case displayName = "display_name"
         case createdAt = "created_at"
     }
 }
@@ -451,9 +465,10 @@ struct AuthSession: Decodable {
 
 struct Comment: Decodable, Identifiable, Hashable {
     let id: Int
-    let signalID: Int
+    let shyftID: Int
     let userID: Int
     let userEmail: String
+    let userDisplayName: String?
     let body: String
     let createdAt: String
     let updatedAt: String
@@ -464,9 +479,10 @@ struct Comment: Decodable, Identifiable, Hashable {
 
     enum CodingKeys: String, CodingKey {
         case id
-        case signalID = "signal_id"
+        case shyftID = "shyft_id"
         case userID = "user_id"
         case userEmail = "user_email"
+        case userDisplayName = "user_display_name"
         case body
         case createdAt = "created_at"
         case updatedAt = "updated_at"
@@ -479,7 +495,7 @@ struct Comment: Decodable, Identifiable, Hashable {
 
 struct ProfilePreferences: Decodable, Hashable {
     let preferredLeague: String?
-    let preferredSignalType: String?
+    let preferredShyftType: String?
     let defaultSortMode: String
     let defaultFeedMode: String
     let notificationReleases: Bool
@@ -487,7 +503,7 @@ struct ProfilePreferences: Decodable, Hashable {
 
     enum CodingKeys: String, CodingKey {
         case preferredLeague = "preferred_league"
-        case preferredSignalType = "preferred_signal_type"
+        case preferredShyftType = "preferred_shyft_type"
         case defaultSortMode = "default_sort_mode"
         case defaultFeedMode = "default_feed_mode"
         case notificationReleases = "notification_releases"
@@ -503,14 +519,16 @@ struct UserProfile: Decodable {
 
     let preferences: ProfilePreferences
     let follows: Follows
+    let displayName: String?
 
     enum CodingKeys: String, CodingKey {
         case preferences
         case follows
+        case displayName = "display_name"
     }
 }
 
-// MARK: - Signal Detail (Trace)
+// MARK: - Shyft Detail (Trace)
 
 struct BaselineSample: Decodable, Identifiable {
     var id: Int { statId }
@@ -549,8 +567,8 @@ struct SourceStatContext: Decodable {
     }
 }
 
-struct SignalTrace: Decodable {
-    let signal: Signal
+struct ShyftTrace: Decodable {
+    let shyft: Shyft
     let rollingMetric: RollingMetricTrace?
     let sourceStat: SourceStatContext?
     let baselineSamples: [BaselineSample]
@@ -558,7 +576,7 @@ struct SignalTrace: Decodable {
     let feedContext: FeedContext?
 
     enum CodingKeys: String, CodingKey {
-        case signal
+        case shyft
         case rollingMetric = "rolling_metric"
         case sourceStat = "source_stat"
         case baselineSamples = "baseline_samples"
@@ -607,9 +625,9 @@ struct IngestStatus: Decodable {
 
 // MARK: - Feed Grouping
 
-struct GroupedSignal: Identifiable {
+struct GroupedShyft: Identifiable {
     let id: String
-    let signals: [Signal]  // sorted by importance descending
+    let shyfts: [Shyft]  // sorted by importance descending
 
-    var primarySignal: Signal { signals[0] }
+    var primarySignal: Shyft { shyfts[0] }
 }

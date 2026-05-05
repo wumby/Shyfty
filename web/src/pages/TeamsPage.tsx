@@ -4,12 +4,12 @@ import { Link } from 'react-router-dom';
 import { EmptyState } from '../components/EmptyState';
 import { LoadingState } from '../components/LoadingState';
 import { SectionHeader } from '../components/SectionHeader';
-import { useSignalStore } from '../store/useSignalStore';
+import { useShyftStore } from "../store/useShyftStore";
 
 const LEAGUES = ['All', 'NBA', 'NFL'] as const;
 
 export function TeamsPage() {
-  const { teams, loading, fetchTeams } = useSignalStore();
+  const { teams, loading, fetchTeams } = useShyftStore();
   const [leagueFilter, setLeagueFilter] = useState<(typeof LEAGUES)[number]>('All');
   const [query, setQuery] = useState('');
 
@@ -90,7 +90,7 @@ export function TeamsPage() {
                     </div>
                     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                       {leagueTeams.map((team) => {
-                        const activityCount = team.signal_count ?? team.player_count;
+                        const activityCount = team.shyft_count ?? team.player_count;
                         return (
                           <Link
                             key={team.id}
@@ -104,7 +104,7 @@ export function TeamsPage() {
                                 {activityCount ? (
                                   <>
                                     <span className="text-white/15">•</span>
-                                    <span>{activityCount} signal{activityCount !== 1 ? 's' : ''}</span>
+                                    <span>{activityCount} shyft{activityCount !== 1 ? 's' : ''}</span>
                                   </>
                                 ) : null}
                               </span>

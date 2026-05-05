@@ -4,14 +4,14 @@ import { createPortal } from 'react-dom';
 import { CommentsPanel } from './CommentsPanel';
 
 interface Props {
-  signalId: number;
+  shyftId: number;
   title: string;
   subtitle?: string;
   onCountChange?: (count: number) => void;
   onClose: () => void;
 }
 
-export function SignalCommentsDrawer({ signalId, title, subtitle, onCountChange, onClose }: Props) {
+export function ShyftCommentsDrawer({ shyftId, title, subtitle, onCountChange, onClose }: Props) {
   useEffect(() => {
     function handleKey(event: KeyboardEvent) {
       if (event.key === 'Escape') onClose();
@@ -35,7 +35,7 @@ export function SignalCommentsDrawer({ signalId, title, subtitle, onCountChange,
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-5 py-5">
-          <CommentsPanel signalId={signalId} onCountChange={onCountChange} />
+          <CommentsPanel shyftId={shyftId} onCountChange={onCountChange} />
         </div>
       </div>
     </>,

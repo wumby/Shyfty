@@ -15,7 +15,7 @@ from app.models.player import Player
 from app.models.player_game_stat import PlayerGameStat
 from app.models.rolling_metric import RollingMetric
 from app.models.rolling_metric_baseline_sample import RollingMetricBaselineSample
-from app.models.signal import Signal
+from app.models.shyft import Shyft
 from app.models.team import Team
 from app.models.team_game_stat import TeamGameStat
 from app.domain.seasons import season_from_date
@@ -231,7 +231,7 @@ def _clear_existing_nba_data(db: Session, *, clear_since=None) -> None:
     if clear_since is None:
         nba_game_ids = select(Game.id).where(Game.league_id == nba_league.id)
         nba_player_ids = select(Player.id).where(Player.league_id == nba_league.id)
-        db.execute(delete(Signal).where(Signal.league_id == nba_league.id))
+        db.execute(delete(Shyft).where(Shyft.league_id == nba_league.id))
         db.execute(
             delete(RollingMetricBaselineSample).where(
                 RollingMetricBaselineSample.rolling_metric_id.in_(
@@ -256,7 +256,7 @@ def _clear_existing_nba_data(db: Session, *, clear_since=None) -> None:
         recent_rolling_ids = select(RollingMetric.id).where(
             RollingMetric.game_id.in_(recent_game_ids)
         )
-        db.execute(delete(Signal).where(Signal.game_id.in_(recent_game_ids)))
+        db.execute(delete(Shyft).where(Shyft.game_id.in_(recent_game_ids)))
         db.execute(delete(RollingMetricBaselineSample).where(
             RollingMetricBaselineSample.rolling_metric_id.in_(recent_rolling_ids)
         ))

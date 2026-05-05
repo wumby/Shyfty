@@ -17,6 +17,6 @@ class IngestRun(Base):
     error_message: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     games_fetched: Mapped[Optional[int]] = mapped_column(nullable=True)
     players_loaded: Mapped[Optional[int]] = mapped_column(nullable=True)
-    signals_created: Mapped[Optional[int]] = mapped_column(nullable=True)
-    signals_updated: Mapped[Optional[int]] = mapped_column(nullable=True)
+    shyfts_created: Mapped[Optional[int]] = mapped_column(nullable=True)
+    shyfts_updated: Mapped[Optional[int]] = mapped_column(nullable=True)
     duration_seconds: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
