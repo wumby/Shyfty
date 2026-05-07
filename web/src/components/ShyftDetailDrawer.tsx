@@ -26,20 +26,6 @@ function formatSigned(value: number): string {
   return `${value >= 0 ? '+' : ''}${formatNumber(value)}`;
 }
 
-function formatThresholdValue(value: number | null): string {
-  if (value === null) return 'not used';
-  return Number.isInteger(value) ? value.toFixed(0) : value.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
-}
-
-const gateLabels: Record<string, string> = {
-  sample_size: 'Sample size',
-  baseline_or_actual: 'Baseline or actual',
-  baseline: 'Baseline',
-  actual: 'Actual',
-  delta: 'Delta',
-  z_score: 'Z-score',
-  minutes_guard: 'Minutes guard',
-};
 
 export function ShyftDetailDrawer({ shyftId, onClose }: Props) {
   const [trace, setTrace] = useState<ShyftTrace | null>(null);
@@ -129,11 +115,11 @@ export function ShyftDetailDrawer({ shyftId, onClose }: Props) {
 
               <div className="grid grid-cols-3 gap-3 rounded-[26px] border border-border bg-white/[0.03] px-4 py-4">
                 <div className="text-center">
-                  <div className="text-[10px] uppercase tracking-[0.14em] text-muted">Actual</div>
+                  <div className="text-[10px] uppercase tracking-[0.14em] text-muted">This Game</div>
                   <div className={`mt-1 text-2xl font-bold tabular-nums ${shyft.trend_direction === 'up' ? 'text-success' : shyft.trend_direction === 'down' ? 'text-danger' : 'text-ink'}`}>{formatNumber(shyft.current_value)}</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-[10px] uppercase tracking-[0.14em] text-muted">Baseline</div>
+                  <div className="text-[10px] uppercase tracking-[0.14em] text-muted">Expected</div>
                   <div className="mt-1 text-2xl font-bold tabular-nums text-muted">{formatNumber(shyft.baseline_value)}</div>
                 </div>
                 <div className="text-center">
@@ -143,15 +129,17 @@ export function ShyftDetailDrawer({ shyftId, onClose }: Props) {
               </div>
 
               <div className="rounded-[22px] border border-border bg-white/[0.03] px-4 py-3">
-                <div className="eyebrow mb-3">Why This Is a Shyft</div>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                <div className="eyebrow mb-2">What This Means</div>
+                <p className="text-sm leading-relaxed text-[#d9e3f1]">{shyft.explanation}</p>
+              </div>
+
+              <div className="rounded-[22px] border border-border bg-white/[0.03] px-4 py-3">
+                <div className="eyebrow mb-3">The Numbers</div>
+                <div className="grid grid-cols-3 gap-2">
                   {[
-                    ['Actual', formatNumber(shyft.debug_trace?.actual ?? shyft.current_value)],
-                    ['Baseline', formatNumber(shyft.debug_trace?.baseline ?? shyft.baseline_value)],
-                    ['Delta', formatSigned(shyft.debug_trace?.delta ?? shyft.current_value - shyft.baseline_value)],
-                    ['Z-score', formatSigned(shyft.debug_trace?.z_score ?? shyft.z_score)],
-                    ['Sample', String(shyft.debug_trace?.sample_size ?? trace.baseline_samples.length)],
-                    ['Score', `${shyft.shyft_score.toFixed(1)}/10`],
+                    ['Delta', formatSigned(shyft.current_value - shyft.baseline_value)],
+                    ['Change', shyft.movement_pct !== null ? `${shyft.movement_pct >= 0 ? '+' : ''}${Math.round(shyft.movement_pct)}%` : '—'],
+                    ['Games', String(trace.baseline_samples.length || '—')],
                   ].map(([label, value]) => (
                     <div key={label} className="rounded-2xl border border-white/[0.06] bg-white/[0.025] px-3 py-3">
                       <div className="text-[10px] uppercase tracking-[0.14em] text-muted">{label}</div>
@@ -159,44 +147,7 @@ export function ShyftDetailDrawer({ shyftId, onClose }: Props) {
                     </div>
                   ))}
                 </div>
-
-                {shyft.movement_pct !== null ? (
-                  <p className="mt-3 text-xs text-muted">
-                    Percent movement: <span className="font-semibold text-[#d9e3f1]">{shyft.movement_pct >= 0 ? '+' : ''}{Math.round(shyft.movement_pct)}%</span>
-                  </p>
-                ) : null}
-
-                {shyft.debug_trace ? (
-                  <>
-                    <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                      {Object.entries(shyft.debug_trace.conditions).map(([key, passed]) => (
-                        <div key={key} className="flex items-center justify-between rounded-2xl border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-sm">
-                          <span className="text-muted">{gateLabels[key] ?? key.replace(/_/g, ' ')}</span>
-                          <span className={passed ? 'text-success' : 'text-danger'}>{passed ? 'Passed' : 'Failed'}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="mt-4 rounded-2xl border border-white/[0.06] bg-white/[0.02] px-3 py-3">
-                      <div className="text-[10px] uppercase tracking-[0.14em] text-muted">Thresholds Used</div>
-                      <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted">
-                        {Object.entries(shyft.debug_trace.thresholds).map(([key, value]) => (
-                          <div key={key} className="flex justify-between gap-3">
-                            <span>{key.replace(/_/g, ' ')}</span>
-                            <span className="font-mono text-[#d9e3f1]">{formatThresholdValue(value)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </>
-                ) : null}
-
-                {shyft.score_explanation ? <p className="mt-3 text-xs leading-5 text-muted">{shyft.score_explanation}</p> : null}
-              </div>
-
-              <div className="rounded-[22px] border border-border bg-white/[0.03] px-4 py-3">
-                <div className="eyebrow mb-2">What This Means</div>
-                <p className="text-sm leading-relaxed text-[#d9e3f1]">{shyft.explanation}</p>
-                {shyft.classification_reason ? <p className="mt-3 text-xs leading-5 text-muted">{shyft.classification_reason}</p> : null}
+                {shyft.baseline_window ? <p className="mt-3 text-xs text-muted/70">Baseline: {shyft.baseline_window}</p> : null}
               </div>
 
               {trace.baseline_samples.length > 0 && (

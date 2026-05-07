@@ -40,10 +40,32 @@ struct ShyftCommentsSheetView: View {
             Text(shyft.subjectType == "team" ? shyft.teamName : shyft.playerName)
                 .font(.system(size: 22, weight: .semibold, design: .serif))
                 .foregroundStyle(ShyftyTheme.ink)
-            Text("\(shyft.teamName) · \(ShyftFormatting.eventDateShort(shyft.eventDate))")
+            gameContextText
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(ShyftyTheme.muted)
         }
+    }
+
+    private var gameContextText: Text {
+        var text = Text("")
+        var hasContent = false
+
+        if let opponent = shyft.opponent, !opponent.isEmpty {
+            let side = (shyft.homeAway == "Away" || shyft.homeAway == "@") ? "@" : "vs"
+            text = Text("\(side) \(opponent)")
+            hasContent = true
+        }
+
+        if let result = shyft.gameResult, !result.isEmpty {
+            if hasContent { text = text + Text(" · ") }
+            let color: Color = result == "W" ? Color(red: 0.2, green: 0.85, blue: 0.45) : Color(red: 1, green: 0.35, blue: 0.35)
+            text = text + Text(result).foregroundStyle(color)
+            if let score = shyft.finalScore, !score.isEmpty {
+                text = text + Text(" \(score)")
+            }
+        }
+
+        return text
     }
 
     private var commentsList: some View {
@@ -121,11 +143,16 @@ struct ShyftCommentsSheetView: View {
                 }
                 Spacer()
                 if comment.canDelete {
-                    Button("Delete") {
+                    Button {
                         Task { await deleteComment(comment) }
+                    } label: {
+                        Image(systemName: "trash")
+                            .font(.system(size: 12, weight: .medium))
+                            .padding(6)
+                            .foregroundStyle(ShyftyTheme.danger.opacity(0.7))
+                            .background(ShyftyTheme.danger.opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
                     }
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(ShyftyTheme.danger.opacity(0.85))
                     .buttonStyle(.plain)
                 }
             }

@@ -197,8 +197,20 @@ struct ShyftDetailView: View {
 
                 HStack(spacing: 12) {
                     metricCell(label: "This Game", value: String(format: "%.1f", shyft.currentValue), color: tint)
-                    metricCell(label: "Baseline", value: String(format: "%.1f", shyft.baselineValue), color: ShyftyTheme.muted)
-                    metricCell(label: "Z-Score", value: "\(shyft.zScore >= 0 ? "+" : "")\(String(format: "%.2f", shyft.zScore))", color: ShyftyTheme.ink)
+                    metricCell(label: "Expected", value: String(format: "%.1f", shyft.baselineValue), color: ShyftyTheme.muted)
+                    if let movPct = shyft.movementPct {
+                        metricCell(
+                            label: "Change",
+                            value: "\(movPct >= 0 ? "+" : "")\(Int(movPct.rounded()))%",
+                            color: ShyftyTheme.ink
+                        )
+                    } else {
+                        metricCell(
+                            label: "Deviation",
+                            value: "\(shyft.zScore >= 0 ? "+" : "")\(String(format: "%.1f", shyft.zScore))σ",
+                            color: ShyftyTheme.ink
+                        )
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 10) {
@@ -231,7 +243,7 @@ struct ShyftDetailView: View {
                 }
             } label: {
                 HStack {
-                    Text("Why It Triggered")
+                    Text("Recent History")
                         .shyftyEyebrow()
                     Spacer()
                     Image(systemName: provenanceExpanded ? "chevron.up" : "chevron.down")
@@ -243,18 +255,10 @@ struct ShyftDetailView: View {
 
             if provenanceExpanded {
                 VStack(alignment: .leading, spacing: 14) {
-                    if let reason = shyft.classificationReason {
-                        Text(reason)
-                            .font(.system(size: 11, weight: .semibold))
-                            .tracking(1.4)
-                            .textCase(.uppercase)
-                            .foregroundStyle(ShyftyTheme.muted)
-                    }
-
                     if !trace.baselineSamples.isEmpty {
                         ForEach(trace.baselineSamples.prefix(4)) { sample in
                             HStack {
-                                Text(sample.gameDate)
+                                Text(ShyftFormatting.eventDateShort(sample.gameDate))
                                     .font(.system(size: 12, weight: .medium))
                                     .foregroundStyle(ShyftyTheme.muted)
                                 Spacer()
@@ -267,7 +271,7 @@ struct ShyftDetailView: View {
 
                     Text(shyft.baselineWindow)
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(ShyftyTheme.muted.opacity(0.75))
+                        .foregroundStyle(ShyftyTheme.muted.opacity(0.6))
                 }
                 .padding(.horizontal, 18)
                 .padding(.bottom, 18)

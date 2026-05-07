@@ -27,6 +27,8 @@
 	</dict>
 	<key>ShyftyAPIBaseURL</key>
 	<string>$(SHYFTY_API_BASE_URL)</string>
+	<key>ShyftyFrontendURL</key>
+	<string>$(SHYFTY_FRONTEND_URL)</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

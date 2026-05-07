@@ -229,36 +229,47 @@ export function CommentsPanel({ shyftId, initialComments, onCountChange }: Props
                     <p className="mt-1 text-[13px] leading-relaxed text-slate-300">{c.body}</p>
                   )}
                 </div>
-                <div className="flex flex-col items-end gap-1">
-                  {c.can_edit && editingId !== c.id ? (
-                    <button
-                      type="button"
-                      onClick={() => { setEditingId(c.id); setEditDraft(c.body); }}
-                      className="text-[10px] uppercase tracking-[0.14em] text-muted transition hover:text-ink"
-                    >
-                      Edit
-                    </button>
-                  ) : null}
-                  {c.can_delete ? (
-                    <button
-                      type="button"
-                      onClick={() => void handleDelete(c.id)}
-                      className="text-[10px] uppercase tracking-[0.14em] text-muted transition hover:text-danger"
-                    >
-                      Delete
-                    </button>
-                  ) : null}
-                  {c.can_report ? (
-                    <button
-                      type="button"
-                      onClick={() => void handleReport(c.id)}
-                      disabled={reportingId === c.id}
-                      className="text-[10px] uppercase tracking-[0.14em] text-muted transition hover:text-warning disabled:opacity-50"
-                    >
-                      {reportingId === c.id ? 'Reported' : 'Report'}
-                    </button>
-                  ) : null}
-                </div>
+                {(c.can_edit || c.can_delete || c.can_report) && editingId !== c.id ? (
+                  <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                    {c.can_edit ? (
+                      <button
+                        type="button"
+                        onClick={() => { setEditingId(c.id); setEditDraft(c.body); }}
+                        className="rounded-md p-1.5 text-muted transition hover:bg-white/[0.07] hover:text-ink"
+                        aria-label="Edit"
+                      >
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                          <path d="M11 2.5a1.5 1.5 0 0 1 2.5 1.5L5.5 12.5 3 13l.5-2.5L11 2.5Z" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      </button>
+                    ) : null}
+                    {c.can_delete ? (
+                      <button
+                        type="button"
+                        onClick={() => void handleDelete(c.id)}
+                        className="rounded-md p-1.5 text-muted transition hover:bg-red-500/10 hover:text-red-400"
+                        aria-label="Delete"
+                      >
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                          <path d="M2 4h12M5 4V2h6v2M4 4l.75 9.5A.75.75 0 0 0 5.5 14h5a.75.75 0 0 0 .75-.5L12 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      </button>
+                    ) : null}
+                    {c.can_report ? (
+                      <button
+                        type="button"
+                        onClick={() => void handleReport(c.id)}
+                        disabled={reportingId === c.id}
+                        className="rounded-md p-1.5 text-muted transition hover:bg-amber-500/10 hover:text-amber-400 disabled:opacity-40"
+                        aria-label={reportingId === c.id ? 'Reported' : 'Report'}
+                      >
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                          <path d="M3 2v12M3 2h8.5L9 6.5l2.5 4.5H3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             </div>
           ))}

@@ -7,11 +7,13 @@ interface Props {
   shyftId: number;
   title: string;
   subtitle?: string;
+  gameResult?: string | null;
+  finalScore?: string | null;
   onCountChange?: (count: number) => void;
   onClose: () => void;
 }
 
-export function ShyftCommentsDrawer({ shyftId, title, subtitle, onCountChange, onClose }: Props) {
+export function ShyftCommentsDrawer({ shyftId, title, subtitle, gameResult, finalScore, onCountChange, onClose }: Props) {
   useEffect(() => {
     function handleKey(event: KeyboardEvent) {
       if (event.key === 'Escape') onClose();
@@ -28,7 +30,19 @@ export function ShyftCommentsDrawer({ shyftId, title, subtitle, onCountChange, o
           <div className="min-w-0">
             <div className="eyebrow">Thread</div>
             <div className="truncate text-lg font-semibold text-ink">{title}</div>
-            {subtitle ? <div className="truncate text-xs text-muted">{subtitle}</div> : null}
+            {(subtitle || gameResult || finalScore) ? (
+              <div className="truncate text-xs text-muted">
+                {subtitle}
+                {subtitle && (gameResult || finalScore) ? ' · ' : null}
+                {gameResult ? (
+                  <span className={gameResult === 'W' ? 'font-semibold text-green-400' : gameResult === 'L' ? 'font-semibold text-red-400' : ''}>
+                    {gameResult}
+                  </span>
+                ) : null}
+                {gameResult && finalScore ? ' ' : null}
+                {finalScore ?? null}
+              </div>
+            ) : null}
           </div>
           <button type="button" onClick={onClose} className="text-xs text-muted transition hover:text-ink">
             Close ✕

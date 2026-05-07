@@ -266,7 +266,7 @@ export function PlayerDetailPage() {
           <section className="panel-surface px-4 py-4">
             <SectionHeader
               title="Latest Context"
-              description="The most recent shyft is the anchor. Everything else here should help explain that moment."
+              description="What changed last game and why it got flagged."
             />
             <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.9fr)]">
               <div className="rounded-[22px] border border-border bg-white/[0.03] px-4 py-4">

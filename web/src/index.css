@@ -162,6 +162,28 @@ body {
     animation: signal-card-enter 180ms ease-out;
     transform-origin: top center;
   }
+
+  .prose-legal h1 {
+    @apply mb-1 text-2xl font-semibold text-ink;
+  }
+  .prose-legal .lead {
+    @apply mb-8 text-xs text-muted;
+  }
+  .prose-legal h2 {
+    @apply mb-2 mt-8 text-sm font-semibold uppercase tracking-[0.12em] text-muted;
+  }
+  .prose-legal p {
+    @apply mb-3 text-sm leading-relaxed text-[#d9e3f1];
+  }
+  .prose-legal a {
+    @apply text-[#ffd8bd] underline-offset-2 hover:underline;
+  }
+  .prose-legal code {
+    @apply rounded bg-white/[0.06] px-1 py-0.5 text-xs text-[#d9e3f1];
+  }
+  .prose-legal strong {
+    @apply font-semibold text-ink;
+  }
 }
 
 @keyframes signal-card-enter {

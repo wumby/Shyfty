@@ -10,7 +10,10 @@ import { useShyftStore } from "../store/useShyftStore";
 interface LastGameShyftCardProps {
   shyfts: Shyft[];
   onOpenDetail?: (shyftId: number) => void;
-  onOpenComments?: (shyftId: number, title: string, subtitle?: string, shyftIds?: number[]) => void;
+  onOpenComments?: (shyftId: number, title: string, subtitle?: string, shyftIds?: number[], extra?: {
+    gameResult?: string | null;
+    finalScore?: string | null;
+  }) => void;
 }
 
 function getShyftPriority(signal: Shyft): number {
@@ -353,6 +356,10 @@ export function LastGameShyftCard({ shyfts, onOpenDetail, onOpenComments }: Last
               primaryShyft.subject_type === 'team' ? primaryShyft.team_name : primaryShyft.player_name,
               matchupLabel ?? undefined,
               sorted.map((signal) => signal.id),
+              {
+                gameResult: primaryShyft.game_result,
+                finalScore: primaryShyft.final_score,
+              },
             )
           }
           className="flex items-center gap-2 text-white/50 transition hover:text-white/75"

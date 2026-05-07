@@ -100,6 +100,15 @@ struct AuthView: View {
                             }
                             .font(.system(size: 12, weight: .medium))
                         }
+
+                        if !auth.isSignUp {
+                            if let frontendURL = Bundle.main.object(forInfoDictionaryKey: "ShyftyFrontendURL") as? String,
+                               let url = URL(string: "\(frontendURL.trimmingCharacters(in: .init(charactersIn: "/")))/reset-password") {
+                                Link("Forgot password?", destination: url)
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(ShyftyTheme.muted)
+                            }
+                        }
                     }
                     .padding(28)
                     .shyftyPanel()

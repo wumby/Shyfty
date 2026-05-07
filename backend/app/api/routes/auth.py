@@ -9,17 +9,20 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import get_current_user, get_db, get_session_token
 from app.core.config import settings
 from app.models.user import User
-from app.schemas.auth import AuthMessageRead, AuthSessionRead, PasswordChange, UserCreate, UserRead, UserSignIn
+from app.schemas.auth import AuthMessageRead, AuthSessionRead, ForgotPasswordRequest, PasswordChange, ResetPasswordRequest, UserCreate, UserRead, UserSignIn
 from app.services.abuse_service import enforce_rate_limit
 from app.services.auth_service import (
     AuthError,
     SESSION_COOKIE_NAME,
     authenticate_user,
     change_password,
+    consume_password_reset_token,
+    create_password_reset_token,
     create_user,
     create_user_session,
     revoke_session,
 )
+from app.services.email_service import send_password_reset_email
 
 router = APIRouter(prefix="/auth")
 _attempts_lock = Lock()
@@ -139,3 +142,33 @@ def update_password(
     response.delete_cookie(SESSION_COOKIE_NAME, path="/")
     response.delete_cookie(settings.csrf_cookie_name, path="/")
     return AuthMessageRead(message="Password changed successfully. Please sign in again.")
+
+
+@router.post("/forgot-password", response_model=AuthMessageRead)
+def forgot_password(payload: ForgotPasswordRequest, request: Request, db: Session = Depends(get_db)) -> AuthMessageRead:
+    if not _record_and_check_attempt(_rate_limit_key(request, payload.email)):
+        raise HTTPException(status_code=429, detail="Too many attempts. Try again later.")
+
+    raw_token = create_password_reset_token(db, email=payload.email)
+    if raw_token is not None:
+        frontend = (settings.frontend_origin or "").rstrip("/")
+        reset_link = f"{frontend}/reset-password?token={raw_token}"
+        try:
+            send_password_reset_email(to_email=payload.email, reset_link=reset_link)
+        except Exception:
+            pass  # logged inside email_service; don't leak failure to caller
+
+    # Always return the same message to avoid leaking whether the email exists.
+    return AuthMessageRead(message="If that email is registered, you'll receive a reset link shortly.")
+
+
+@router.post("/reset-password", response_model=AuthMessageRead)
+def reset_password(payload: ResetPasswordRequest, request: Request, db: Session = Depends(get_db)) -> AuthMessageRead:
+    enforce_rate_limit(request.client.host if request.client else "unknown", "password_reset", limit=10, per_seconds=15 * 60)
+    if payload.new_password != payload.confirm_password:
+        raise HTTPException(status_code=400, detail="Passwords do not match.")
+    try:
+        consume_password_reset_token(db, token=payload.token, new_password=payload.new_password)
+    except AuthError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return AuthMessageRead(message="Password reset successfully. You can now sign in.")

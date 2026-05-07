@@ -52,6 +52,14 @@ class Settings(BaseSettings):
     csrf_cookie_samesite: str = "lax"
     csrf_cookie_max_age_seconds: int = 60 * 60 * 24 * 30
 
+    # Email / SMTP — leave blank to skip sending (reset link logs to console instead)
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_from_address: str = ""
+    smtp_from_name: str = "Shyfty"
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def _parse_cors_origins(cls, value):

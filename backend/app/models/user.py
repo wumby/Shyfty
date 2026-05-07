@@ -20,3 +20,4 @@ class User(Base):
     sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
     reactions = relationship("ShyftReactionRecord", back_populates="user", cascade="all, delete-orphan")
     comments = relationship("ShyftComment", back_populates="user", cascade="all, delete-orphan")
+    reset_tokens = relationship("PasswordResetToken", back_populates="user", cascade="all, delete-orphan")

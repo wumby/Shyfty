@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import hashlib
 import hmac
 import secrets
@@ -11,8 +11,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.models.password_reset_token import PasswordResetToken
 from app.models.user import User
 from app.models.user_session import UserSession
+
+PASSWORD_RESET_TOKEN_TTL_HOURS = 1
 
 SESSION_COOKIE_NAME = "shyfty_session"
 
@@ -129,4 +132,52 @@ def revoke_session(db: Session, token: Optional[str]) -> None:
     if not token:
         return
     db.execute(delete(UserSession).where(UserSession.token_hash == _hash_session_token(token)))
+    db.commit()
+
+
+def _hash_reset_token(token: str) -> str:
+    return hmac.new(
+        settings.session_secret.encode("utf-8"),
+        token.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def create_password_reset_token(db: Session, *, email: str) -> Optional[str]:
+    """Create a reset token for the given email. Returns the raw token, or None if email not found."""
+    user = db.execute(select(User).where(User.email == _normalize_email(email))).scalar_one_or_none()
+    if user is None:
+        return None
+
+    raw_token = secrets.token_urlsafe(32)
+    record = PasswordResetToken(
+        user_id=user.id,
+        token_hash=_hash_reset_token(raw_token),
+        expires_at=datetime.utcnow() + timedelta(hours=PASSWORD_RESET_TOKEN_TTL_HOURS),
+    )
+    db.add(record)
+    db.commit()
+    return raw_token
+
+
+def consume_password_reset_token(db: Session, *, token: str, new_password: str) -> None:
+    """Validate token, update password, revoke all sessions. Raises AuthError on failure."""
+    record = db.execute(
+        select(PasswordResetToken).where(PasswordResetToken.token_hash == _hash_reset_token(token))
+    ).scalar_one_or_none()
+
+    if record is None or record.used_at is not None:
+        raise AuthError("This reset link is invalid or has already been used.")
+    if datetime.utcnow() > record.expires_at:
+        raise AuthError("This reset link has expired. Please request a new one.")
+    if not _is_strong_password(new_password):
+        raise AuthError("Password must be at least 8 characters with letters and numbers.")
+
+    user = db.get(User, record.user_id)
+    if user is None:
+        raise AuthError("Account not found.")
+
+    user.password_hash = _hash_password(new_password)
+    record.used_at = datetime.utcnow()
+    db.execute(delete(UserSession).where(UserSession.user_id == user.id))
     db.commit()

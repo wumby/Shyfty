@@ -25,7 +25,14 @@ const SIGNAL_TYPE_FILTERS = [
 
 type SignalTypeFilterValue = (typeof SIGNAL_TYPE_FILTERS)[number]['value'];
 type FeedTab = 'forYou' | 'following';
-type CommentThread = { shyftId: number; shyftIds: number[]; title: string; subtitle?: string };
+type CommentThread = {
+  shyftId: number;
+  shyftIds: number[];
+  title: string;
+  subtitle?: string;
+  gameResult?: string | null;
+  finalScore?: string | null;
+};
 
 function getSignalPriority(signal: Shyft): number {
   if (typeof signal.shyft_score === 'number') return signal.shyft_score;
@@ -279,8 +286,8 @@ export function ShyftFeedPage() {
                       key={`${item.shyfts[0]?.player_id ?? item.shyfts[0]?.team_id ?? 'unknown'}-${item.shyfts[0]?.game_id ?? 'game'}`}
                       shyfts={item.shyfts}
                       onOpenDetail={(shyftId) => setDetailShyftId(shyftId)}
-                      onOpenComments={(shyftId, title, subtitle, shyftIds) =>
-                        setCommentThread({ shyftId, title, subtitle, shyftIds: shyftIds?.length ? shyftIds : [shyftId] })
+                      onOpenComments={(shyftId, title, subtitle, shyftIds, extra) =>
+                        setCommentThread({ shyftId, title, subtitle, shyftIds: shyftIds?.length ? shyftIds : [shyftId], ...extra })
                       }
                     />
                   )
@@ -308,6 +315,8 @@ export function ShyftFeedPage() {
           shyftId={commentThread.shyftId}
           title={commentThread.title}
           subtitle={commentThread.subtitle}
+          gameResult={commentThread.gameResult}
+          finalScore={commentThread.finalScore}
           onCountChange={(count) => setShyftGroupCommentCount(commentThread.shyftIds, count)}
           onClose={() => setCommentThread(null)}
         />
