@@ -22,7 +22,7 @@ router = APIRouter()
 
 @router.get("/shyfts/trending", response_model=list[ShyftRead])
 def get_trending_signals(
-    limit: int = 12,
+    limit: int = Query(default=12, ge=1, le=50),
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user),
 ) -> list[ShyftRead]:
@@ -41,7 +41,7 @@ def get_signals(
     shyft_type: Optional[str] = Query(default=None, alias="shyft_type"),
     sort: str = Query(default=SORT_MODE_NEWEST),
     feed: str = Query(default=FEED_MODE_ALL),
-    limit: int = 24,
+    limit: int = Query(default=24, ge=1, le=50),
     before_id: Optional[int] = Query(default=None, alias="before_id"),
     date_from: Optional[date] = Query(default=None, alias="date_from"),
     date_to: Optional[date] = Query(default=None, alias="date_to"),
@@ -69,7 +69,7 @@ def get_following_signals(
     league: Optional[str] = None,
     shyft_type: Optional[str] = Query(default=None, alias="shyft_type"),
     sort: str = Query(default=SORT_MODE_NEWEST),
-    limit: int = 24,
+    limit: int = Query(default=24, ge=1, le=50),
     before_id: Optional[int] = Query(default=None, alias="before_id"),
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user),

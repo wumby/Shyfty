@@ -22,6 +22,12 @@ _ingest_state: dict = {
 }
 
 
+class IngestRunFailed(RuntimeError):
+    def __init__(self, message: str, result=None) -> None:
+        super().__init__(message)
+        self.result = result
+
+
 def get_ingest_state() -> dict:
     state = dict(_ingest_state)
     if state["status"] == "running" and state.get("started_at"):
@@ -118,8 +124,8 @@ def _persist_run_finish(
                     if result is not None:
                         run.games_fetched = result.games_fetched
                         run.players_loaded = result.players_loaded
-                        run.signals_created = result.signals_created
-                        run.signals_updated = result.signals_updated
+                        run.shyfts_created = result.signals_created
+                        run.shyfts_updated = result.signals_updated
                     run.duration_seconds = (
                         datetime.fromisoformat(finished_at) - datetime.fromisoformat(started_at)
                     ).total_seconds()
@@ -135,6 +141,8 @@ async def run_ingest_once(mode: str = "incremental", sources: Optional[tuple[str
     if _ingest_state["status"] == "running":
         logger.info("Scheduler: ingest already running, skipping trigger")
         return
+    run_id: Optional[int] = None
+    result = None
     try:
         from app.services.sync_service import get_default_sync_sources, run_sync
 
@@ -150,6 +158,12 @@ async def run_ingest_once(mode: str = "incremental", sources: Optional[tuple[str
         run_id = await asyncio.to_thread(_persist_run_start, started_at)
 
         result = await asyncio.to_thread(run_sync, mode=mode, sources=resolved_sources)
+        if result.has_failures:
+            details = "; ".join(
+                f"{source_result.source}: {source_result.detail or 'failed'}"
+                for source_result in result.failed_sources
+            )
+            raise IngestRunFailed(f"One or more sync sources failed: {details}", result=result)
 
         finished_at = datetime.utcnow().isoformat()
         _ingest_state["status"] = "idle"
@@ -175,9 +189,11 @@ async def run_ingest_once(mode: str = "incremental", sources: Optional[tuple[str
             result.players_loaded,
             result.signals_created,
         )
-    except Exception:
+    except Exception as exc:
         finished_at = datetime.utcnow().isoformat()
-        error_message = "The latest ingest run failed. Review the recent run log for details."
+        result = getattr(exc, "result", result)
+        raw_message = str(exc).strip()
+        error_message = raw_message[:512] if raw_message else "The latest ingest run failed."
         started_at = _ingest_state.get("started_at") or finished_at
         _ingest_state["status"] = "error"
         _ingest_state["finished_at"] = finished_at
@@ -195,8 +211,7 @@ async def run_ingest_once(mode: str = "incremental", sources: Optional[tuple[str
             *_ingest_state["recent_runs"],
         ][:12]
 
-        run_id = None  # may not have been persisted if start failed
-        await asyncio.to_thread(_persist_run_finish, run_id, "failed", None, error_message, started_at, finished_at)
+        await asyncio.to_thread(_persist_run_finish, run_id, "failed", result, error_message, started_at, finished_at)
         logger.exception("Scheduler: ingest failed")
 
 

@@ -38,6 +38,18 @@ class ShyftGenerationResult:
     updated_rolling_metrics: int = 0
     deleted_rolling_metrics: int = 0
 
+    @property
+    def created_signals(self) -> int:
+        return self.created_shyfts
+
+    @property
+    def updated_signals(self) -> int:
+        return self.updated_shyfts
+
+    @property
+    def deleted_signals(self) -> int:
+        return self.deleted_shyfts
+
 
 @dataclass(frozen=True)
 class ShyftGenerationContext:

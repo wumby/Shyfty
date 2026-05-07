@@ -5,6 +5,7 @@ from app.models.game import Game
 from app.models.league import League
 from app.models.player import Player
 from app.models.player_game_stat import PlayerGameStat
+from app.models.password_reset_token import PasswordResetToken
 from app.models.rolling_metric import RollingMetric
 from app.models.rolling_metric_baseline_sample import RollingMetricBaselineSample
 from app.models.shyft import Shyft
@@ -26,6 +27,7 @@ __all__ = [
     "League",
     "Player",
     "PlayerGameStat",
+    "PasswordResetToken",
     "RollingMetric",
     "RollingMetricBaselineSample",
     "Shyft",

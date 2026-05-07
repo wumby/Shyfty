@@ -2,7 +2,7 @@ import argparse
 from pathlib import Path
 
 from app.db.session import SessionLocal
-from app.services.signal_backtest_service import run_signal_backtest, write_backtest_result
+from app.services.shyft_backtest_service import run_signal_backtest, write_backtest_result
 
 
 def main() -> int:

@@ -27,18 +27,17 @@ def upgrade() -> None:
 
     # signal_reactions: rename signal_id column, then rename table
     # Use raw SQL to avoid FK reflection issues after signals was renamed
-    conn.execute(text(
-        "CREATE TABLE shyft_reactions_new ("
-        "id INTEGER NOT NULL PRIMARY KEY, "
-        "user_id INTEGER NOT NULL, "
-        "shyft_id INTEGER NOT NULL, "
-        "type VARCHAR(16) NOT NULL, "
-        "created_at DATETIME NOT NULL, "
-        "updated_at DATETIME NOT NULL, "
-        "FOREIGN KEY(user_id) REFERENCES users(id), "
-        "FOREIGN KEY(shyft_id) REFERENCES shyfts(id)"
-        ")"
-    ))
+    op.create_table(
+        "shyft_reactions_new",
+        sa.Column("id", sa.Integer(), primary_key=True),
+        sa.Column("user_id", sa.Integer(), nullable=False),
+        sa.Column("shyft_id", sa.Integer(), nullable=False),
+        sa.Column("type", sa.String(length=16), nullable=False),
+        sa.Column("created_at", sa.DateTime(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(), nullable=False),
+        sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
+        sa.ForeignKeyConstraint(["shyft_id"], ["shyfts.id"]),
+    )
     conn.execute(text(
         "INSERT INTO shyft_reactions_new (id, user_id, shyft_id, type, created_at, updated_at) "
         "SELECT id, user_id, signal_id, type, created_at, updated_at FROM signal_reactions"
@@ -47,27 +46,44 @@ def upgrade() -> None:
     conn.execute(text("ALTER TABLE shyft_reactions_new RENAME TO shyft_reactions"))
 
     # signal_comments: rename signal_id column, then rename table
-    conn.execute(text(
-        "CREATE TABLE shyft_comments_new ("
-        "id INTEGER NOT NULL PRIMARY KEY, "
-        "shyft_id INTEGER NOT NULL, "
-        "user_id INTEGER NOT NULL, "
-        "body TEXT NOT NULL, "
-        "created_at DATETIME NOT NULL, "
-        "updated_at DATETIME NOT NULL, "
-        "FOREIGN KEY(shyft_id) REFERENCES shyfts(id), "
-        "FOREIGN KEY(user_id) REFERENCES users(id)"
-        ")"
-    ))
+    op.create_table(
+        "shyft_comments_new",
+        sa.Column("id", sa.Integer(), primary_key=True),
+        sa.Column("shyft_id", sa.Integer(), nullable=False),
+        sa.Column("user_id", sa.Integer(), nullable=False),
+        sa.Column("body", sa.Text(), nullable=False),
+        sa.Column("created_at", sa.DateTime(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(), nullable=False),
+        sa.ForeignKeyConstraint(["shyft_id"], ["shyfts.id"]),
+        sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
+    )
     conn.execute(text(
         "INSERT INTO shyft_comments_new (id, shyft_id, user_id, body, created_at, updated_at) "
         "SELECT id, signal_id, user_id, body, created_at, updated_at FROM signal_comments"
     ))
+    op.create_table(
+        "comment_reports_new",
+        sa.Column("id", sa.Integer(), primary_key=True),
+        sa.Column("comment_id", sa.Integer(), nullable=False),
+        sa.Column("reporter_user_id", sa.Integer(), nullable=False),
+        sa.Column("reason", sa.String(length=48), nullable=False),
+        sa.Column("notes", sa.Text(), nullable=True),
+        sa.Column("status", sa.String(length=24), nullable=False),
+        sa.Column("created_at", sa.DateTime(), nullable=False),
+        sa.ForeignKeyConstraint(["comment_id"], ["shyft_comments_new.id"]),
+        sa.ForeignKeyConstraint(["reporter_user_id"], ["users.id"]),
+        sa.UniqueConstraint("comment_id", "reporter_user_id", name="uq_comment_reporter"),
+    )
+    conn.execute(text(
+        "INSERT INTO comment_reports_new (id, comment_id, reporter_user_id, reason, notes, status, created_at) "
+        "SELECT id, comment_id, reporter_user_id, reason, notes, status, created_at FROM comment_reports"
+    ))
+    conn.execute(text("DROP TABLE comment_reports"))
     conn.execute(text("DROP TABLE signal_comments"))
     conn.execute(text("ALTER TABLE shyft_comments_new RENAME TO shyft_comments"))
-
-    # Update comment_reports FK (still points to signal_comments id, now shyft_comments)
-    # The id column is the same, just table name changed — no data migration needed
+    conn.execute(text("ALTER TABLE comment_reports_new RENAME TO comment_reports"))
+    op.create_index(op.f("ix_comment_reports_comment_id"), "comment_reports", ["comment_id"], unique=False)
+    op.create_index(op.f("ix_comment_reports_reporter_user_id"), "comment_reports", ["reporter_user_id"], unique=False)
 
     # user_preferences: rename preferred_signal_type
     with op.batch_alter_table("user_preferences", recreate="always") as batch_op:
@@ -89,18 +105,17 @@ def downgrade() -> None:
     with op.batch_alter_table("user_preferences", recreate="always") as batch_op:
         batch_op.alter_column("preferred_shyft_type", new_column_name="preferred_signal_type")
 
-    conn.execute(text(
-        "CREATE TABLE signal_comments_new ("
-        "id INTEGER NOT NULL PRIMARY KEY, "
-        "signal_id INTEGER NOT NULL, "
-        "user_id INTEGER NOT NULL, "
-        "body TEXT NOT NULL, "
-        "created_at DATETIME NOT NULL, "
-        "updated_at DATETIME NOT NULL, "
-        "FOREIGN KEY(signal_id) REFERENCES signals(id), "
-        "FOREIGN KEY(user_id) REFERENCES users(id)"
-        ")"
-    ))
+    op.create_table(
+        "signal_comments_new",
+        sa.Column("id", sa.Integer(), primary_key=True),
+        sa.Column("signal_id", sa.Integer(), nullable=False),
+        sa.Column("user_id", sa.Integer(), nullable=False),
+        sa.Column("body", sa.Text(), nullable=False),
+        sa.Column("created_at", sa.DateTime(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(), nullable=False),
+        sa.ForeignKeyConstraint(["signal_id"], ["signals.id"]),
+        sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
+    )
     conn.execute(text(
         "INSERT INTO signal_comments_new (id, signal_id, user_id, body, created_at, updated_at) "
         "SELECT id, shyft_id, user_id, body, created_at, updated_at FROM shyft_comments"
@@ -108,18 +123,17 @@ def downgrade() -> None:
     conn.execute(text("DROP TABLE shyft_comments"))
     conn.execute(text("ALTER TABLE signal_comments_new RENAME TO signal_comments"))
 
-    conn.execute(text(
-        "CREATE TABLE signal_reactions_new ("
-        "id INTEGER NOT NULL PRIMARY KEY, "
-        "user_id INTEGER NOT NULL, "
-        "signal_id INTEGER NOT NULL, "
-        "type VARCHAR(16) NOT NULL, "
-        "created_at DATETIME NOT NULL, "
-        "updated_at DATETIME NOT NULL, "
-        "FOREIGN KEY(user_id) REFERENCES users(id), "
-        "FOREIGN KEY(signal_id) REFERENCES signals(id)"
-        ")"
-    ))
+    op.create_table(
+        "signal_reactions_new",
+        sa.Column("id", sa.Integer(), primary_key=True),
+        sa.Column("user_id", sa.Integer(), nullable=False),
+        sa.Column("signal_id", sa.Integer(), nullable=False),
+        sa.Column("type", sa.String(length=16), nullable=False),
+        sa.Column("created_at", sa.DateTime(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(), nullable=False),
+        sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
+        sa.ForeignKeyConstraint(["signal_id"], ["signals.id"]),
+    )
     conn.execute(text(
         "INSERT INTO signal_reactions_new (id, user_id, signal_id, type, created_at, updated_at) "
         "SELECT id, user_id, shyft_id, type, created_at, updated_at FROM shyft_reactions"

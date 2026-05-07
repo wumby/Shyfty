@@ -16,6 +16,7 @@ from app.models.user import User
 from app.models.user_session import UserSession
 
 PASSWORD_RESET_TOKEN_TTL_HOURS = 1
+SESSION_TOUCH_INTERVAL_MINUTES = 5
 
 SESSION_COOKIE_NAME = "shyfty_session"
 
@@ -117,15 +118,20 @@ def get_user_by_session_token(db: Session, token: Optional[str]) -> Optional[Use
     if not token:
         return None
 
-    session = db.execute(
-        select(UserSession).where(UserSession.token_hash == _hash_session_token(token))
-    ).scalar_one_or_none()
-    if session is None:
+    row = db.execute(
+        select(UserSession, User)
+        .join(User, User.id == UserSession.user_id)
+        .where(UserSession.token_hash == _hash_session_token(token))
+    ).one_or_none()
+    if row is None:
         return None
 
-    session.updated_at = datetime.utcnow()
-    db.commit()
-    return db.execute(select(User).where(User.id == session.user_id)).scalar_one_or_none()
+    session, user = row
+    now = datetime.utcnow()
+    if session.updated_at is None or now - session.updated_at >= timedelta(minutes=SESSION_TOUCH_INTERVAL_MINUTES):
+        session.updated_at = now
+        db.commit()
+    return user
 
 
 def revoke_session(db: Session, token: Optional[str]) -> None:
@@ -149,6 +155,8 @@ def create_password_reset_token(db: Session, *, email: str) -> Optional[str]:
     if user is None:
         return None
 
+    db.execute(delete(PasswordResetToken).where(PasswordResetToken.user_id == user.id))
+    db.execute(delete(PasswordResetToken).where(PasswordResetToken.expires_at < datetime.utcnow()))
     raw_token = secrets.token_urlsafe(32)
     record = PasswordResetToken(
         user_id=user.id,
@@ -180,4 +188,10 @@ def consume_password_reset_token(db: Session, *, token: str, new_password: str) 
     user.password_hash = _hash_password(new_password)
     record.used_at = datetime.utcnow()
     db.execute(delete(UserSession).where(UserSession.user_id == user.id))
+    db.execute(
+        delete(PasswordResetToken).where(
+            PasswordResetToken.user_id == user.id,
+            PasswordResetToken.id != record.id,
+        )
+    )
     db.commit()

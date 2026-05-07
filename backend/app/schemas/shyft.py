@@ -111,6 +111,14 @@ class ShyftRead(BaseModel):
     comment_count: int = 0
     created_at: datetime
 
+    @property
+    def signal_type(self) -> str:
+        return self.shyft_type
+
+    @property
+    def signal_score(self) -> float:
+        return self.shyft_score
+
 
 class CascadePlayerRead(BaseModel):
     id: Optional[int] = None
@@ -152,6 +160,10 @@ class CascadeShyftRead(BaseModel):
     contributors: list[CascadeContributorRead]
     underlying_shyfts: list[ShyftRead]
     narrative_summary: Optional[str] = None
+
+    @property
+    def underlying_signals(self) -> list[ShyftRead]:
+        return self.underlying_shyfts
 
 
 FeedItemRead = Union[ShyftRead, CascadeShyftRead]
@@ -220,6 +232,10 @@ class ShyftTraceRead(BaseModel):
     baseline_samples: list[BaselineSampleRead]
     discussion_preview: list[CommentRead] = []
     feed_context: Optional[FeedContextRead] = None
+
+    @property
+    def signal(self) -> ShyftRead:
+        return self.shyft
 
 
 class PaginatedShyfts(BaseModel):

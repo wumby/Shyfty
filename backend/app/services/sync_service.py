@@ -34,6 +34,7 @@ class SourceSyncResult:
     signals_created: int = 0
     signals_updated: int = 0
     skipped: bool = False
+    failed: bool = False
     detail: Optional[str] = None
 
 
@@ -61,6 +62,14 @@ class SyncResult:
     @property
     def signals_updated(self) -> int:
         return sum(result.signals_updated for result in self.source_results)
+
+    @property
+    def failed_sources(self) -> tuple[SourceSyncResult, ...]:
+        return tuple(result for result in self.source_results if result.failed)
+
+    @property
+    def has_failures(self) -> bool:
+        return bool(self.failed_sources)
 
 
 def get_default_sync_sources() -> tuple[str, ...]:
@@ -250,6 +259,7 @@ def run_sync(
                     source=source,
                     mode=mode,
                     skipped=True,
+                    failed=True,
                     detail=f"failed: {exc}",
                 )
             )

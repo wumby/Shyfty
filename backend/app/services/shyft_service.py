@@ -4,7 +4,7 @@ from collections import defaultdict
 from datetime import date, datetime
 from typing import Optional
 
-from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy import and_, case, func, literal, or_, select
 from sqlalchemy.orm import Session, aliased
 
 from app.domain.shyfts import (
@@ -272,7 +272,6 @@ def _reaction_count_subquery():
 
 
 def _base_shyft_query():
-    comment_count_subq = _comment_count_subquery()
     reaction_count_subq = _reaction_count_subquery()
     home_team = aliased(Team)
     away_team = aliased(Team)
@@ -286,7 +285,7 @@ def _base_shyft_query():
             League.name,
             Game.game_date,
             RollingMetric,
-            func.coalesce(comment_count_subq.c.comment_count, 0).label("comment_count"),
+            literal(0).label("comment_count"),
             func.coalesce(reaction_count_subq.c.reaction_count, 0).label("reaction_count"),
             PlayerGameStat.plus_minus,
             Game.home_team_id,
@@ -322,10 +321,53 @@ def _base_shyft_query():
         )
         .outerjoin(home_team, Game.home_team_id == home_team.id)
         .outerjoin(away_team, Game.away_team_id == away_team.id)
-        .outerjoin(comment_count_subq, comment_count_subq.c.shyft_id == Shyft.id)
         .outerjoin(reaction_count_subq, reaction_count_subq.c.shyft_id == Shyft.id)
         .where(~Shyft.shyft_type.in_(EXCLUDED_SHYFT_TYPES))
     )
+
+
+def _group_key(shyft: Shyft) -> tuple[str, int, Optional[int], Optional[int]]:
+    if shyft.player_id is not None:
+        return (shyft.subject_type, shyft.game_id, shyft.player_id, None)
+    return (shyft.subject_type, shyft.game_id, None, shyft.team_id)
+
+
+def _comment_counts_for_selected_groups(db: Session, shyfts: list[Shyft]) -> dict[int, int]:
+    if not shyfts:
+        return {}
+
+    clauses = []
+    for shyft in shyfts:
+        base = [
+            Shyft.game_id == shyft.game_id,
+            Shyft.subject_type == shyft.subject_type,
+        ]
+        if shyft.player_id is not None:
+            base.append(Shyft.player_id == shyft.player_id)
+        else:
+            base.extend([Shyft.player_id.is_(None), Shyft.team_id == shyft.team_id])
+        clauses.append(and_(*base))
+
+    rows = db.execute(
+        select(
+            Shyft.id,
+            Shyft.subject_type,
+            Shyft.game_id,
+            Shyft.player_id,
+            Shyft.team_id,
+            func.count(ShyftComment.id),
+        )
+        .outerjoin(ShyftComment, ShyftComment.shyft_id == Shyft.id)
+        .where(or_(*clauses))
+        .group_by(Shyft.id, Shyft.subject_type, Shyft.game_id, Shyft.player_id, Shyft.team_id)
+    ).all()
+
+    group_counts: dict[tuple[str, int, Optional[int], Optional[int]], int] = defaultdict(int)
+    for _id, subject_type, game_id, player_id, team_id, count in rows:
+        key = (subject_type, game_id, player_id if player_id is not None else None, None if player_id is not None else team_id)
+        group_counts[key] += int(count)
+
+    return {shyft.id: group_counts.get(_group_key(shyft), 0) for shyft in shyfts}
 
 
 def _get_engagement_context(db: Session, user_id: int) -> dict[str, object]:
@@ -424,6 +466,7 @@ def _compute_streaks(
 
 def _build_shyft_items(rows, db: Session, current_user_id: Optional[int]) -> list[ShyftRead]:
     shyft_ids = [shyft.id for shyft, *_ in rows]
+    group_comment_counts = _comment_counts_for_selected_groups(db, [shyft for shyft, *_ in rows])
     reaction_summaries = get_reaction_summaries(db, shyft_ids)
     user_reactions = get_user_reactions(db, user_id=current_user_id, shyft_ids=shyft_ids)
 
@@ -482,7 +525,7 @@ def _build_shyft_items(rows, db: Session, current_user_id: Optional[int]) -> lis
                 reactions=reaction_summaries.get(shyft.id),
                 user_reactions=current_user_reactions,
                 user_reaction=next(iter(user_reactions.get(shyft.id, set())), None),
-                comment_count=comment_count,
+                comment_count=group_comment_counts.get(shyft.id, comment_count),
                 opponent=opponent,
                 home_away=home_away,
                 game_result=game_result,
@@ -690,6 +733,7 @@ def list_shyfts(
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
 ) -> PaginatedShyfts:
+    limit = max(1, min(limit, 50))
     query = _base_shyft_query()
 
     if league:
@@ -810,6 +854,7 @@ def list_trending_shyfts(
     limit: int = 12,
     current_user_id: Optional[int] = None,
 ) -> list[ShyftRead]:
+    limit = max(1, min(limit, 50))
     page = list_shyfts(
         db=db,
         league=None,

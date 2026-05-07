@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import DateTime, Float, ForeignKey, String, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 
 from app.db.base import Base
 
@@ -41,3 +41,7 @@ class Shyft(Base):
     source_team_stat = relationship("TeamGameStat", back_populates="source_shyfts", foreign_keys=[source_team_stat_id])
     reactions = relationship("ShyftReactionRecord", back_populates="shyft", cascade="all, delete-orphan")
     comments = relationship("ShyftComment", back_populates="shyft", cascade="all, delete-orphan")
+
+    # Backward-compatible aliases for pre-rename tests and operational scripts.
+    signal_type = synonym("shyft_type")
+    signal_score = synonym("shyft_score")

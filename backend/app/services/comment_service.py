@@ -59,7 +59,15 @@ def _signal_group_ids(db: Session, shyft_id: int) -> list[int]:
     )
 
 
-def list_comments(db: Session, shyft_id: int, current_user_id: Optional[int] = None) -> list[CommentRead]:
+def list_comments(
+    db: Session,
+    shyft_id: Optional[int] = None,
+    current_user_id: Optional[int] = None,
+    signal_id: Optional[int] = None,
+) -> list[CommentRead]:
+    shyft_id = shyft_id if shyft_id is not None else signal_id
+    if shyft_id is None:
+        return []
     signal_ids = _signal_group_ids(db, shyft_id)
     if not signal_ids:
         return []
@@ -91,7 +99,17 @@ def list_discussion_preview(
     return [_comment_read(comment, email, display_name, current_user_id) for comment, email, display_name in rows]
 
 
-def create_comment(db: Session, *, shyft_id: int, user_id: int, body: str) -> CommentRead:
+def create_comment(
+    db: Session,
+    *,
+    shyft_id: Optional[int] = None,
+    signal_id: Optional[int] = None,
+    user_id: int,
+    body: str,
+) -> CommentRead:
+    shyft_id = shyft_id if shyft_id is not None else signal_id
+    if shyft_id is None:
+        raise LookupError("Shyft not found.")
     signal_ids = _signal_group_ids(db, shyft_id)
     if not signal_ids:
         raise LookupError("Shyft not found.")

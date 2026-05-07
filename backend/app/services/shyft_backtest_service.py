@@ -16,7 +16,7 @@ from app.domain.shyfts import (
     build_metric_snapshots,
     classify_shyft,
     deviation_from_expected,
-    load_signal_threshold_payload,
+    load_shyft_threshold_payload,
     metric_success,
     recommend_thresholds_from_samples,
     score_shyft,
@@ -24,7 +24,7 @@ from app.domain.shyfts import (
 from app.models.game import Game
 from app.models.player import Player
 from app.models.player_game_stat import PlayerGameStat
-from app.services.signal_generation_service import build_signal_generation_context
+from app.services.shyft_generation_service import build_shyft_generation_context
 
 
 @dataclass(frozen=True)
@@ -60,7 +60,7 @@ def run_signal_backtest(
         select(Player).options(selectinload(Player.league)).order_by(Player.id)
     ).scalars().all()
     game_dates = {game_id: game_date for game_id, game_date in db.execute(select(Game.id, Game.game_date)).all()}
-    context = build_signal_generation_context(db)
+    context = build_shyft_generation_context(db)
 
     signal_samples: list[dict[str, Any]] = []
     threshold_samples: dict[str, list[dict[str, float]]] = defaultdict(list)
@@ -206,7 +206,7 @@ def run_signal_backtest(
         signal_type_metrics=signal_type_metrics,
         calibration=calibration,
         thresholds={
-            "active": load_signal_threshold_payload(),
+            "active": load_shyft_threshold_payload(),
             "recommended": recommend_thresholds_from_samples(threshold_samples),
         },
         signal_samples=signal_samples,

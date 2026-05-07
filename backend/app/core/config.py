@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     api_public_url: Optional[str] = None
     trust_proxy_headers: bool = False
     allowed_hosts: list[str] = ["localhost", "127.0.0.1"]
+    admin_emails: list[str] = []
     cors_origins: list[str] = [
         "http://127.0.0.1:5175",
         "http://localhost:5175",
@@ -78,6 +79,15 @@ class Settings(BaseSettings):
             return [item.strip() for item in value.split(",") if item.strip()]
         return value
 
+    @field_validator("admin_emails", mode="before")
+    @classmethod
+    def _parse_admin_emails(cls, value):
+        if value is None:
+            return []
+        if isinstance(value, str):
+            return [item.strip().lower() for item in value.split(",") if item.strip()]
+        return [str(item).strip().lower() for item in value if str(item).strip()]
+
     @field_validator("auth_cookie_samesite", "csrf_cookie_samesite")
     @classmethod
     def _normalize_samesite(cls, value: str) -> str:
@@ -101,6 +111,8 @@ class Settings(BaseSettings):
                 raise ValueError("API_PUBLIC_URL is required in production.")
             if not self.allowed_hosts:
                 raise ValueError("ALLOWED_HOSTS is required in production.")
+            if not self.admin_emails:
+                raise ValueError("ADMIN_EMAILS is required in production.")
         return self
 
     @property

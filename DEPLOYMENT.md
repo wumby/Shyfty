@@ -16,6 +16,7 @@ Backend:
 - `API_PUBLIC_URL=https://your-backend-domain.com`
 - `TRUST_PROXY_HEADERS=true`
 - `ALLOWED_HOSTS=your-backend-domain.com`
+- `ADMIN_EMAILS=you@yourdomain.com` (comma-separated; required for manual ingest trigger access)
 - `CORS_ORIGINS=https://your-frontend-domain.com` (comma-separated for multiple)
 - `SESSION_SECRET` (strong random string)
 - `JWT_SECRET` (strong random string)
@@ -95,7 +96,8 @@ Do not run heavy ingest in API startup. Use a separate scheduled command:
 Railway option:
 1. Create a separate service/job using the same `backend/` root.
 2. Reuse `DATABASE_URL`, `SESSION_SECRET`, `JWT_SECRET`, `APP_ENV=production`.
-3. Configure a cron schedule (for example every 6-24 hours).
+3. Reuse `ADMIN_EMAILS` if the scheduled job also exposes API routes; manual ingest trigger is admin-only.
+4. Configure a cron schedule (for example every 6-24 hours).
 
 Manual one-off ingest:
 - `python -m app.ingest.cli sync --league NBA --from YYYY-MM-DD --to YYYY-MM-DD`

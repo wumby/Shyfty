@@ -3,6 +3,7 @@ from typing import Literal, Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 
 from app.api.dependencies import get_current_user
+from app.core.config import settings
 from app.models.user import User
 from app.schemas.shyft import IngestStatusRead
 from app.services.scheduler import get_ingest_state, run_ingest_once
@@ -17,9 +18,17 @@ def _require_user(user: Optional[User]) -> User:
     return user
 
 
+def _require_admin(user: Optional[User]) -> User:
+    user = _require_user(user)
+    admin_emails = {email.lower() for email in settings.admin_emails}
+    if user.email.lower() not in admin_emails:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required.")
+    return user
+
+
 @router.get("/ingest/status", response_model=IngestStatusRead)
 def get_ingest_status(current_user: Optional[User] = Depends(get_current_user)) -> IngestStatusRead:
-    _require_user(current_user)
+    _require_admin(current_user)
     return IngestStatusRead(**get_ingest_state())
 
 

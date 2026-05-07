@@ -18,7 +18,7 @@ from app.models.league import League
 from app.models.sync_checkpoint import SyncCheckpoint
 from app.models.team import Team
 from app.services.nba_normalization_service import load_nba_games_incremental
-from app.services.signal_generation_service import SignalGenerationResult, generate_signals_for_players
+from app.services.shyft_generation_service import ShyftGenerationResult, generate_shyfts_for_players
 
 logger = logging.getLogger(__name__)
 
@@ -240,7 +240,7 @@ def hydrate_games(
 
         sig: SignalGenerationResult
         if affected_player_ids or affected_team_ids:
-            sig = generate_signals_for_players(db, list(affected_player_ids), team_ids=list(affected_team_ids))
+            sig = generate_shyfts_for_players(db, list(affected_player_ids), team_ids=list(affected_team_ids))
         else:
             sig = SignalGenerationResult()
         db.commit()

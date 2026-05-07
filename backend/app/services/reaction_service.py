@@ -96,3 +96,17 @@ def remove_shyft_reaction(db: Session, *, shyft_id: int, user_id: int) -> None:
         db.delete(reaction)
     if reactions:
         db.commit()
+
+
+def set_signal_reaction(
+    db: Session,
+    *,
+    signal_id: int,
+    user_id: int,
+    reaction_type: str,
+) -> ShyftReactionRecord:
+    return set_shyft_reaction(db, shyft_id=signal_id, user_id=user_id, reaction_type=reaction_type)
+
+
+def remove_signal_reaction(db: Session, *, signal_id: int, user_id: int) -> None:
+    remove_shyft_reaction(db, shyft_id=signal_id, user_id=user_id)

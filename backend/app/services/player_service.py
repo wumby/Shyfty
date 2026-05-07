@@ -159,7 +159,8 @@ def get_player_box_scores(db: Session, player_id: int, limit: int = 5) -> list[P
     return box_scores
 
 
-def get_player_shyfts(db: Session, player_id: int):
+def get_player_shyfts(db: Session, player_id: int, limit: int = 50):
+    limit = max(1, min(limit, 100))
     comment_count_subq = _comment_count_subquery()
     rows = db.execute(
         select(
@@ -181,12 +182,17 @@ def get_player_shyfts(db: Session, player_id: int):
         .outerjoin(comment_count_subq, comment_count_subq.c.shyft_id == Shyft.id)
         .where(Player.id == player_id)
         .order_by(Shyft.created_at.desc())
+        .limit(limit)
     ).all()
     return [
         build_shyft_read(shyft, player_name, team_name, league_name, event_date, rolling_metric,
                           comment_count=comment_count)
         for shyft, player_name, team_name, league_name, event_date, rolling_metric, comment_count in rows
     ]
+
+
+def get_player_signals(db: Session, player_id: int):
+    return get_player_shyfts(db, player_id)
 
 
 def get_player_gamelog(db: Session, player_id: int, season: Optional[str] = None) -> list[GameLogRow]:

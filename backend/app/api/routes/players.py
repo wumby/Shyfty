@@ -40,8 +40,12 @@ def get_player(
 
 
 @router.get("/players/{player_id}/shyfts", response_model=list[ShyftRead])
-def get_player_signal_feed(player_id: int, db: Session = Depends(get_db)) -> list[ShyftRead]:
-    return get_player_shyfts(db, player_id)
+def get_player_signal_feed(
+    player_id: int,
+    limit: int = Query(default=50, ge=1, le=100),
+    db: Session = Depends(get_db),
+) -> list[ShyftRead]:
+    return get_player_shyfts(db, player_id, limit=limit)
 
 
 @router.get("/players/{player_id}/gamelog", response_model=list[GameLogRow])

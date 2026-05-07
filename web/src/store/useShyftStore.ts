@@ -126,6 +126,22 @@ function patchFeedItem(item: FeedItem, shyftId: number, patch: Partial<Pick<Shyf
 
 let fetchSeq = 0;
 
+function filtersKey(filters: ShyftFilters): string {
+  return JSON.stringify({
+    league: filters.league ?? null,
+    shyft_type: filters.shyft_type ?? null,
+    player: filters.player ?? null,
+    sort: filters.sort ?? null,
+    feed: filters.feed ?? null,
+    date_from: filters.date_from ?? null,
+    date_to: filters.date_to ?? null,
+  });
+}
+
+function sameFilters(left: ShyftFilters, right: ShyftFilters): boolean {
+  return filtersKey(left) === filtersKey(right);
+}
+
 function extractShyftMeta(signal: Shyft): Pick<Shyft, 'comment_count' | 'reaction_summary' | 'user_reaction' | 'reactions' | 'user_reactions'> {
   const reactions = normalizeReactions(signal);
   return {
@@ -165,11 +181,14 @@ export const useShyftStore = create<ShyftStore>((set, get) => ({
   profile: null,
   shyftMetaById: {},
 
-  setFilters: (filters) => set({ filters, shyfts: [], hasMore: false, nextCursor: null }),
+  setFilters: (filters) => {
+    if (sameFilters(get().filters, filters)) return;
+    set({ filters, shyfts: [], hasMore: false, nextCursor: null });
+  },
 
   fetchShyfts: async () => {
     const seq = ++fetchSeq;
-    set({ loadingInitial: true, loading: true, error: null, shyfts: [], hasMore: false, nextCursor: null });
+    set({ loadingInitial: true, loadingMore: false, loading: true, error: null, shyfts: [], hasMore: false, nextCursor: null });
     try {
       const page = await api.getShyfts(get().filters);
       if (seq !== fetchSeq) return;
@@ -191,9 +210,15 @@ export const useShyftStore = create<ShyftStore>((set, get) => ({
   loadMore: async () => {
     const { loadingMore, hasMore, nextCursor, filters, shyfts } = get();
     if (loadingMore || !hasMore || nextCursor == null) return;
+    const seq = fetchSeq;
+    const expectedFilters = filtersKey(filters);
     set({ loadingMore: true });
     try {
       const page = await api.getShyfts(filters, nextCursor);
+      if (seq !== fetchSeq || filtersKey(get().filters) !== expectedFilters) {
+        set({ loadingMore: false });
+        return;
+      }
       set({
         shyfts: [...shyfts, ...page.items],
         hasMore: page.has_more,
@@ -203,6 +228,10 @@ export const useShyftStore = create<ShyftStore>((set, get) => ({
         loadingMore: false,
       });
     } catch (error) {
+      if (seq !== fetchSeq || filtersKey(get().filters) !== expectedFilters) {
+        set({ loadingMore: false });
+        return;
+      }
       set({ error: error instanceof Error ? error.message : 'Load more failed.', loadingMore: false });
     }
   },

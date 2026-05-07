@@ -2,7 +2,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
 
 from app.db.base import Base
@@ -10,11 +10,15 @@ from app.services.auth_service import (
     AuthError,
     authenticate_user,
     change_password,
+    consume_password_reset_token,
+    create_password_reset_token,
     create_user,
     create_user_session,
     get_user_by_session_token,
     revoke_session,
 )
+from app.models.password_reset_token import PasswordResetToken
+from app.models.user_session import UserSession
 from app.services.profile_service import get_profile, remove_follow, set_follow
 from app.services.reaction_service import (
     remove_signal_reaction,
@@ -194,6 +198,32 @@ class AuthReactionServiceTests(unittest.TestCase):
         with self.assertRaises(AuthError):
             authenticate_user(self.session, email="pwchange@example.com", password="password123")
         authenticated = authenticate_user(self.session, email="pwchange@example.com", password="newpass456")
+        self.assertEqual(authenticated.id, user.id)
+
+    def test_password_reset_replaces_old_tokens_and_revokes_sessions(self) -> None:
+        user = create_user(self.session, email="reset@example.com", password="password123")
+        session_token = create_user_session(self.session, user_id=user.id)
+
+        stale_token = create_password_reset_token(self.session, email="reset@example.com")
+        fresh_token = create_password_reset_token(self.session, email="reset@example.com")
+
+        self.assertIsNotNone(stale_token)
+        self.assertIsNotNone(fresh_token)
+        self.assertEqual(
+            self.session.execute(select(func.count()).select_from(PasswordResetToken)).scalar_one(),
+            1,
+        )
+        with self.assertRaises(AuthError):
+            consume_password_reset_token(self.session, token=stale_token, new_password="newpass456")
+
+        consume_password_reset_token(self.session, token=fresh_token, new_password="newpass456")
+
+        self.assertEqual(
+            self.session.execute(select(func.count()).select_from(UserSession)).scalar_one(),
+            0,
+        )
+        self.assertIsNone(get_user_by_session_token(self.session, session_token))
+        authenticated = authenticate_user(self.session, email="reset@example.com", password="newpass456")
         self.assertEqual(authenticated.id, user.id)
 
     def test_follow_round_trip_updates_profile_and_following_feed(self) -> None:
