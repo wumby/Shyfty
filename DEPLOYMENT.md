@@ -31,6 +31,9 @@ Backend:
 - `SYNC_LOOKBACK_DAYS=1`
 - `SYNC_LOOKAHEAD_DAYS=1`
 - `STAT_CORRECTION_LOOKBACK_HOURS=48`
+- `RETENTION_SPORTS_DAYS=60`
+- `RETENTION_RAW_INGEST_DAYS=14`
+- `RETENTION_INGEST_RUN_DAYS=90`
 
 Frontend:
 - `VITE_API_BASE_URL=https://your-backend-domain.com/api`
@@ -102,6 +105,26 @@ Railway option:
 Manual one-off ingest:
 - `python -m app.ingest.cli sync --league NBA --from YYYY-MM-DD --to YYYY-MM-DD`
 - `python -m app.ingest.cli sync --league NBA --from YYYY-MM-DD --to YYYY-MM-DD --force`
+
+## Scheduled Retention Job
+
+Run retention as a separate scheduled job after ingest. This keeps the database bounded without deleting durable users, leagues, teams, players, follows, preferences, sessions, or sync checkpoints.
+
+Recommended command:
+- `python -m app.cli.prune_data`
+
+Dry run before enabling the cron:
+- `python -m app.cli.prune_data --dry-run`
+
+Default retention windows:
+- sports game facts, Shyfts, comments, reactions, reports, rolling metrics, and stats older than `RETENTION_SPORTS_DAYS=60`
+- raw ingest payload rows older than `RETENTION_RAW_INGEST_DAYS=14`
+- ingest run audit rows older than `RETENTION_INGEST_RUN_DAYS=90`
+
+Railway option:
+1. Create a separate scheduled job using the same `backend/` root and env vars as ingest.
+2. Schedule it daily or weekly after the ingest job.
+3. Keep the retention values in env so they can be tuned without a deploy.
 
 ## Idempotency Notes
 

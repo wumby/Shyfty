@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     sync_lookback_days: int = 1
     sync_lookahead_days: int = 1
     stat_correction_lookback_hours: int = 48
+    retention_sports_days: int = 60
+    retention_raw_ingest_days: int = 14
+    retention_ingest_run_days: int = 90
     enable_nba_sync: bool = True
     enable_nfl_sync: bool = False
     session_secret: str = "dev-session-secret-change-me"

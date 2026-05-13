@@ -77,6 +77,23 @@ If an older local database still contains legacy seeded rows, especially fake NF
 - Wipe all sports data and sync tracking while keeping user/auth tables:
   `python scripts/reset_data.py --mode sports-data`
 
+## Retention Workflow
+
+Routine cleanup is handled by a bounded prune command:
+
+- Preview deletes:
+  `python3 scripts/prune_data.py --dry-run`
+- Apply configured retention:
+  `python3 scripts/prune_data.py`
+
+Defaults:
+
+- `RETENTION_SPORTS_DAYS=60` for old games, stats, rolling metrics, Shyfts, comments, reactions, and reports
+- `RETENTION_RAW_INGEST_DAYS=14` for raw ingest payload rows
+- `RETENTION_INGEST_RUN_DAYS=90` for ingest run audit rows
+
+The prune command intentionally keeps users, leagues, teams, players, follows, preferences, sessions, and sync checkpoints.
+
 ## Web Setup
 
 1. `cd web`

@@ -39,7 +39,7 @@ class RawIngestEvent(Base):
 
     # Timestamps
     event_timestamp: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    ingested_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    ingested_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, index=True)
 
     # Full raw payload as JSON text — the exact bytes received from the source
     raw_payload: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

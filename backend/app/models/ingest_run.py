@@ -11,7 +11,7 @@ class IngestRun(Base):
     __tablename__ = "ingest_runs"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    started_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
     finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="running")
     error_message: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
