@@ -11,6 +11,7 @@ from app.db.base import Base
 from app.models.game import Game
 from app.models.league import League
 from app.models.team import Team
+from app.ingest.providers import ProviderGameDetail
 from app.services import schedule_sync_service as svc
 
 
@@ -33,6 +34,21 @@ class _FakeProvider:
 
     def fetch_game_detail(self, external_game_id: str):
         raise NotImplementedError
+
+
+class _LiveProvider(_FakeProvider):
+    def fetch_game_detail(self, external_game_id: str):
+        return ProviderGameDetail(
+            game=svc.ProviderGame(
+                league="nba",
+                external_game_id=external_game_id,
+                game_date=date.today(),
+                status="live",
+                home_team_external_id="h1",
+                away_team_external_id="a1",
+            ),
+            payload={"game_id": external_game_id, "traditional": {}, "advanced": {}, "usage": {}},
+        )
 
 
 class ScheduleSyncServiceTests(unittest.TestCase):
@@ -100,6 +116,22 @@ class ScheduleSyncServiceTests(unittest.TestCase):
             last_hydrated_at=datetime.utcnow() - timedelta(days=20),
         )
         self.assertTrue(svc.needs_hydration(game, now=datetime.utcnow(), force=False))
+
+    def test_hydration_skips_non_final_details(self) -> None:
+        with patch("app.services.schedule_sync_service.SessionLocal", self.session_factory):
+            with patch("app.services.schedule_sync_service._get_provider", return_value=_LiveProvider()):
+                svc.discover_schedule(league="nba")
+                result = svc.hydrate_games(league="nba")
+
+        self.assertEqual(result.hydrated_games, 0)
+        self.assertEqual(result.player_stats_loaded, 0)
+        self.assertEqual(result.team_stats_loaded, 0)
+
+        with self.session_factory() as db:
+            game = db.execute(select(Game)).scalar_one()
+            self.assertEqual(game.status, "live")
+            self.assertIsNone(game.last_hydrated_at)
+            self.assertIsNotNone(game.last_synced_at)
 
 
 if __name__ == "__main__":

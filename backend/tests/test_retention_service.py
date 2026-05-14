@@ -22,7 +22,7 @@ from app.models.shyft_reaction import ShyftReactionRecord
 from app.models.team import Team
 from app.models.team_game_stat import TeamGameStat
 from app.models.user import User
-from app.services.retention_service import prune_retained_data
+from app.services.retention_service import cleanup_non_final_generated_data, prune_retained_data
 
 
 class RetentionServiceTests(unittest.TestCase):
@@ -249,6 +249,122 @@ class RetentionServiceTests(unittest.TestCase):
         self.assertEqual(self._count(CommentReport), 0)
         self.assertEqual(self._count(RawIngestEvent), 1)
         self.assertEqual(self._count(IngestRun), 1)
+
+    def test_non_final_cleanup_removes_live_generated_data_but_keeps_unknown(self) -> None:
+        ids = self._seed_dataset()
+        now = ids["now"]
+
+        league = self.session.execute(select(League).where(League.name == "NBA")).scalar_one()
+        teams = self.session.execute(select(Team).where(Team.league_id == league.id)).scalars().all()
+        player = self.session.get(Player, ids["player_id"])
+
+        live_game = Game(
+            league_id=league.id,
+            game_date=now.date(),
+            home_team_id=teams[0].id,
+            away_team_id=teams[1].id,
+            external_game_id="live-game",
+            status="live",
+        )
+        unknown_game = Game(
+            league_id=league.id,
+            game_date=now.date(),
+            home_team_id=teams[0].id,
+            away_team_id=teams[1].id,
+            external_game_id="unknown-game",
+            status="unknown",
+        )
+        self.session.add_all([live_game, unknown_game])
+        self.session.flush()
+
+        live_stat = PlayerGameStat(player_id=player.id, game_id=live_game.id, points=10)
+        unknown_stat = PlayerGameStat(player_id=player.id, game_id=unknown_game.id, points=20)
+        self.session.add_all([live_stat, unknown_stat])
+        self.session.flush()
+
+        live_metric = RollingMetric(
+            player_id=player.id,
+            game_id=live_game.id,
+            source_stat_id=live_stat.id,
+            metric_name="points",
+            rolling_avg=20,
+            rolling_stddev=3,
+            z_score=-3,
+            updated_at=now,
+        )
+        unknown_metric = RollingMetric(
+            player_id=player.id,
+            game_id=unknown_game.id,
+            source_stat_id=unknown_stat.id,
+            metric_name="points",
+            rolling_avg=20,
+            rolling_stddev=3,
+            z_score=2,
+            updated_at=now,
+        )
+        self.session.add_all([live_metric, unknown_metric])
+        self.session.flush()
+
+        live_shyft = Shyft(
+            player_id=player.id,
+            game_id=live_game.id,
+            rolling_metric_id=live_metric.id,
+            source_stat_id=live_stat.id,
+            team_id=teams[0].id,
+            league_id=league.id,
+            subject_type="player",
+            shyft_type="OUTLIER",
+            metric_name="points",
+            current_value=10,
+            baseline_value=20,
+            z_score=-3,
+            explanation="live",
+            created_at=now,
+        )
+        unknown_shyft = Shyft(
+            player_id=player.id,
+            game_id=unknown_game.id,
+            rolling_metric_id=unknown_metric.id,
+            source_stat_id=unknown_stat.id,
+            team_id=teams[0].id,
+            league_id=league.id,
+            subject_type="player",
+            shyft_type="OUTLIER",
+            metric_name="points",
+            current_value=20,
+            baseline_value=10,
+            z_score=2,
+            explanation="unknown",
+            created_at=now,
+        )
+        self.session.add_all([live_shyft, unknown_shyft])
+        self.session.flush()
+        live_game_id = live_game.id
+        unknown_game_id = unknown_game.id
+        live_stat_id = live_stat.id
+        unknown_stat_id = unknown_stat.id
+        live_shyft_id = live_shyft.id
+        unknown_shyft_id = unknown_shyft.id
+        self.session.commit()
+
+        result = cleanup_non_final_generated_data(self.session)
+
+        self.assertEqual(result.games_touched, 1)
+        self.assertEqual(result.player_stats_deleted, 1)
+        self.assertEqual(result.rolling_metrics_deleted, 1)
+        self.assertEqual(result.shyfts_deleted, 1)
+        self.assertIsNotNone(self.session.get(Game, live_game_id))
+        self.assertIsNone(self.session.get(PlayerGameStat, live_stat_id))
+        self.assertIsNone(self.session.get(Shyft, live_shyft_id))
+        self.assertIsNotNone(self.session.get(Game, unknown_game_id))
+        self.assertIsNotNone(self.session.get(PlayerGameStat, unknown_stat_id))
+        self.assertIsNotNone(self.session.get(Shyft, unknown_shyft_id))
+
+    def test_non_final_cleanup_refuses_unknown_status(self) -> None:
+        self._seed_dataset()
+
+        with self.assertRaises(ValueError):
+            cleanup_non_final_generated_data(self.session, statuses=("unknown",))
 
 
 if __name__ == "__main__":

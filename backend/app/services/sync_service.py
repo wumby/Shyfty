@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from typing import Iterable, Literal, Optional
 
 from sqlalchemy import select
@@ -156,7 +156,10 @@ def _run_nba_sync(
     season: Optional[str],
 ) -> SourceSyncResult:
     from app.services.schedule_sync_service import sync_league
-    result = sync_league(league="nba", force=(mode == "bootstrap"))
+    today = date.today()
+    start_date = today - timedelta(days=max(0, days_back))
+    end_date = today + timedelta(days=max(0, int(settings.sync_lookahead_days)))
+    result = sync_league(league="nba", start_date=start_date, end_date=end_date, force=(mode == "bootstrap"))
     with SessionLocal() as db:
         processed_at = datetime.utcnow()
         _upsert_checkpoint(

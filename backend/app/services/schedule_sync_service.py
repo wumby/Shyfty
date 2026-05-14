@@ -224,12 +224,21 @@ def hydrate_games(
             except Exception as exc:
                 logger.warning("Skipping hydration for game %s (%s): %s", game.external_game_id, game.game_date, exc)
                 continue
-            load = load_nba_games_incremental(db, game_payloads=[detail.payload])
-            game.last_hydrated_at = now
-            game.last_synced_at = now
             game.status = detail.game.status
             if detail.game.source_updated_at is not None:
                 game.source_updated_at = detail.game.source_updated_at
+            if detail.game.status != "final":
+                game.last_synced_at = now
+                logger.info(
+                    "Skipping hydration for non-final game %s (%s): status=%s",
+                    game.external_game_id,
+                    game.game_date,
+                    detail.game.status,
+                )
+                continue
+            load = load_nba_games_incremental(db, game_payloads=[detail.payload])
+            game.last_hydrated_at = now
+            game.last_synced_at = now
             hydrated += 1
             total_players += load.players_loaded
             total_team_stats += load.team_stats_loaded
@@ -238,11 +247,11 @@ def hydrate_games(
             affected_team_ids.update(load.affected_team_ids)
             affected_game_ids.update(load.affected_game_ids)
 
-        sig: SignalGenerationResult
+        sig: ShyftGenerationResult
         if affected_player_ids or affected_team_ids:
             sig = generate_shyfts_for_players(db, list(affected_player_ids), team_ids=list(affected_team_ids))
         else:
-            sig = SignalGenerationResult()
+            sig = ShyftGenerationResult()
         db.commit()
 
     logger.info(

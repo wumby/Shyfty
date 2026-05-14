@@ -139,7 +139,10 @@ def _upsert_game(
 ) -> Game:
     season = season_from_date(game_date)
     game = db.execute(
-        select(Game).where(Game.source_system == NBA_SOURCE_SYSTEM, Game.source_id == source_id)
+        select(Game).where(
+            (Game.source_system == NBA_SOURCE_SYSTEM) & (Game.source_id == source_id)
+            | ((Game.league_id == league_id) & (Game.external_game_id == source_id))
+        )
     ).scalar_one_or_none()
     if game is None:
         game = Game(
@@ -619,6 +622,7 @@ def load_nba_games_incremental(
                     home_team_id=home_team_id.id,
                     away_team_id=away_team_id.id,
                     source_id=game_id,
+                    status=game_log_meta.get("status") or "unknown",
                 )
 
         game = game_cache.get(game_id)
